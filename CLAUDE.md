@@ -141,10 +141,15 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 - Windows: `Brytenwally/LegionCore-Build` workflow (step 0). Runs on `windows-2022`: Boost must
   stay 1.84 (the core uses `io_service` / `io_context::strand`, removed in Boost 1.87) and
   Boost 1.84 does not know VS 2026. See that repo's `CLAUDE.md`.
+- The fork's history is one squashed snapshot (`3b20490`). That snapshot did not compile:
+  `instance_auchindoun.cpp` called a missing `Spell::GetRemainingCastTime()` (added to
+  `Spell.h`, as in TrinityCore). Expect more such gaps; fix them as small topic commits.
 - Linux quick check: `apt-get install cmake g++ libboost-all-dev libssl-dev libmysqlclient-dev
   libreadline-dev libbz2-dev zlib1g-dev`, `cmake -S . -B <scratch>/build -DTOOLS=0`, then
   `make <path>.o` inside the target's build folder (e.g. `src/server/scripts`) to compile single
-  files with the PCH. A full build was not tried (hours on 4 cores).
+  files with the PCH. After changing a header, delete the build's `*.gch` files first: make
+  does not rebuild the PCH for a single-object target. A full build was not tried (hours on 4
+  cores).
 
 ## Plan (agreed outline)
 
