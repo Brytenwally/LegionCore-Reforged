@@ -44,7 +44,7 @@ These are the ones this project writes to (commit and push to `main`).
 | --- | --- |
 | `Brytenwally/LegionCore-Reforged` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
 | `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` once the module system exists (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md` once started. Empty as of 2026-11-01. |
-| `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md` once started. Empty as of 2026-11-01. |
+| `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
 
 ## Related repositories
 
@@ -115,12 +115,43 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 - Maps update on several threads: cross-map bot actions (summon, teleport, invites, logout)
   must be queued to the right thread or done from a world-level update.
 
-## Plan (agreed outline; nothing implemented yet)
+## Module system (step 1, implemented 2026-11-01)
+
+- `modules/<folder>` with a `src/` directory is a **script module** (`cmake/macros/
+  ConfigureScripts.cmake`: `GetModuleFolderList`, `ModuleFolderToScriptModule`,
+  `GetModuleFolderOfScriptModule`; `GetScriptModuleList` / `GetPathToScriptModule` include
+  them). Name = folder with non-alphanumerics as `_`; loader `Add<name>Scripts()` is called by
+  the generated script loader (`Addmod_playerbotsScripts` for `mod-playerbots`). Linkage per
+  module: `SCRIPTS_MOD_<NAME>` = default/static/dynamic/disabled; `-DMODULES=0` drops all.
+- `src/server/scripts/CMakeLists.txt`: module `src/` subfolders are include dirs;
+  `conf/*.conf.dist` staged next to the worldserver (POST_BUILD on `scripts`) and installed.
+- Config: `sConfigMgr->LoadModuleConfig("<name>.conf", error)` (core hook in
+  `src/common/Configuration/Config.cpp`) merges `<name>.conf.dist` then `<name>.conf` from the
+  main config's folder; `Reload()` re-merges them. Call it in the loader; read values in
+  `WorldScript::OnConfigLoad` (runs after the loaders, and on reload). Files need a section
+  header (`[worldserver]`).
+- Module SQL: not hooked into the updater; modules create their tables from code at startup.
+- `modules/mod-example`: minimal module (config, startup log, `.example` GM command).
+- Checked in the cloud container: CMake configure (static, dynamic, MODULES=0) and compiling
+  `Config.cpp` and `mod_example.cpp` with the scripts PCH, on Ubuntu 24.04 apt packages
+  (cmake 3.28, g++ 13, Boost 1.83). Runtime untested (no server/DB).
+
+## Building
+
+- Windows: `Brytenwally/LegionCore-Build` workflow (step 0). Runs on `windows-2022`: Boost must
+  stay 1.84 (the core uses `io_service` / `io_context::strand`, removed in Boost 1.87) and
+  Boost 1.84 does not know VS 2026. See that repo's `CLAUDE.md`.
+- Linux quick check: `apt-get install cmake g++ libboost-all-dev libssl-dev libmysqlclient-dev
+  libreadline-dev libbz2-dev zlib1g-dev`, `cmake -S . -B <scratch>/build -DTOOLS=0`, then
+  `make <path>.o` inside the target's build folder (e.g. `src/server/scripts`) to compile single
+  files with the PCH. A full build was not tried (hours on 4 cores).
+
+## Plan (agreed outline)
 
 | Step | Result | Size |
 | --- | --- | --- |
-| 0 | Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
-| 1 | Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
+| 0 | **Implemented 2026-11-01.** Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
+| 1 | **Implemented 2026-11-01** (see above). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
 | 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
@@ -131,8 +162,3 @@ Legion differences to plan for: artifacts (weapon, traits, relics, Knowledge tie
 tiers plus PvP talents, class resources (Maelstrom, Insanity, Fury, Pain, Astral Power...),
 secondary stats crit/haste/mastery/versatility only, item level from bonus IDs, Legion phasing.
 
-## Checking
-
-No build has been done in the cloud container yet. TrinityCore-era code may build on Linux
-with distro packages (check Reforged's requirements first); otherwise verify through the build
-workflow (step 0).
