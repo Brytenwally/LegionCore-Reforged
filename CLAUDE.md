@@ -36,10 +36,20 @@ Full features take months; the owner wants baby steps, one working milestone at 
 - No server, database or client in the cloud container: runtime behaviour is untested there;
   say so when reporting.
 
+## This project's repositories
+
+These are the ones this project writes to (commit and push to `main`).
+
+| Repo | Role |
+| --- | --- |
+| `Brytenwally/LegionCore-Reforged` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
+| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` once the module system exists (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md` once started. Empty as of 2026-11-01. |
+| `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md` once started. Empty as of 2026-11-01. |
+
 ## Related repositories
 
 **All of them are read-only references for this project.** Read them to see how something was
-done, then write it here (or in this project's own module repos). Never commit, push, open PRs
+done, then write it in this project's repositories above. Never commit, push, open PRs
 or run builds in the SkyFire repos, LegionCore-7.3.5 or mod-playerbots from a Reforged session.
 
 | Repo | Role |
@@ -109,10 +119,10 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 
 | Step | Result | Size |
 | --- | --- | --- |
-| 0 | Windows build workflow for Reforged (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
+| 0 | Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
-| 3 | Port the SkyFire-playerbots skeleton as a module: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
+| 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bots, BG/arena, questing | months |
