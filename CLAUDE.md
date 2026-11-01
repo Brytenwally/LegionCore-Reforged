@@ -43,7 +43,7 @@ These are the ones this project writes to (commit and push to `main`).
 | Repo | Role |
 | --- | --- |
 | `Brytenwally/LegionCore-Reforged` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
-| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` once the module system exists (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md` once started. Empty as of 2026-11-01. |
+| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. Skeleton only (loader, config, startup log) as of 2026-11-01. |
 | `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
 
 ## Related repositories
@@ -115,7 +115,7 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 - Maps update on several threads: cross-map bot actions (summon, teleport, invites, logout)
   must be queued to the right thread or done from a world-level update.
 
-## Module system (step 1, implemented 2026-11-01)
+## Module system (step 1, done 2026-11-01)
 
 - `modules/<folder>` with a `src/` directory is a **script module** (`cmake/macros/
   ConfigureScripts.cmake`: `GetModuleFolderList`, `ModuleFolderToScriptModule`,
@@ -134,11 +134,13 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 - `modules/mod-example`: minimal module (config, startup log, `.example` GM command).
 - Checked in the cloud container: CMake configure (static, dynamic, MODULES=0) and compiling
   `Config.cpp` and `mod_example.cpp` with the scripts PCH, on Ubuntu 24.04 apt packages
-  (cmake 3.28, g++ 13, Boost 1.83). Runtime untested (no server/DB).
+  (cmake 3.28, g++ 13, Boost 1.83); the Windows build compiles and links both modules and
+  packages their `.conf.dist`. Runtime untested (no server/DB).
 
 ## Building
 
-- Windows: `Brytenwally/LegionCore-Build` workflow (step 0). Runs on `windows-2022`: Boost must
+- Windows: `Brytenwally/LegionCore-Build` workflow (step 0). First green build 2026-11-01
+  (run #3: core `56ca66e` + playerbots `5680c13`, both modules compiled in, ~25 min). Runs on `windows-2022`: Boost must
   stay 1.84 (the core uses `io_service` / `io_context::strand`, removed in Boost 1.87) and
   Boost 1.84 does not know VS 2026. See that repo's `CLAUDE.md`.
 - The fork's history is one squashed snapshot (`3b20490`). That snapshot did not compile:
@@ -155,8 +157,8 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 
 | Step | Result | Size |
 | --- | --- | --- |
-| 0 | **Implemented 2026-11-01.** Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
-| 1 | **Implemented 2026-11-01** (see above). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
+| 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
+| 1 | **Done 2026-11-01** (see above; builds on Windows, runtime untested). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
 | 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
