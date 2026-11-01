@@ -17,7 +17,8 @@ Full features take months; the owner wants baby steps, one working milestone at 
   artifact acquisition, artifact scenarios, Legion dungeon/raid fixes, likely the zone
   questlines). See "LegionCore-7.3.5" below before touching that.
 - Playerbots are ported from **SkyFire-playerbots** (5.4.8), not written from scratch and not
-  from LegionBotAI.
+  from LegionBotAI. The SkyFire repos are reference manuals only: their code is read and
+  rewritten for Legion here, never changed there.
 
 ## Rules (shared with the owner's other repos)
 
@@ -37,13 +38,17 @@ Full features take months; the owner wants baby steps, one working milestone at 
 
 ## Related repositories
 
+**All of them are read-only references for this project.** Read them to see how something was
+done, then write it here (or in this project's own module repos). Never commit, push, open PRs
+or run builds in the SkyFire repos, LegionCore-7.3.5 or mod-playerbots from a Reforged session.
+
 | Repo | Role |
 | --- | --- |
-| `Brytenwally/SkyFire-playerbots` | The 5.4.8 playerbots module to port from (~25k lines). Its `CLAUDE.md` documents every system (strategy engine `co`/`nc`, chat orders, gear/autogear with stat weights, maintenance, enchants/gems, loot rolls, auto-equip, alts, quests, LFG). `upstream-pr` branch = clean history. |
-| `Brytenwally/SkyFire_548` | 5.4.8 core: reference for the module system (`modules/<name>/src`, `Add<name>Scripts`) and the bot hooks (`WorldSession::IsBot`, socketless bot sessions). |
-| `Brytenwally/SkyFire-build` | GitHub Actions Windows build of SkyFire: template for a Reforged build workflow. |
-| `Brytenwally/LegionCore-7.3.5` | Sibling fork of the same base (read for reference). Has LegionBotAI (`src/server/scripts/Custom/LegionBotAI.cpp`, `LegionBotMgr.cpp`): useful only to see how a character is loaded into the world on this core. |
-| `Brytenwally/mod-playerbots` (branch `coa`) | AzerothCore 3.3.5 playerbots: read-only reference for behaviour. Never build or change it. |
+| `Brytenwally/SkyFire-playerbots` | Read-only reference. The 5.4.8 playerbots module to port from (~25k lines). Its `CLAUDE.md` documents every system (strategy engine `co`/`nc`, chat orders, gear/autogear with stat weights, maintenance, enchants/gems, loot rolls, auto-equip, alts, quests, LFG). `upstream-pr` branch = clean history. |
+| `Brytenwally/SkyFire_548` | Read-only reference. 5.4.8 core: shows the module system (`modules/<name>/src`, `Add<name>Scripts`) and the bot hooks (`WorldSession::IsBot`, socketless bot sessions). |
+| `Brytenwally/SkyFire-build` | Read-only reference. GitHub Actions Windows build of SkyFire: the pattern for a Reforged build workflow (written in this project's own repo, not there). |
+| `Brytenwally/LegionCore-7.3.5` | Read-only reference. Sibling fork of the same base. Has LegionBotAI (`src/server/scripts/Custom/LegionBotAI.cpp`, `LegionBotMgr.cpp`): useful only to see how a character is loaded into the world on this core. |
+| `Brytenwally/mod-playerbots` (branch `coa`) | Read-only reference. AzerothCore 3.3.5 playerbots: how features behave. Never build it. |
 
 ## Findings about this codebase (2026-11-01 survey)
 
