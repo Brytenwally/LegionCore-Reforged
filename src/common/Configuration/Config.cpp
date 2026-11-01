@@ -17,6 +17,7 @@
  */
 
 #include <algorithm>
+#include <fstream>
 #include <mutex>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -29,7 +30,54 @@ namespace
     std::string _filename;
     std::vector<std::string> _args;
     boost::property_tree::ptree _config;
+    std::vector<std::string> _moduleConfigs;
     std::mutex _configLock;
+
+    // Reads one ini file and copies its keys over the loaded config.
+    bool MergeConfigFile(std::string const& file, std::string& error)
+    {
+        try
+        {
+            bpt::ptree fullTree;
+            read_ini(file, fullTree);
+            for (auto const& section : fullTree)
+                for (auto const& entry : section.second)
+                    _config.put(bpt::ptree::path_type(entry.first, '/'), entry.second.data());
+        }
+        catch (bpt::ini_parser::ini_parser_error const& e)
+        {
+            if (e.line() == 0)
+                error = e.message() + " (" + e.filename() + ")";
+            else
+                error = e.message() + " (" + e.filename() + ":" + std::to_string(e.line()) + ")";
+            return false;
+        }
+        return true;
+    }
+
+    // Merges <dir of the main config>/<name>.dist, then <name>, when they exist.
+    bool MergeModuleConfig(std::string const& name, std::string& error)
+    {
+        std::string::size_type const slash = _filename.find_last_of("/\\");
+        std::string const path = (slash != std::string::npos ? _filename.substr(0, slash + 1) : std::string()) + name;
+
+        bool found = false;
+        for (std::string const& file : { path + ".dist", path })
+        {
+            std::ifstream stream(file);
+            if (!stream.is_open())
+                continue;
+            stream.close();
+
+            found = true;
+            if (!MergeConfigFile(file, error))
+                return false;
+        }
+
+        if (!found)
+            error = "neither " + path + ".dist nor " + path + " exists";
+        return found;
+    }
 }
 
 bool ConfigMgr::LoadInitial(std::string file, std::vector<std::string> args, std::string& error)
@@ -73,7 +121,25 @@ ConfigMgr* ConfigMgr::instance()
 
 bool ConfigMgr::Reload(std::string& error)
 {
-    return LoadInitial(_filename, std::move(_args), error);
+    if (!LoadInitial(_filename, std::move(_args), error))
+        return false;
+
+    std::lock_guard<std::mutex> lock(_configLock);
+    for (std::string const& name : _moduleConfigs)
+        if (!MergeModuleConfig(name, error))
+            return false;
+
+    return true;
+}
+
+bool ConfigMgr::LoadModuleConfig(std::string const& name, std::string& error)
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+
+    if (std::find(_moduleConfigs.begin(), _moduleConfigs.end(), name) == _moduleConfigs.end())
+        _moduleConfigs.push_back(name);
+
+    return MergeModuleConfig(name, error);
 }
 
 std::string ConfigMgr::GetStringDefault(std::string const& name, const std::string& def)

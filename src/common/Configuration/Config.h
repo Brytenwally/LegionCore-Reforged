@@ -40,6 +40,12 @@ public:
 
     bool Reload(std::string& error);
 
+    /// Loads a module's config file from the folder of the main config: <name>.dist first
+    /// (the defaults shipped with the module), then <name> (the server's own copy) over it.
+    /// Its keys are merged into the main config and loaded again on every Reload().
+    /// Returns false when neither file exists or one cannot be parsed (see error).
+    bool LoadModuleConfig(std::string const& name, std::string& error);
+
     std::string GetStringDefault(std::string const& name, const std::string& def);
     bool GetBoolDefault(std::string const& name, bool def);
     int GetIntDefault(std::string const& name, int def);
