@@ -27,10 +27,61 @@ function(GetScriptsBasePath variable)
   set(${variable} "${CMAKE_SOURCE_DIR}/src/server/scripts" PARENT_SCOPE)
 endfunction()
 
+# Returns the base path to the top-level modules directory in the source directory
+function(GetModulesBasePath variable)
+  set(${variable} "${CMAKE_SOURCE_DIR}/modules" PARENT_SCOPE)
+endfunction()
+
+# Converts a modules/ folder name into its script module name: every character that is
+# not a letter or digit becomes '_' (mod-playerbots -> mod_playerbots, whose loader is
+# Addmod_playerbotsScripts()).
+function(ModuleFolderToScriptModule folder variable)
+  string(REGEX REPLACE "[^a-zA-Z0-9]" "_" SANITIZED "${folder}")
+  set(${variable} "${SANITIZED}" PARENT_SCOPE)
+endfunction()
+
+# Creates a list of the folders under modules/ that hold a src/ directory
+# (empty when the MODULES option is off).
+function(GetModuleFolderList variable)
+  set(${variable})
+  if(MODULES)
+    GetModulesBasePath(MODULES_BASE_PATH)
+    file(GLOB MODULE_FOLDER_CANDIDATES RELATIVE
+      ${MODULES_BASE_PATH}
+      ${MODULES_BASE_PATH}/*)
+    foreach(MODULE_FOLDER ${MODULE_FOLDER_CANDIDATES})
+      if(IS_DIRECTORY "${MODULES_BASE_PATH}/${MODULE_FOLDER}/src")
+        list(APPEND ${variable} ${MODULE_FOLDER})
+      endif()
+    endforeach()
+  endif()
+  set(${variable} ${${variable}} PARENT_SCOPE)
+endfunction()
+
+# Stores the modules/ folder of the given script module in the variable,
+# or an empty string when the script module lives in src/server/scripts.
+function(GetModuleFolderOfScriptModule module variable)
+  set(${variable} "" PARENT_SCOPE)
+  GetModuleFolderList(MODULE_FOLDER_LIST)
+  foreach(MODULE_FOLDER ${MODULE_FOLDER_LIST})
+    ModuleFolderToScriptModule(${MODULE_FOLDER} MODULE_NAME)
+    if(MODULE_NAME STREQUAL module)
+      set(${variable} "${MODULE_FOLDER}" PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+endfunction()
+
 # Stores the absolut path of the given module in the variable
 function(GetPathToScriptModule module variable)
-  GetScriptsBasePath(SCRIPTS_BASE_PATH)
-  set(${variable} "${SCRIPTS_BASE_PATH}/${module}" PARENT_SCOPE)
+  GetModuleFolderOfScriptModule(${module} MODULE_FOLDER)
+  if(MODULE_FOLDER)
+    GetModulesBasePath(MODULES_BASE_PATH)
+    set(${variable} "${MODULES_BASE_PATH}/${MODULE_FOLDER}/src" PARENT_SCOPE)
+  else()
+    GetScriptsBasePath(SCRIPTS_BASE_PATH)
+    set(${variable} "${SCRIPTS_BASE_PATH}/${module}" PARENT_SCOPE)
+  endif()
 endfunction()
 
 # Stores the project name of the given module in the variable
@@ -53,6 +104,13 @@ function(GetScriptModuleList variable)
     if (IS_DIRECTORY ${SCRIPT_MODULE_PATH})
       list(APPEND ${variable} ${SCRIPT_MODULE})
     endif()
+  endforeach()
+  # Every modules/<folder> with a src/ directory is a script module too
+  # (see modules/README.md).
+  GetModuleFolderList(MODULE_FOLDER_LIST)
+  foreach(MODULE_FOLDER ${MODULE_FOLDER_LIST})
+    ModuleFolderToScriptModule(${MODULE_FOLDER} MODULE_NAME)
+    list(APPEND ${variable} ${MODULE_NAME})
   endforeach()
   set(${variable} ${${variable}} PARENT_SCOPE)
 endfunction()

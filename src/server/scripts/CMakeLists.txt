@@ -146,6 +146,12 @@ foreach(SCRIPT_MODULE ${SCRIPT_MODULE_LIST})
       list(APPEND STATIC_SCRIPT_MODULES ${SCRIPT_MODULE})
       # Add the module content to the whole static module
       CollectSourceFiles(${SCRIPT_MODULE_PATH} PRIVATE_SOURCES)
+      # Modules from modules/ include their own headers by name, from any subfolder
+      GetModuleFolderOfScriptModule(${SCRIPT_MODULE} MODULE_FOLDER)
+      if(MODULE_FOLDER)
+        CollectIncludeDirectories(${SCRIPT_MODULE_PATH} STATIC_MODULE_INCLUDES)
+        list(APPEND ENABLED_MODULE_FOLDERS ${MODULE_FOLDER})
+      endif()
     endif()
   elseif(${SCRIPT_MODULE_VARIABLE} STREQUAL "dynamic")
     # Generate an own dynamic module which is loadable on runtime
@@ -172,6 +178,16 @@ foreach(SCRIPT_MODULE ${SCRIPT_MODULE_LIST})
         ${CMAKE_CURRENT_SOURCE_DIR}
       PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR})
+
+    GetModuleFolderOfScriptModule(${SCRIPT_MODULE} MODULE_FOLDER)
+    if(MODULE_FOLDER)
+      unset(DYNAMIC_MODULE_INCLUDES)
+      CollectIncludeDirectories(${SCRIPT_MODULE_PATH} DYNAMIC_MODULE_INCLUDES)
+      target_include_directories(${SCRIPT_MODULE_PROJECT_NAME}
+        PRIVATE
+          ${DYNAMIC_MODULE_INCLUDES})
+      list(APPEND ENABLED_MODULE_FOLDERS ${MODULE_FOLDER})
+    endif()
 
     set_target_properties(${SCRIPT_MODULE_PROJECT_NAME}
       PROPERTIES
@@ -219,7 +235,8 @@ target_include_directories(scripts
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE
-    ${CMAKE_CURRENT_BINARY_DIR})
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${STATIC_MODULE_INCLUDES})
 
 set_target_properties(scripts
   PROPERTIES
@@ -230,6 +247,30 @@ if(USE_SCRIPTPCH)
   add_cxx_pch("scripts" ${PRIVATE_PCH_HEADER} ${DYNAMIC_SCRIPT_MODULE_PROJECTS})
   reuse_cxx_pch("${DYNAMIC_SCRIPT_MODULE_PROJECTS}" scripts)
 endif()
+
+# Module config files: every modules/<folder>/conf/*.conf.dist is staged next to the
+# worldserver binary and installed beside worldserver.conf.dist. A module loads it with
+# sConfigMgr->LoadModuleConfig("<name>.conf").
+foreach(MODULE_FOLDER ${ENABLED_MODULE_FOLDERS})
+  GetModulesBasePath(MODULES_BASE_PATH)
+  file(GLOB MODULE_CONF_FILES ${MODULES_BASE_PATH}/${MODULE_FOLDER}/conf/*.conf.dist)
+  foreach(MODULE_CONF_FILE ${MODULE_CONF_FILES})
+    if(WIN32)
+      if("${CMAKE_MAKE_PROGRAM}" MATCHES "MSBuild")
+        set(MODULE_CONF_STAGE_DIR ${CMAKE_BINARY_DIR}/bin/$(ConfigurationName))
+      else()
+        set(MODULE_CONF_STAGE_DIR ${CMAKE_BINARY_DIR}/bin)
+      endif()
+      add_custom_command(TARGET scripts
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${MODULE_CONF_STAGE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy ${MODULE_CONF_FILE} ${MODULE_CONF_STAGE_DIR}/)
+      install(FILES ${MODULE_CONF_FILE} DESTINATION "${CMAKE_INSTALL_PREFIX}")
+    else()
+      install(FILES ${MODULE_CONF_FILE} DESTINATION ${CONF_DIR})
+    endif()
+  endforeach()
+endforeach()
 
 # Remove all shared libraries in the installl directory which
 # are contained in the static library already.

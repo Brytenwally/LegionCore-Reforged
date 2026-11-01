@@ -1,0 +1,23 @@
+###################################################################################################
+# mod-example configuration
+#
+# Copy this file to example.conf next to worldserver.conf to change a value; the .dist file
+# is read first (defaults), then example.conf over it. ".reload config" reads both again.
+###################################################################################################
+
+[worldserver]
+
+#
+#    Example.Enable
+#        Log a line at startup and answer the ".example" GM command.
+#        Default: 1 - (Enabled)
+#                 0 - (Disabled)
+
+Example.Enable = 1
+
+#
+#    Example.Greeting
+#        Text logged at startup and sent by ".example".
+#        Default: "Hello from mod-example!"
+
+Example.Greeting = "Hello from mod-example!"

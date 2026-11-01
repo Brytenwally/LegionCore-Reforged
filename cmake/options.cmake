@@ -9,6 +9,7 @@
 # implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 option(SERVERS          "Build worldserver and bnetserver"                            1)
+option(MODULES          "Build the modules found in the top-level modules/ directory" 1)
 
 set(SCRIPTS_AVAILABLE_OPTIONS none static dynamic minimal-static minimal-dynamic)
 # Log a fatal error when the value of the SCRIPTS variable isn't a valid option.
