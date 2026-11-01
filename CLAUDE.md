@@ -146,6 +146,13 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 - The fork's history is one squashed snapshot (`3b20490`). That snapshot did not compile:
   `instance_auchindoun.cpp` called a missing `Spell::GetRemainingCastTime()` (added to
   `Spell.h`, as in TrinityCore). Expect more such gaps; fix them as small topic commits.
+- **Database names: `world_legion` and `hotfixes_legion`** (auth and characters keep their
+  names). Apheleos' recent SQL updates name them across databases (`hotfixes_legion`.
+  `broadcast_text` in a world update, `world_legion`.`version` in ~12 hotfixes updates), so a
+  realm with `world` / `hotfixes` fails "Unknown database 'hotfixes_legion'" during the world
+  updates (owner hit it 2026-11-01). The conf.dist defaults still say `world` / `hotfixes`;
+  the owner's confs use the `_legion` names. Do not rewrite the update files (they are
+  upstream's and the updater re-applies files whose hash changes).
 - Linux quick check: `apt-get install cmake g++ libboost-all-dev libssl-dev libmysqlclient-dev
   libreadline-dev libbz2-dev zlib1g-dev`, `cmake -S . -B <scratch>/build -DTOOLS=0`, then
   `make <path>.o` inside the target's build folder (e.g. `src/server/scripts`) to compile single
