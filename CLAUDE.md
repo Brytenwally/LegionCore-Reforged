@@ -135,7 +135,9 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 - Checked in the cloud container: CMake configure (static, dynamic, MODULES=0) and compiling
   `Config.cpp` and `mod_example.cpp` with the scripts PCH, on Ubuntu 24.04 apt packages
   (cmake 3.28, g++ 13, Boost 1.83); the Windows build compiles and links both modules and
-  packages their `.conf.dist`. Runtime untested (no server/DB).
+  packages their `.conf.dist`. **Runtime verified 2026-11-02** on the owner's Windows server:
+  `[mod-example] Module loaded: Hello from mod-example!` and `[mod-playerbots] Module loaded
+  (disabled)` at startup, so the loader, `LoadModuleConfig` and `OnConfigLoad` work.
 
 ## Building
 
@@ -153,6 +155,11 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
   updates (owner hit it 2026-11-01). The conf.dist defaults still say `world` / `hotfixes`;
   the owner's confs use the `_legion` names. Do not rewrite the update files (they are
   upstream's and the updater re-applies files whose hash changes).
+- Owner's local setup (2026-11-02): `D:\Legion Repack` holds the binaries, confs, a portable
+  `mysql-8.0.44-winx64` started by a `start_mysql.bat` (root/admin on 127.0.0.1:3306, my.ini
+  written by the bat), the source in `LegionCore-Reforged-main` (`SourceDirectory`), and
+  `ClientData` from an `extract_data.bat` run in the client folder. Logging appenders use flag
+  1 (timestamps).
 - Linux quick check: `apt-get install cmake g++ libboost-all-dev libssl-dev libmysqlclient-dev
   libreadline-dev libbz2-dev zlib1g-dev`, `cmake -S . -B <scratch>/build -DTOOLS=0`, then
   `make <path>.o` inside the target's build folder (e.g. `src/server/scripts`) to compile single
@@ -165,7 +172,7 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 | Step | Result | Size |
 | --- | --- | --- |
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
-| 1 | **Done 2026-11-01** (see above; builds on Windows, runtime untested). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
+| 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
 | 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
