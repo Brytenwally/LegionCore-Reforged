@@ -242,6 +242,40 @@ void WorldSession::HandleMoveTeleportAck(WorldPackets::Movement::MoveTeleportAck
     }
 }
 
+// HandleMoveTeleportAck without a client packet
+void WorldSession::FinishBotTeleportNear()
+{
+    Player* player = GetPlayer();
+    if (player->IsBeingTeleportedSeamlessly())
+        return;
+
+    player->SetSemaphoreTeleportNear(false);
+
+    uint32 oldZone = player->GetCurrentZoneID();
+    player->UpdatePosition(player->GetTeleportDest(), true);
+
+    uint32 newZone, newArea;
+    player->GetZoneAndAreaId(newZone, newArea);
+    player->UpdateZone(newZone, newArea);
+
+    if (oldZone != newZone)
+    {
+        if (player->pvpInfo.inHostileArea)
+            player->CastSpell(player, 2479, true);
+        else if (player->IsPvP() && !player->HasFlag(PLAYER_FIELD_PLAYER_FLAGS, PLAYER_FLAGS_IN_PVP))
+            player->UpdatePvP(false, false);
+    }
+
+    player->ResummonPetTemporaryUnSummonedIfAny();
+    player->SummonLastSummonedBattlePet();
+    player->ProcessDelayedOperations();
+    player->ReCreateAreaTriggerObjects();
+
+    player->m_movementInfo.MoveTime = GameTime::GetGameTimeMS();
+    player->m_movementInfo.Pos = player->GetPosition();
+    player->ClearUnitState(UNIT_STATE_JUMPING);
+}
+
 void WorldSession::HandleMovementOpcodes(WorldPackets::Movement::ClientPlayerMovement& packet)
 {
     HandleMovementOpcode(packet.GetOpcode(), packet.movementInfo);

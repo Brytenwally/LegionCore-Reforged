@@ -138,7 +138,9 @@ WorldSession::~WorldSession()
     while (_recvQueue.next(packet))
         delete packet;
 
-    LoginDatabase.PExecute("UPDATE account SET online = 0 WHERE id = %u;", GetAccountId());     // One-time query
+    // a bot shares its account with the player's own session, which keeps it online
+    if (!_isBot || !sWorld->FindSession(GetAccountId()))
+        LoginDatabase.PExecute("UPDATE account SET online = 0 WHERE id = %u;", GetAccountId());     // One-time query
     sWorld->DecreaseSessionCount();
 }
 
@@ -482,6 +484,9 @@ bool WorldSession::Update(uint32 diff, Map* map)
     if (map != m_map)
         return true;
 
+    if (_isBot)
+        UpdateBot();
+
     //check if we are safe to proceed with logout
     //logout procedure should happen only in World::UpdateSessions() method!!!
     // if (updater.ProcessLogout())
@@ -524,7 +529,8 @@ bool WorldSession::Update(uint32 diff, Map* map)
             }
         }
 
-        if (!realmSocket)
+        // a bot never has a socket: it ends once its character is logged out
+        if (!realmSocket && (!_isBot || (!_player && !PlayerLoading())))
             return false;                                       //Will remove this session from the world session map
     }
 
@@ -794,9 +800,15 @@ void WorldSession::LogoutPlayer(bool Save)
         SetPlayer(nullptr); //! Pointer already deleted during RemovePlayerFromMap
 
         //! Since each account can only have one online character at any given time, ensure all characters for active account are marked as offline
-        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_ACCOUNT_ONLINE);
-        stmt->setUInt32(0, GetAccountId());
-        CharacterDatabase.Execute(stmt);
+        // (not for a bot: the account's player may be online on his own session)
+        if (_isBot)
+            CharacterDatabase.PExecute("UPDATE characters SET online = 0 WHERE guid = %u", uint32(guidDebug));
+        else
+        {
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_ACCOUNT_ONLINE);
+            stmt->setUInt32(0, GetAccountId());
+            CharacterDatabase.Execute(stmt);
+        }
     }
 
     if (std::shared_ptr<WorldSocket> instanceSocket = GetSocket(CONNECTION_TYPE_INSTANCE))
@@ -819,6 +831,10 @@ void WorldSession::LogoutPlayer(bool Save)
 /// Kick a player out of the World
 void WorldSession::KickPlayer()
 {
+    // a bot has no socket to close: its character is logged out instead
+    if (_isBot)
+        LogoutBot();
+
     for (uint32 i = 0; i < MAX_CONNECTION_TYPES; ++i)
     {
         if (std::shared_ptr<WorldSocket> socket = GetSocket(i))
@@ -1572,3 +1588,86 @@ void WorldSession::BanListHelper(PreparedQueryResult result)
 
     return;
 }
+
+WorldSessionPtr WorldSession::CreateBotSession(uint32 accountId, std::string accountName, AccountTypes security, uint8 expansion, LocaleConstant locale)
+{
+    WorldSessionPtr session = std::make_shared<WorldSession>(accountId, std::move(accountName), nullptr, security, expansion, 0, "Win", locale, 0, false,
+        AT_AUTH_FLAG_NONE, std::unordered_map<uint8, int64>());
+    session->_isBot = true;
+    session->_botSelf = session;
+    return session;
+}
+
+WorldSessionPtr WorldSession::GetSessionPtr() const
+{
+    if (_isBot)
+        return _botSelf.lock();
+
+    return sWorld->FindSession(GetAccountId());
+}
+
+bool WorldSession::LoginBot(ObjectGuid const& characterGuid)
+{
+    if (!_isBot || characterGuid.IsEmpty() || PlayerLoading() || GetPlayer())
+        return false;
+
+    // the client's CMSG_PLAYER_LOGIN, then its connection to the instance socket; LoadFromDB refuses a
+    // character of another account
+    m_playerLoading = characterGuid;
+    HandleContinuePlayerLogin();
+    return PlayerLoading();
+}
+
+void WorldSession::LogoutBot()
+{
+    _botLogoutRequested = true;
+}
+
+// What a client does on its own, done for a bot on the thread that updates the session (the map's, or
+// the world's while it has none): logout, teleport acks and the end of the loading screen.
+void WorldSession::UpdateBot()
+{
+    Player* player = GetPlayer();
+    if (!player || m_playerLogout)
+        return;
+
+    if (_botLogoutRequested)
+    {
+        if (player->IsChangeMap())
+            return;                                         // a login or a transfer is under way: after it
+
+        if (player->IsInWorld())
+            player->SetRemoveFromMap(true);                 // as an instant logout: the map removes him, then the session logs him out
+        else
+            LogoutPlayer(true);                             // between two maps
+        return;
+    }
+
+    // CMSG_WORLD_PORT_RESPONSE: a far teleport ends once the client has loaded the new map
+    if (player->IsBeingTeleportedFar() && !player->IsInWorld() && !player->IsChangeMap())
+    {
+        bool const seamless = player->IsBeingTeleportedSeamlessly();
+        HandleWorldPortAck();
+        if (!seamless && GetPlayer() && GetPlayer()->IsInWorld())
+            _botMapEntered = true;
+        return;
+    }
+
+    // CMSG_MOVE_TELEPORT_ACK: a teleport within the map
+    if (player->IsBeingTeleportedNear() && player->IsInWorld())
+    {
+        FinishBotTeleportNear();
+        return;
+    }
+
+    // CMSG_LOADING_SCREEN_NOTIFY (Showing = false), as HandleLoadScreenOpcode: zone, world states and the
+    // first login's spells, once the character is in the map
+    if ((PlayerLoading() || _botMapEntered) && player->IsInWorld() && !player->IsChangeMap())
+    {
+        _botMapEntered = false;
+        player->SendInitialPacketsAfterAddToMap(true);
+        player->CastPendingCreateSpells(true);              // no intro cinematic to wait for
+        m_playerLoading.Clear();
+    }
+}
+

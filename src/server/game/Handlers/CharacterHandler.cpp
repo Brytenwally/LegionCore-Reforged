@@ -911,7 +911,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder const& holder)
     }
     SendPacket(season.Write());
 
-    auto sess = sWorld->FindSession(GetAccountId());
+    auto sess = GetSessionPtr();
     SetMap(pCurrChar->GetMap());
     GetMap()->AddSession(sess);
 

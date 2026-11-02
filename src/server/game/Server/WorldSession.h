@@ -1073,6 +1073,19 @@ class TC_GAME_API WorldSession
         bool PlayerLogoutWithSave() const { return m_playerLogout && m_playerSave; }
         bool PlayerRecentlyLoggedOut() const { return m_playerRecentlyLogout; }
 
+        // Bots: sessions without a client, created and owned by a module (playerbots). A bot session is not
+        // in World::m_sessions (it shares its account with the player's own session for an alt): its owner
+        // updates it while it has no map, the maps update it afterwards like any session. Update() plays the
+        // client's part of logins and teleports for it, and returns false once its character is logged out.
+        static WorldSessionPtr CreateBotSession(uint32 accountId, std::string accountName, AccountTypes security, uint8 expansion, LocaleConstant locale);
+        bool IsBot() const { return _isBot; }
+        // the session as the maps hold it: World::FindSession for a client, the bot's own pointer for a bot
+        WorldSessionPtr GetSessionPtr() const;
+        // starts loading a character of this session's account, as CMSG_PLAYER_LOGIN does for a client
+        bool LoginBot(ObjectGuid const& characterGuid);
+        // logs the bot's character out (instant logout, saved); the session ends after it
+        void LogoutBot();
+
         bool IsAddonRegistered(std::string const& prefix);
 
         void SendPacket(WorldPacket const* packet, bool forced = false);
@@ -2190,6 +2203,14 @@ class TC_GAME_API WorldSession
 
         bool canLogout;
         float PersonalXPRate = 0;
+
+        // Bots (see CreateBotSession)
+        void UpdateBot();
+        void FinishBotTeleportNear();
+        bool _isBot = false;
+        bool _botMapEntered = false;                        // a map was entered: the client would end its loading screen now
+        std::atomic<bool> _botLogoutRequested{ false };     // set by the owner's thread, acted on by the session's
+        std::weak_ptr<WorldSession> _botSelf;
 };
 
 #endif

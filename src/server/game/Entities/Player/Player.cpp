@@ -2287,7 +2287,7 @@ bool Player::SafeTeleport(uint32 mapid, float x, float y, float z, float orienta
             RemoveAurasByType(SPELL_AURA_CLONE_CASTER);
             // RemoveAurasByType(SPELL_AURA_TRANSFORM);
 
-            WorldSessionPtr sess = sWorld->FindSession(GetSession()->GetAccountId());
+            WorldSessionPtr sess = GetSession()->GetSessionPtr();
             if (!sess) // https://pastebin.com/6zD9fzyC
                 return false;
 
@@ -2461,7 +2461,7 @@ void Player::TeleportToChallenge(uint32 mapid, float x, float y, float z, float 
     RemoveAurasByType(SPELL_AURA_CLONE_CASTER);
     // RemoveAurasByType(SPELL_AURA_TRANSFORM);
 
-    WorldSessionPtr sess = sWorld->FindSession(GetSession()->GetAccountId());
+    WorldSessionPtr sess = GetSession()->GetSessionPtr();
     if (!sess) // https://pastebin.com/6zD9fzyC
         return;
 
@@ -2555,7 +2555,7 @@ void Player::ZoneTeleport(uint32 zoneId)
     RemoveAurasByType(SPELL_AURA_MOD_NEXT_SPELL);
     RemoveAurasByType(SPELL_AURA_CLONE_CASTER);
 
-    WorldSessionPtr sess = sWorld->FindSession(GetSession()->GetAccountId());
+    WorldSessionPtr sess = GetSession()->GetSessionPtr();
     if (!sess) // https://pastebin.com/6zD9fzyC
         return;
 
