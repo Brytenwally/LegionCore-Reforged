@@ -1081,6 +1081,9 @@ class TC_GAME_API WorldSession
         bool IsBot() const { return _isBot; }
         // the session as the maps hold it: World::FindSession for a client, the bot's own pointer for a bot
         WorldSessionPtr GetSessionPtr() const;
+        // key of the session in Map::m_sessions: the account id for a client; for a bot a key of its own (high
+        // bit set), since an alt bot shares its account with the player's session on the same map
+        uint32 GetMapSessionKey() const { return _isBot ? (0x80000000u | _botId) : GetAccountId(); }
         // starts loading a character of this session's account, as CMSG_PLAYER_LOGIN does for a client
         bool LoginBot(ObjectGuid const& characterGuid);
         // logs the bot's character out (instant logout, saved); the session ends after it
@@ -2208,6 +2211,7 @@ class TC_GAME_API WorldSession
         void UpdateBot();
         void FinishBotTeleportNear();
         bool _isBot = false;
+        uint32 _botId = 0;                                  // unique among bot sessions (GetMapSessionKey)
         bool _botMapEntered = false;                        // a map was entered: the client would end its loading screen now
         std::atomic<bool> _botLogoutRequested{ false };     // set by the owner's thread, acted on by the session's
         std::weak_ptr<WorldSession> _botSelf;

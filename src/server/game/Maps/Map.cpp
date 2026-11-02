@@ -4984,11 +4984,13 @@ void Map::AddSession_(WorldSessionPtr s)
     if (!s)
         return;
 
-    SessionMap::const_iterator old = m_sessions.find(s->GetAccountId());
+    // keyed by account for clients, by a key of its own for a bot (an alt bot shares the player's account)
+    uint32 const key = s->GetMapSessionKey();
+    SessionMap::const_iterator old = m_sessions.find(key);
     if (old != m_sessions.end())
         m_sessions.erase(old);
 
-    m_sessions[s->GetAccountId()] = s;
+    m_sessions[key] = s;
 }
 
 /// Find a session by its id

@@ -171,6 +171,11 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   `canLogout`, the session's next update runs `LogoutPlayer(true)`), or `LogoutPlayer` directly
   between maps. Bots: `LogoutPlayer` sets only their character offline, `~WorldSession` sets the
   account offline only if no client session of the account remains.
+- `Map::m_sessions` is keyed by `GetMapSessionKey()`: the account id for clients, `0x80000000 |
+  botId` for bots. Keyed by account id (the original code), an alt bot replaced its player's
+  session in the map when it entered: the map stopped updating the player's session, so his
+  commands, chat and combat went unprocessed (owner hit it 2026-11-02, fixed the same day).
+  Any other per-account table a bot session enters needs the same care.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

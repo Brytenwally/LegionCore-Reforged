@@ -1593,7 +1593,9 @@ WorldSessionPtr WorldSession::CreateBotSession(uint32 accountId, std::string acc
 {
     WorldSessionPtr session = std::make_shared<WorldSession>(accountId, std::move(accountName), nullptr, security, expansion, 0, "Win", locale, 0, false,
         AT_AUTH_FLAG_NONE, std::unordered_map<uint8, int64>());
+    static std::atomic<uint32> nextBotId{ 0 };
     session->_isBot = true;
+    session->_botId = (++nextBotId) & 0x7FFFFFFFu;
     session->_botSelf = session;
     return session;
 }
