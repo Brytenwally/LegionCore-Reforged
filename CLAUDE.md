@@ -16,6 +16,10 @@ Full features take months; the owner wants baby steps, one working milestone at 
 - Later (not started): bring over from LegionCore-7.3.5 only its Legion content (class halls,
   artifact acquisition, artifact scenarios, Legion dungeon/raid fixes, likely the zone
   questlines). See "LegionCore-7.3.5" below before touching that.
+- **Random bots' open-world life is the absolute last priority** (owner, 2026-11-02): random
+  bots questing on their own, roaming level-appropriate zones, grinding and the like come after
+  everything else in the plan. Bots the player adds and leads (group, dungeons/LFG, raids,
+  BG/arena) come first.
 - Playerbots are ported from **SkyFire-playerbots** (5.4.8), not written from scratch and not
   from LegionBotAI. The SkyFire repos are reference manuals only: their code is read and
   rewritten for Legion here, never changed there.
@@ -208,7 +212,8 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
-| 6 | More specs (36 + Demon Hunter), random bots, BG/arena, questing | months |
+| 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |
+| 7 | **Last, by the owner's priority:** random bots' open-world activity (questing on their own, level-appropriate zones, grinding, wandering) | after everything else |
 
 Legion differences to plan for: artifacts (weapon, traits, relics, Knowledge tiers), 7 talent
 tiers plus PvP talents, class resources (Maelstrom, Insanity, Fury, Pain, Astral Power...),
