@@ -47,7 +47,7 @@ These are the ones this project writes to (commit and push to `main`).
 | Repo | Role |
 | --- | --- |
 | `Brytenwally/LegionCore-Reforged` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
-| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out (`.playerbots add/remove/list`), no AI yet. |
+| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out, teleport and follow summons (`.playerbots add/remove/list`, verified on the owner's server), no AI yet. |
 | `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
 
 ## Related repositories
@@ -143,7 +143,12 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
   `[mod-example] Module loaded: Hello from mod-example!` and `[mod-playerbots] Module loaded
   (disabled)` at startup, so the loader, `LoadModuleConfig` and `OnConfigLoad` work.
 
-## Bot sessions (step 2, implemented 2026-11-02)
+## Bot sessions (step 2, done 2026-11-02)
+
+**Runtime verified 2026-11-02** (build #5, core `b1befd3` + playerbots `c77aa64`) with an alt
+bot on the GM's own account: login, the GM's own session keeps working beside it, `.summon`
+(near teleport), `.tele name <bot> darnassus` (far teleport, map 0 -> 1), `.playerbots list`, and
+the bot logging out with its account's player.
 
 Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 `MovementHandler.cpp`, `Player.cpp`):
@@ -213,7 +218,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | --- | --- | --- |
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
-| 2 | **Implemented 2026-11-02** (see "Bot sessions"; Windows build #4 green with core `c9fe307` + playerbots `7a365a8`; runtime test pending). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
+| 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
 | 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
