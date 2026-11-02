@@ -2197,6 +2197,11 @@ void ScriptMgr::OnPlayerChat(Player* player, uint32 type, uint32 lang, std::stri
     FOREACH_SCRIPT(PlayerScript)->OnChat(player, type, lang, msg, channel);
 }
 
+void ScriptMgr::OnPlayerWhisper(Player* sender, ObjectGuid const& receiver, uint32 lang, std::string const& msg)
+{
+    FOREACH_SCRIPT(PlayerScript)->OnWhisper(sender, receiver, lang, msg);
+}
+
 void ScriptMgr::OnPlayerClearEmote(Player* player)
 {
     FOREACH_SCRIPT(PlayerScript)->OnClearEmote(player);

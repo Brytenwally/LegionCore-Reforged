@@ -27340,6 +27340,8 @@ void Player::Whisper(std::string const& text, uint32 language, WhisperTarget con
     if (_text.empty())
         return;
 
+    sScriptMgr->OnPlayerWhisper(this, target.Guid, language, _text);
+
     // when player you are whispering to is dnd, he cannot receive your message, unless you are in gm mode
     if (!target.Dnd || isGameMaster())
     {

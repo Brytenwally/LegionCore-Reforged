@@ -187,7 +187,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   are file-static and do careful cross-thread work). Build the packet exactly as the matching
   `WorldPackets::...::Read()` parses it.
 - Whispers: `PlayerScript::OnChat(..., Player* receiver)` gets the receiver only when he stands
-  on the sender's map (`Player::Whisper` passes `ObjectAccessor::GetPlayer(*this, guid)`).
+  on the sender's map (`Player::Whisper` passes `ObjectAccessor::GetPlayer(*this, guid)`). Core
+  hook `PlayerScript::OnWhisper(sender, receiverGuid, lang, msg)` (added 2026-11-02, called in
+  `Player::Whisper` before delivery) gives the receiver's guid wherever he is; it runs in the
+  sender's thread, so act on the receiver with `PostToPlayer`.
 - Cross-thread player access on this core: `ObjectAccessor::PostToPlayer(guid, fn)` (runs in the
   player's own update), `WithPlayer` (short reads under the accessor lock). `FindPlayer` pointers
   are only safe on the player's own map thread.

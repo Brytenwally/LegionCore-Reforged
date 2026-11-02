@@ -655,6 +655,10 @@ class TC_GAME_API PlayerScript : public ScriptObject
 
         virtual void OnChat(Player* /*player*/, uint32 /*type*/, uint32 /*lang*/, std::string& /*msg*/, Channel* /*channel*/) { }
 
+        // Called when a whisper is about to be delivered, wherever the receiver stands (OnChat above gets the
+        // receiver only on the sender's map). Runs in the sender's thread: reach the receiver by guid only.
+        virtual void OnWhisper(Player* /*sender*/, ObjectGuid const& /*receiver*/, uint32 /*lang*/, std::string const& /*msg*/) { }
+
         // Both of the below are called on emote opcodes.
         virtual void OnClearEmote(Player* /*player*/) { }
 
@@ -1003,6 +1007,7 @@ class TC_GAME_API ScriptMgr
         void OnPlayerChat(Player* player, uint32 type, uint32 lang, std::string& msg, Group* group);
         void OnPlayerChat(Player* player, uint32 type, uint32 lang, std::string& msg, Guild* guild);
         void OnPlayerChat(Player* player, uint32 type, uint32 lang, std::string& msg, Channel* channel);
+        void OnPlayerWhisper(Player* sender, ObjectGuid const& receiver, uint32 lang, std::string const& msg);
         void OnPlayerClearEmote(Player* player);
         void OnPlayerTextEmote(Player* player, uint32 textEmote, uint32 emoteNum, ObjectGuid const& guid);
         void OnPlayerSpellCast(Player* player, Spell* spell, bool skipCheck);
