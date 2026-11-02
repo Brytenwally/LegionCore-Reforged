@@ -43,7 +43,7 @@ These are the ones this project writes to (commit and push to `main`).
 | Repo | Role |
 | --- | --- |
 | `Brytenwally/LegionCore-Reforged` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
-| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. Skeleton only (loader, config, startup log) as of 2026-11-01. |
+| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out (`.playerbots add/remove/list`), no AI yet. |
 | `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
 
 ## Related repositories
@@ -139,6 +139,37 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
   `[mod-example] Module loaded: Hello from mod-example!` and `[mod-playerbots] Module loaded
   (disabled)` at startup, so the loader, `LoadModuleConfig` and `OnConfigLoad` work.
 
+## Bot sessions (step 2, implemented 2026-11-02)
+
+Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
+`MovementHandler.cpp`, `Player.cpp`):
+- How this core moves sessions: `World::m_sessions` and every `Map::m_sessions` are keyed by
+  **account id** and hold `WorldSessionPtr` (shared_ptr). `World::UpdateSessions` updates only
+  sessions without a map; at login (`HandlePlayerLogin`) and in teleports (three paths in
+  `Player.cpp`) the session is handed to the destination map by `sWorld->FindSession(accountId)`.
+  The map then updates it on its own thread (`Update(diff, map)`, packets only when
+  `map == m_map`). LegionBotAI broke on exactly this (null session -> never on a map).
+- `WorldSession::CreateBotSession(...)`: socketless, `IsBot()`, keeps a weak pointer to itself;
+  **not** in `World::m_sessions` (an alt bot shares its account with the player's session, and
+  `World::AddSession` kicks a second session of an account). `GetSessionPtr()` replaces
+  `sWorld->FindSession(GetAccountId())` at those four sites (same lookup for clients).
+- Owner of a bot session (the module) calls `Update(diff)` while `GetMap()` is null; `Update`
+  returns false when the bot has ended (no player, not loading); maps then drop it too.
+- `UpdateBot()` (in `Update`, where packets are handled) plays the client: far teleport ack
+  (`HandleWorldPortAck`, when `IsBeingTeleportedFar && !IsInWorld && !IsChangeMap`), near ack
+  (`FinishBotTeleportNear`, copy of `HandleMoveTeleportAck`), end of loading screen (as
+  `HandleLoadScreenOpcode`: `SendInitialPacketsAfterAddToMap` = zone/world states,
+  `CastPendingCreateSpells(true)`, clears `m_playerLoading`) after login and non-seamless far
+  teleports. Login itself: `LoginBot(guid)` = set `m_playerLoading`, `HandleContinuePlayerLogin`
+  (async holder; player added to the map by the 100 ms delayed event in `HandlePlayerLogin`).
+- `LogoutBot()` (atomic flag; `KickPlayer` calls it for bots) -> in `UpdateBot` on the
+  session's thread: `SetRemoveFromMap(true)` (instant logout: the map removes the player, sets
+  `canLogout`, the session's next update runs `LogoutPlayer(true)`), or `LogoutPlayer` directly
+  between maps. Bots: `LogoutPlayer` sets only their character offline, `~WorldSession` sets the
+  account offline only if no client session of the account remains.
+- Not handled yet: a client logging into a character that is currently a bot (the module logs
+  an account's bots out when its player logs out, which covers switching characters).
+
 ## Building
 
 - Windows: `Brytenwally/LegionCore-Build` workflow (step 0). First green build 2026-11-01
@@ -173,7 +204,7 @@ OnMovementInform, OnCreatureKill, OnPVPKill and more: most of what SkyFire neede
 | --- | --- | --- |
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
-| 2 | Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
+| 2 | **Implemented 2026-11-02** (see "Bot sessions"; Linux compile only so far, runtime test pending). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
 | 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
