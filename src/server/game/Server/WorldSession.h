@@ -1088,6 +1088,8 @@ class TC_GAME_API WorldSession
         bool LoginBot(ObjectGuid const& characterGuid);
         // logs the bot's character out (instant logout, saved); the session ends after it
         void LogoutBot();
+        // QueuePacket works for bots too: the client packets a module queues for a bot go through the same
+        // handlers, status checks and threads as a client's
 
         bool IsAddonRegistered(std::string const& prefix);
 

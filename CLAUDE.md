@@ -181,6 +181,16 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   session in the map when it entered: the map stopped updating the player's session, so his
   commands, chat and combat went unprocessed (owner hit it 2026-11-02, fixed the same day).
   Any other per-account table a bot session enters needs the same care.
+- Bot sessions process queued packets (`QueuePacket`) although they have no socket: a module
+  drives client actions by queueing the client packet (e.g. `CMSG_PARTY_INVITE_RESPONSE`), so the
+  core's own handler, status checks and threading apply (many handlers, like `AcceptPartyInvite`,
+  are file-static and do careful cross-thread work). Build the packet exactly as the matching
+  `WorldPackets::...::Read()` parses it.
+- Whispers: `PlayerScript::OnChat(..., Player* receiver)` gets the receiver only when he stands
+  on the sender's map (`Player::Whisper` passes `ObjectAccessor::GetPlayer(*this, guid)`).
+- Cross-thread player access on this core: `ObjectAccessor::PostToPlayer(guid, fn)` (runs in the
+  player's own update), `WithPlayer` (short reads under the accessor lock). `FindPlayer` pointers
+  are only safe on the player's own map thread.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
@@ -219,7 +229,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
-| 3 | Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
+| 3 | **In progress** (2026-11-02: group invite, follow, whisper follow/stay). Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |

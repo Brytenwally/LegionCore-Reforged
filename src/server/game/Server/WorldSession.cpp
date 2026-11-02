@@ -349,7 +349,8 @@ bool WorldSession::Update(uint32 diff, Map* map)
         KickPlayer();
     }
 
-    while (GetSocket(CONNECTION_TYPE_REALM) && map == m_map && _recvQueue.next(packet))
+    // a bot has no socket: its owner queues the packets a client would send (QueuePacket)
+    while ((_isBot || GetSocket(CONNECTION_TYPE_REALM)) && map == m_map && _recvQueue.next(packet))
     {
         OpcodeClient opcode = static_cast<OpcodeClient>(packet->GetOpcode());
         uint32 packetSize = packet->size();
