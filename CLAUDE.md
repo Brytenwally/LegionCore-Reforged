@@ -26,6 +26,13 @@ Full features take months; the owner wants baby steps, one working milestone at 
 
 ## Rules (shared with the owner's other repos)
 
+- **Update the CLAUDE.md files as you go** (owner, 2026-11-03): every time a problem is resolved
+  or something new is learned about how the core, the database or the module works, write it
+  into the relevant CLAUDE.md (this one for the core/project, LegionCore-Playerbots' for the
+  module, LegionCore-Build's for the build) **in the same commit as the fix**, without being
+  asked: the cause, the evidence that found it, and the rule that follows. Also record each
+  runtime test result the owner reports (what works, on which build).
+
 - Commit and push straight to `main`. No feature branches or PRs unless the owner asks.
 - Commit messages: imperative subject, body explaining what and why. No model names in
   commits.
@@ -194,6 +201,13 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - Cross-thread player access on this core: `ObjectAccessor::PostToPlayer(guid, fn)` (runs in the
   player's own update), `WithPlayer` (short reads under the accessor lock). `FindPlayer` pointers
   are only safe on the player's own map thread.
+- Lessons from the first bot features (details in LegionCore-Playerbots' `CLAUDE.md`):
+  - An invite from a player outside any group makes a **pending group with an empty guid**
+    until someone accepts (`HandlePartyInvite` -> `AddLeaderInvite`; the leader guid is set).
+  - The database has **class/race copies of quests** (same title and `QuestSortID`, one per
+    class through `quest_template_addon.AllowableClasses`, each chaining to its own class's
+    next quest), e.g. Northshire's "Beating Them Back!" = 9 quests. Anything that mirrors or
+    compares quests between characters of different classes must map to the other's copy.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
@@ -232,7 +246,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
-| 3 | **In progress** (2026-11-02: group invite, follow, whisper follow/stay). Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
+| 3 | **In progress** (verified on the owner's server 2026-11-03, build #10: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave; quest mirroring fixed for class copies, retest pending). Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |
