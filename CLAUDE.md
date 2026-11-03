@@ -20,6 +20,10 @@ Full features take months; the owner wants baby steps, one working milestone at 
   bots questing on their own, roaming level-appropriate zones, grinding and the like come after
   everything else in the plan. Bots the player adds and leads (group, dungeons/LFG, raids,
   BG/arena) come first.
+- **Basic combat comes from LegionBotAI** (owner, 2026-11-03): LegionCore-7.3.5's
+  `src/server/scripts/Custom/LegionBotAI.cpp` has Legion 7.3.5 spell ids and rotations; its combat
+  logic is the reference for step 4 (see "Combat plan"), rewritten into the module's per-bot
+  threading. Everything else still comes from SkyFire-playerbots.
 - Playerbots are ported from **SkyFire-playerbots** (5.4.8), not written from scratch and not
   from LegionBotAI. The SkyFire repos are reference manuals only: their code is read and
   rewritten for Legion here, never changed there.
@@ -244,6 +248,49 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   does not rebuild the PCH for a single-object target. A full build was not tried (hours on 4
   cores).
 
+## Combat plan (step 4, from LegionBotAI; mapped 2026-11-03)
+
+### What LegionBotAI has (LegionCore-7.3.5, `src/server/scripts/Custom/LegionBotAI.cpp`, 2,567 lines)
+| Piece | Where | Port? |
+| --- | --- | --- |
+| `BotCast(bot, target, spellId, minCooldown)`: checks spell exists, level, `HasSpell`, cooldown, GCD (`GetGlobalCooldownMgr`), not already casting, an own per-spell throttle (max of 1.5 s, RecoveryTime, CategoryRecoveryTime); faces the target, `CastSpell(target, spellInfo, false)`, checks `SpellCastResult` | ~736 | yes, as the one casting primitive |
+| Rotations `CastClassAbilities`: Blood DK (Vampiric Blood / Icebound / Dancing Rune Weapon on low HP, Death Strike < 70%, Marrowrend for Bone Shield < 5 stacks), Frost DK (Frost Strike at RP > 70, Obliterate), Ret/any Paladin (Judgment, Crusader Strike), Rogue (Eviscerate at 4 CP, Backstab), Fury Warrior (Enraged Regeneration < 40%, Battle Cry, Execute < 20%, Rampage at 85 rage, Bloodthirst, Raging Blow), Priest (Holy Fire, Smite) | ~1008 | yes, as per-spec priority lists |
+| Healing `CastHealAbility`: Holy Priest (Guardian Spirit < 25%, Prayer of Healing if 3 hurt in 15 yd, Serenity < 75%, Flash Heal < 55%, Renew, Heal), Holy Paladin (Lay on Hands < 25%, Light of Dawn, Holy Shock, Flash of Light, Bestow Faith, Holy Light); `FindLowestHpAlly` (< 85%, tank first once < 75%); triage: < 40% heal before dispel | ~931, ~1100 | yes |
+| `TryDispel`: removable dispel types read from the dispel spell's effects (`GetSimilarEffectsMiscValueMask(SPELL_EFFECT_DISPEL)`), `GetDispellableAuraList`, harmful auras only (Cleanse 4987, Purify 527) | ~853 | yes |
+| `TryInterrupt`: current generic/channelled spell, `IsInterruptable`; Mind Freeze 47528, Pummel 6552, Hammer of Justice 853, Holy Word: Chastise 88625 | ~889 | yes, list per spec |
+| `MaintainBotBuff`: Beacon of Light 53563 / Beacon of Faith 156910, Prayer of Mending 33076 (aura 41635) on the tank | ~972 | yes |
+| Targeting rules: **never pull**, only units attacking a team member (`IsPartyAggressor`); 1.2 s engage delay so the owner swings first; 30 yd max; `Attack` + `MoveChase`; drop a target that attacks nobody; self-defence always | ~2350-2500 | yes, the core of it |
+| Tank: taunt anything on a teammate (Dark Command 56222 / Death Grip 49576, Hand of Reckoning 62124, Taunt 355); `player tank` mode (owner holds aggro) | ~2440 | yes |
+| Assist modes `full` / `defend` (only what hits the owner or the bot) / `chill` (only ordered targets); `.lbot attack` | ~2350 | yes, as orders |
+| Formation by role (tank 2.5 yd, dps 4 yd spread, healer 9 yd behind the owner) | ~177 | later (formation) |
+| Potions from bags (76097 / 76098, 30 s own cooldown) | ~1062 | yes, bag items only |
+| Specs with spells: Blood DK 250, Frost DK 251 (partial), Holy Paladin 65, Prot Paladin 66 (taunt only), Fury Warrior 72, Holy Priest 257, Sub/Assa Rogue (2 spells). **No** Warlock, Mage, Hunter, Shaman, Druid, Monk, DH | | others written per spec |
+
+### What LegionBotAI does that is NOT ported as is
+- Threading: it runs every bot from the **owner's** `OnUpdate` and reaches bots with
+  `ObjectAccessor::FindPlayer` (only safe on the bot's own map thread) and moves them between maps
+  by hand (`RemovePlayerFromMap` / `AddPlayerToMap`). Here each bot runs its own combat on its own
+  thread (`PlayerScript::OnUpdate`); teammates are read with `ObjectAccessor::GetPlayer(*bot, guid)`
+  (same map only); map changes go through the core's teleports.
+- Changes to the character: `GiveLevel` level sync, `LearnBotSpells` / `LearnBotTalents`, MoP
+  crafted gear sets (`GetBotGear`), so alts would be changed without an order: owner's alt rule.
+- Cheats: `target->AddThreat(bot, 120)` every tick for tanks, revive with full health when combat
+  ends, `FixFallenCreatures` (repack vmap workaround). Need the owner's decision before porting.
+- Its own bot accounts/characters SQL, companion creatures (`LegionBotMgr.cpp`), trace logs.
+
+### Steps (each one a build and a test on the owner's server)
+| # | Result | Test |
+| --- | --- | --- |
+| 4.1 | Combat skeleton, no spells: role from the spec (`ChrSpecializationEntry` role), targeting rules above (never pull, 1.2 s delay, 30 yd), `Attack` + chase (melee) or stay at range (casters), back to follow after combat; `attack` order (owner's target), assist modes by order (`assist full|defend|passive`) | bot melees what attacks the group, never pulls |
+| 4.2 | `BotCast` + per-spec rotation table (priority list of conditions) + log of each cast/refusal (like the quest logs); first specs: LegionBotAI's DPS (Fury Warrior, Frost DK, Ret/Prot Paladin, rogue) **plus Warlock** (the owner's test bot; not in LegionBotAI) | bot casts its rotation; log shows why a spell is skipped |
+| 4.3 | Healers: lowest-HP ally among group members on the bot's map, triage, Holy Priest / Holy Paladin from LegionBotAI, dispel, beacons / Prayer of Mending | healer keeps the group up |
+| 4.4 | Tanks: Blood DK rotation, taunt mobs off teammates, `player tank` order; interrupts per spec | tank holds mobs |
+| 4.5 | Defensives and potions from bags; regen out of combat (SkyFire eat/drink) | low HP handled |
+| 4.6 | Remaining specs one class at a time (all 36 + DH), in the order the owner plays them | per spec |
+
+Open owner decisions: tank threat bonus (cheat) yes/no; revive after combat yes/no; learning
+missing spells/talents automatically or only by order (alts); which specs after the first.
+
 ## Plan (agreed outline)
 
 | Step | Result | Size |
@@ -251,8 +298,8 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
-| 3 | **In progress** (verified on the owner's server 2026-11-03, build #10: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave; quest mirroring with class copies verified on build #12). Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
-| 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
+| 3 | **Group/orders/quests part done** (verified on the owner's server 2026-11-03, builds #10-#14: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave, quest mirroring incl. class and previous-quest copies, manual quest orders). Strategy engine still to port. Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
+| 4 | Combat, from LegionBotAI (see "Combat plan"): targeting rules, `BotCast`, per-spec rotations, healers, tanks, interrupts | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |
 | 7 | **Last, by the owner's priority:** random bots' open-world activity (questing on their own, level-appropriate zones, grinding, wandering) | after everything else |
