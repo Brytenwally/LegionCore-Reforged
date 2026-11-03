@@ -298,8 +298,15 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | 4.5 | Defensives and potions from bags; regen out of combat (SkyFire eat/drink) | low HP handled |
 | 4.6 | Remaining specs one class at a time (all 36 + DH), in the order the owner plays them | per spec |
 
-Open owner decisions: tank threat bonus (cheat) yes/no; revive after combat yes/no; learning
-missing spells/talents automatically or only by order (alts); which specs after the first.
+Owner's decisions (2026-11-03):
+- **No tank threat bonus** for now (LegionBotAI's `AddThreat(bot, 120)` stays out).
+- **Revive only by order**: a dead bot is revived when its owner says `summon` in party/raid chat
+  (not by whisper), then teleports to him; `Playerbots.Summon.Revive` 1 = only while the owner is
+  out of combat (default), 2 = also in combat, 0 = never. No revive when combat ends.
+- **Spells and talents are learned automatically, alts included**; on any bot (alts too) only
+  empty talent rows are filled, a row the player already chose keeps its talent
+  (`BotTalents::LearnTalents` does exactly that). Wired in with the specs.
+- **Specs**: chosen later; step 4.1 (no spells) does not need them.
 
 ## Plan (agreed outline)
 
