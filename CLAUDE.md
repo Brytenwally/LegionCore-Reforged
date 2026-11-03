@@ -208,6 +208,8 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
     class through `quest_template_addon.AllowableClasses`, each chaining to its own class's
     next quest), e.g. Northshire's "Beating Them Back!" = 9 quests. Anything that mirrors or
     compares quests between characters of different classes must map to the other's copy.
+    Some class versions are **not** copies (different title and objectives, e.g. Northshire's
+    "Encrypted Letter"): no automatic mapping exists, so bots take those by manual order.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
@@ -246,7 +248,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 | 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
-| 3 | **In progress** (verified on the owner's server 2026-11-03, build #10: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave; quest mirroring fixed for class copies, retest pending). Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
+| 3 | **In progress** (verified on the owner's server 2026-11-03, build #10: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave; quest mirroring with class copies verified on build #12). Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat: rotation framework + one tank, one healer, one DPS spec | ~1-2 weeks |
 | 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |
