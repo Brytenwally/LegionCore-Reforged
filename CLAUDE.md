@@ -210,6 +210,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
     compares quests between characters of different classes must map to the other's copy.
     Some class versions are **not** copies (different title and objectives, e.g. Northshire's
     "Encrypted Letter"): no automatic mapping exists, so bots take those by manual order.
+    Copies may also differ **only by `PrevQuestID`** (no class restriction; Northshire's "They
+    Sent Assassins" = 9 quests, each after one class's "Join the Battle!"): pick the copy the
+    character can take now (`CanTakeQuest`), never just the first one its class allows.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
