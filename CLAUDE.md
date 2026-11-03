@@ -277,6 +277,16 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - Cheats: `target->AddThreat(bot, 120)` every tick for tanks, revive with full health when combat
   ends, `FixFallenCreatures` (repack vmap workaround). Need the owner's decision before porting.
 - Its own bot accounts/characters SQL, companion creatures (`LegionBotMgr.cpp`), trace logs.
+- Gearing (~424-735), read 2026-11-03, **not a reference for step 5**: `EquipBotGear` (level sync
+  every 2 s and `.lbot autogear`) **destroys every equipped item** and equips new ones (alt rule).
+  `PickItemForSlot` scans `sItemSparseStore` for the highest item level, then quality, under caps
+  by level (`IlvlCapForLevel`: level x2+6 to 60, x3 to 80, x5 to 90, x8 to 100; quality white/
+  green/blue/epic by level), no heirlooms, scaling or unique items. No stat weights (its primary
+  stat argument is unused), no bonus IDs, no `Game.Patch` tiers. Armor/weapon per class is
+  hard-coded: DK/Warrior plate STR two-hander, Paladin plate INT mace + shield (any spec), Rogue
+  leather dagger, **every other class cloth + staff**. At max level it gives MoP crafted sets
+  (ilvl 384, `GetBotGear`). Step 5 ports SkyFire's autogear (stat weights, slot-by-slot upgrades,
+  old piece kept) instead, with Legion item levels from bonus IDs.
 
 ### Steps (each one a build and a test on the owner's server)
 | # | Result | Test |
