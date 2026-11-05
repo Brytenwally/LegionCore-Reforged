@@ -326,7 +326,7 @@ graveyard, gear from a pool, group join, follow); "no autonomous state machine".
 | 4.2 | **Done 2026-11-05 (build #17): AshamaneCore's 36-spec table instead of writing specs one by one.** `BotCast` + per-spec rotation table (priority list of conditions) + log of each cast/refusal (like the quest logs); first specs: LegionBotAI's DPS (Fury Warrior, Frost DK, Ret/Prot Paladin, rogue) **plus Warlock** (the owner's test bot; not in LegionBotAI) | bot casts its rotation; log shows why a spell is skipped |
 | 4.3 | **Built 2026-11-05, untested** (LegionCore-Playerbots' `CLAUDE.md`, "Combat"). Healers: lowest-HP ally among group members on the bot's map, triage, Holy Priest / Holy Paladin from LegionBotAI, dispel, beacons / Prayer of Mending | healer keeps the group up |
 | 4.4 | **Built 2026-11-05, untested** (LegionCore-Playerbots' `CLAUDE.md`, "Combat"). Tanks: Blood DK rotation, taunt mobs off teammates, `player tank` order; interrupts per spec | tank holds mobs |
-| 4.5 | Defensives and potions from bags; regen out of combat (SkyFire eat/drink) | low HP handled |
+| 4.5 | **Built 2026-11-05, untested** (LegionCore-Playerbots' `CLAUDE.md`, "Survival"). Defensives and potions from bags; regen out of combat (SkyFire eat/drink) | low HP handled |
 | 4.6 | Remaining specs one class at a time (all 36 + DH), in the order the owner plays them | per spec |
 
 Owner's decisions (2026-11-03):
