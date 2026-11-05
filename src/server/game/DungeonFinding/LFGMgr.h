@@ -340,6 +340,12 @@ public:
     LFGDungeonData const* GetLFGDungeon(uint32 mapId, Difficulty diff, uint32 team);
 
     uint8 GetRoles(ObjectGuid guid, uint32 queueId);
+    // Read-only views for modules (playerbots answer role checks and proposals the way a client would):
+    // the queue ids a player is in; the roles he chose in his group's running role check (false when no role
+    // check runs for that group or he is not in it); the proposal waiting for his answer (0 = none)
+    std::vector<uint32> GetQueueIds(ObjectGuid guid);
+    bool GetRoleCheckRoles(ObjectGuid gguid, ObjectGuid guid, uint8& roles);
+    uint32 GetPendingProposal(ObjectGuid guid);
     uint32 GetOptions();
     void SetOptions(uint32 options);
     bool isOptionEnabled(uint32 option);

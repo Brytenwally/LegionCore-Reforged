@@ -2261,6 +2261,41 @@ uint8 LFGMgr::GetRoles(ObjectGuid guid, uint32 queueId)
     return roles;
 }
 
+std::vector<uint32> LFGMgr::GetQueueIds(ObjectGuid guid)
+{
+    LfgGuard _lock(m_lock);
+    std::vector<uint32> ids;
+    auto it = PlayerDungeons.find(guid);
+    if (it != PlayerDungeons.end())
+        ids.assign(it->second.begin(), it->second.end());
+    return ids;
+}
+
+bool LFGMgr::GetRoleCheckRoles(ObjectGuid gguid, ObjectGuid guid, uint8& roles)
+{
+    LfgGuard _lock(m_lock);
+    auto itRoleCheck = RoleChecksStore.find(gguid);
+    if (itRoleCheck == RoleChecksStore.end() || itRoleCheck->second.state != LFG_ROLECHECK_INITIALITING)
+        return false;
+    auto itRoles = itRoleCheck->second.roles.find(guid);
+    if (itRoles == itRoleCheck->second.roles.end())
+        return false;
+    roles = itRoles->second;
+    return true;
+}
+
+uint32 LFGMgr::GetPendingProposal(ObjectGuid guid)
+{
+    LfgGuard _lock(m_lock);
+    for (auto const& proposal : ProposalsStore)
+    {
+        auto itPlayer = proposal.second.players.find(guid);
+        if (itPlayer != proposal.second.players.end() && itPlayer->second.accept == LFG_ANSWER_PENDING)
+            return proposal.first;
+    }
+    return 0;
+}
+
 LfgDungeonSet LFGMgr::GetSelectedDungeons(ObjectGuid guid, uint32 queueId)
 {
     LfgGuard _lock(m_lock);

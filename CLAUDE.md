@@ -220,6 +220,13 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
     Copies may also differ **only by `PrevQuestID`** (no class restriction; Northshire's "They
     Sent Assassins" = 9 quests, each after one class's "Join the Battle!"): pick the copy the
     character can take now (`CanTakeQuest`), never just the first one its class allows.
+- Dungeon finder (2026-11-05): LFG state on this core is kept **per queue id** (`LFGMgr::PlayersStore[guid]
+  [queueId]`, queue id = the dungeon's id, a player may be in several queues: `PlayerDungeons[guid]`), all
+  behind `m_lock` and private. Core commit "Add LFG accessors for modules" adds read-only `GetQueueIds`,
+  `GetRoleCheckRoles(gguid, guid, roles)` (role check in state INITIALITING) and `GetPendingProposal(guid)`
+  (proposal whose answer for him is `LFG_ANSWER_PENDING`). A module answers as the client would by calling
+  what the handlers call, on the player's own thread: `UpdateRoleCheck`, `UpdateProposal` (its `Ticket.Time`
+  feeds wait times: send the player's `GetTicket`), `JoinLfg(player, roles, dungeons)`.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
@@ -348,7 +355,7 @@ Owner's decisions (2026-11-03):
 | 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
 | 3 | **Group/orders/quests part done** (verified on the owner's server 2026-11-03, builds #10-#14: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave, quest mirroring incl. class and previous-quest copies, manual quest orders). Strategy engine still to port. Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat, from LegionBotAI (see "Combat plan"): targeting rules, `BotCast`, per-spec rotations, healers, tanks, interrupts | ~1-2 weeks |
-| 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits. **Started 2026-11-05** (owner's request, for testing): `.playerbots create <class> [spec]` (bot accounts, character creation, init to the creator's level), stat-weight gear (Ask Mr. Robot scales from Pawn) by `autogear`, `talents` order; see LegionCore-Playerbots' `CLAUDE.md`. Bonus IDs, tiers and artifacts still to do | ~1-2 weeks |
+| 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits. **Started 2026-11-05** (owner's request, for testing): `.playerbots create <class> [spec]` (bot accounts, character creation, init to the creator's level), stat-weight gear (Ask Mr. Robot scales from Pawn) by `autogear`, `talents` order; see LegionCore-Playerbots' `CLAUDE.md`. **Dungeon finder built 2026-11-05, untested**: party bots answer role checks and proposals, idle pool bots fill missing roles of a queued player after 30 s (core accessors `LFGMgr::GetQueueIds` / `GetRoleCheckRoles` / `GetPendingProposal`, topic commit "Add LFG accessors for modules"); also `.playerbots self` and formations. Loot rolls, bonus IDs, tiers and artifacts still to do | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |
 | 7 | **Last, by the owner's priority:** random bots' open-world activity (questing on their own, level-appropriate zones, grinding, wandering) | after everything else |
 
