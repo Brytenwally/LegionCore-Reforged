@@ -403,6 +403,16 @@ class TC_GAME_API Group
         void ErraseRollbyRealSlot(uint8 slot, Loot* loot);
         void CountTheRoll(Roll* roll);
         bool CountRollVote(Player* voter, uint8 slot, uint8 Choise);
+        // For modules (playerbots vote as a client would, through CountRollVote): the rolls of live loot still
+        // waiting for this member's vote
+        struct PendingRoll
+        {
+            uint8 aoeSlot = 0;
+            uint32 itemId = 0;
+            std::vector<uint32> bonusListIds;
+            uint8 rollVoteMask = 0;
+        };
+        std::vector<PendingRoll> GetPendingRolls(ObjectGuid const& member) const;
         void DoRollForAllMembers(ObjectGuid guid, uint8 slot, uint32 mapid, Loot*, LootItem&, Player*);
         void EndRoll(Loot* loot);
         void ConcludeRollOnMap(Player* onRollMap, ObjectGuid const& rollItemGuid);

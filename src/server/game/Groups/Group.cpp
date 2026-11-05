@@ -1965,6 +1965,29 @@ std::set<ObjectGuid> Group::GetValidRollLoots() const
     return validLoots;
 }
 
+std::vector<Group::PendingRoll> Group::GetPendingRolls(ObjectGuid const& member) const
+{
+    std::set<ObjectGuid> const validLoots = GetValidRollLoots();
+
+    std::vector<PendingRoll> pending;
+    std::lock_guard<std::recursive_mutex> guard(m_lock);
+    for (Roll const* roll : RollId)
+    {
+        if (!validLoots.count(roll->lootedGUID))
+            continue;
+        auto itr = roll->playerVote.find(member);
+        if (itr == roll->playerVote.end() || itr->second != NOT_EMITED_YET)
+            continue;
+        PendingRoll entry;
+        entry.aoeSlot = roll->aoeSlot;
+        entry.itemId = roll->item.ItemID;
+        entry.bonusListIds = roll->item.ItemBonus.BonusListIDs;
+        entry.rollVoteMask = roll->rollVoteMask;
+        pending.push_back(entry);
+    }
+    return pending;
+}
+
 // m_lock held
 Roll* Group::DetachRoll(Rolls::iterator rollI)
 {

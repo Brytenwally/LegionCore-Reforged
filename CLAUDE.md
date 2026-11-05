@@ -227,6 +227,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   (proposal whose answer for him is `LFG_ANSWER_PENDING`). A module answers as the client would by calling
   what the handlers call, on the player's own thread: `UpdateRoleCheck`, `UpdateProposal` (its `Ticket.Time`
   feeds wait times: send the player's `GetTicket`), `JoinLfg(player, roles, dungeons)`.
+- Group loot (2026-11-05): `Group::RollId` (the rolls) is private; core commit "Add pending loot rolls accessor
+  for modules" adds `Group::GetPendingRolls(member)` (rolls of live loot still waiting for his vote). A module
+  votes with `CountRollVote(player, aoeSlot, choice)` on the player's own thread, like `HandleLootRoll`.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
