@@ -74,6 +74,7 @@ or run builds in the SkyFire repos, LegionCore-7.3.5 or mod-playerbots from a Re
 | `Brytenwally/SkyFire-build` | Read-only reference. GitHub Actions Windows build of SkyFire: the pattern for a Reforged build workflow (written in this project's own repo, not there). |
 | `Brytenwally/LegionCore-7.3.5` | Read-only reference. Sibling fork of the same base. Has LegionBotAI (`src/server/scripts/Custom/LegionBotAI.cpp`, `LegionBotMgr.cpp`): useful only to see how a character is loaded into the world on this core. |
 | `Brytenwally/mod-playerbots` (branch `coa`) | Read-only reference. AzerothCore 3.3.5 playerbots: how features behave. Never build it. |
+| `Brytenwally/AshamaneCore-Legion735` | Read-only reference (public; clone with plain git, not attached). TrinityCore-based 7.3.5 core with a bot system in `src/server/scripts/Custom/Bots/` (see "AshamaneCore bots" below). TrinityCore API (`GetSpellHistory`, `GetPrimarySpecialization`, `TRIGGERED_NONE`), so its code is translated, not copied. |
 
 ## Findings about this codebase (2026-11-01 survey)
 
@@ -247,6 +248,34 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   files with the PCH. After changing a header, delete the build's `*.gch` files first: make
   does not rebuild the PCH for a single-object target. A full build was not tried (hours on 4
   cores).
+
+## AshamaneCore bots (read 2026-11-05)
+
+`Brytenwally/AshamaneCore-Legion735`, `src/server/scripts/Custom/Bots/` (~6.7k lines: `BotMgr.cpp`
+4.2k, `BotMgr.h`, `bot_commandscript.cpp` = `.bottest` GM commands, `bot_dungeonclear_control.cpp`).
+Its README lists only GM-command-driven actions as verified (login/logout, move, attack, death/
+graveyard, gear from a pool, group join, follow); "no autonomous state machine".
+- **Worth taking:**
+  - `g_BotSpecRotations` (`BotMgr.cpp` ~2612-3180): a priority list for **all 36 specs** (3-6 steps
+    each), with role, interrupt and dispel spell per spec. Steps name spells by **English name**,
+    resolved once against `Spell.db2` (`ResolveSpellIdByName`: exact name, class spell family first,
+    highest id among duplicates, one-match fallback across classes; `.bottest diagspells` reports
+    unresolved names). Conditions: Always, TargetHealthPctBelow, SelfHealthPctBelow,
+    ResourceAtLeast, Aura Missing/Present On Self, AuraMissingOnTarget; target override (Disc
+    Atonement). Each spec carries the author's confidence note (Demonology marked low). Simple
+    lists, not optimal rotations; not live-verified per spec.
+  - Ground-effect dodge (`FindHarmfulGroundEffectUnderBot` / `ProcessBotMechanicReactions`): harmful
+    `DynamicObject` whose radius covers the bot -> `MovePoint` radially out (radius + 5 yd), before
+    the rotation; then interrupt, then dispel.
+  - Artifact weapon per spec (`BotArtifactTable`, ~2045: 36 spec -> item entry, from Artifact.db2 +
+    ItemSparse) for step 5; its trait budget (`SkillBotArtifact`) is a rough rule (1 rank per 2
+    levels above 98).
+- **Not usable as is:** login by faking CharEnum + `HandlePlayerLoginOpcode` (we have bot
+  sessions); everything runs from `BotMgr::Tick` on the world thread and walks group members'
+  `Player*` (fine on TrinityCore, where maps do not update during world scripts; **not** on this
+  core, whose maps run on their own threads); group join by `Group::AddMember` directly (we queue
+  the client packet); gear from `world.bot_equipment_pool` (58k rows, kept private, not in the
+  repo); dungeon clear mode (autonomous boss navigation: step 6/7 territory); Ollama chat.
 
 ## Combat plan (step 4, from LegionBotAI; mapped 2026-11-03)
 
