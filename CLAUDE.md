@@ -249,6 +249,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   updates (owner hit it 2026-11-01). The conf.dist defaults still say `world` / `hotfixes`;
   the owner's confs use the `_legion` names. Do not rewrite the update files (they are
   upstream's and the updater re-applies files whose hash changes).
+- `DungeonFinder.DebugJoin` (worldserver.conf.dist) shipped as 1, i.e. one player alone forms a dungeon
+  group at once; set to 0 (its documented default) on the owner's request, 2026-11-05, so the dungeon finder
+  works normally and the playerbots fill gets its time.
 - Owner's local setup (2026-11-02): `D:\Legion Repack` holds the binaries, confs, a portable
   `mysql-8.0.44-winx64` started by a `start_mysql.bat` (root/admin on 127.0.0.1:3306, my.ini
   written by the bat), the source in `LegionCore-Reforged-main` (`SourceDirectory`), and
