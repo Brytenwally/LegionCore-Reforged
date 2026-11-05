@@ -38,6 +38,8 @@ Full features take months; the owner wants baby steps, one working milestone at 
   runtime test result the owner reports (what works, on which build).
 
 - Commit and push straight to `main`. No feature branches or PRs unless the owner asks.
+- **Do not start Windows builds (LegionCore-Build workflow) on your own** (owner, 2026-11-05): push
+  the change, say it is ready, and run the workflow only when the owner asks for a build.
 - Commit messages: imperative subject, body explaining what and why. No model names in
   commits.
 - Core changes: **only hooks the modules cannot do without, or fixes to bugs the owner hits**.
