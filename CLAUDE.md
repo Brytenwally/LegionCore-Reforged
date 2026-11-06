@@ -242,6 +242,11 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - Group loot (2026-11-05): `Group::RollId` (the rolls) is private; core commit "Add pending loot rolls accessor
   for modules" adds `Group::GetPendingRolls(member)` (rolls of live loot still waiting for his vote). A module
   votes with `CountRollVote(player, aoeSlot, choice)` on the player's own thread, like `HandleLootRoll`.
+- Upstream merge `8434fb9` (Titans-Project PR #4, 2026-11-06: Mardum demon hunter intro, quest package rewards,
+  login talent and level-achievement fixes, removal of the original server's custom events, license headers):
+  checked against the module the same day: every module hook survives, no API it uses changed, all 14 module files
+  compile. Behaviour notes: `RewardQuest` now gives a package quest's only selectable item when no reward is chosen
+  (bots choose one anyway); `Quest::GetClientPackageID` hides packages the server lists as choices.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
