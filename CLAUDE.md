@@ -251,6 +251,12 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - Group loot (2026-11-05): `Group::RollId` (the rolls) is private; core commit "Add pending loot rolls accessor
   for modules" adds `Group::GetPendingRolls(member)` (rolls of live loot still waiting for his vote). A module
   votes with `CountRollVote(player, aoeSlot, choice)` on the player's own thread, like `HandleLootRoll`.
+- Battlegrounds (2026-11-06, for the playerbots module; no core change): every client packet is handled on the session's
+  own thread on this core whatever its `PROCESS_*` (`ProcessingPlace` is never read), so a module may call
+  `JoinBattlegroundQueue` / `HandleBattleFieldPort` on the player's thread. `Battleground::BgObjects` / `BgCreatures` are
+  public; a capture point's owner is its `GAMEOBJECT_FIELD_SPELL_VISUAL_ID` (`UpdateCapturePoint`); flag captures are
+  server-side area trigger checks (`_CheckPositions`); `GetTypeID(true)` is the real map's type, `GetTypeID()` the queued
+  one (random). Details in LegionCore-Playerbots' `CLAUDE.md`, "Battlegrounds".
 - Upstream merge `8434fb9` (Titans-Project PR #4, 2026-11-06: Mardum demon hunter intro, quest package rewards,
   login talent and level-achievement fixes, removal of the original server's custom events, license headers):
   checked against the module the same day: every module hook survives, no API it uses changed, all 14 module files
