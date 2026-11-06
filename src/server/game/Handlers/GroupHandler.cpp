@@ -488,9 +488,11 @@ void WorldSession::HandleSetPartyLeader(WorldPackets::Party::SetPartyLeader& pac
     if (!group->IsLeader(GetPlayer()->GetGUID()) || !targetInGroup)
         return;
 
-    // Prevent exploits with instance saves
+    // Prevent exploits with instance saves (a dungeon finder group's instance is its own: its lead may change inside)
     for (auto const& member : group->GetMemberSlots())
     {
+        if (group->isLFGGroup())
+            break;
         bool inInstance = false;
         ObjectAccessor::WithPlayer(member.Guid, [&inInstance](Player* plr) { inInstance = plr->FindMap() && plr->FindMap()->Instanceable(); });
         if (inInstance)

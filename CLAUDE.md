@@ -227,6 +227,14 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   (proposal whose answer for him is `LFG_ANSWER_PENDING`). A module answers as the client would by calling
   what the handlers call, on the player's own thread: `UpdateRoleCheck`, `UpdateProposal` (its `Ticket.Time`
   feeds wait times: send the player's `GetTicket`), `JoinLfg(player, roles, dungeons)`.
+- Dungeon finder replacement (2026-11-06, owner's build #28 report): when a member left a dungeon finder group, the
+  core offered "find another player" (`SendLfgOfferContinue`, `LFGGroupScript::OnRemoveMember`) only to the LFG
+  leader, and not at all when the leader was the one leaving (the hook runs before `Group::RemoveMember` picks the new
+  leader); with a bot as leader nobody saw it. Also `HandleSetPartyLeader` refused any lead change while a member was
+  in an instance, so a player could not take the lead inside the dungeon. Core commit "Fix dungeon finder replacement
+  offer and lead change": the offer goes to the next leader (first other online member) when the leader leaves, and
+  dungeon finder groups may change leader inside their instance (their instance is bound to the group, the exploit
+  check is for hand-made groups). The module makes bot leaders pass the lead to a player.
 - Group loot (2026-11-05): `Group::RollId` (the rolls) is private; core commit "Add pending loot rolls accessor
   for modules" adds `Group::GetPendingRolls(member)` (rolls of live loot still waiting for his vote). A module
   votes with `CountRollVote(player, aoeSlot, choice)` on the player's own thread, like `HandleLootRoll`.

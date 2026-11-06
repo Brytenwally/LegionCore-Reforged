@@ -205,8 +205,21 @@ void LFGGroupScript::OnRemoveMember(Group* group, ObjectGuid const& guid, Remove
         }, 0, ObjectAccessor::PlayerScope::InWorld);
     }
 
+    // The hook runs before the group picks a new leader: when the leader is the one leaving, the offer goes to the
+    // member who will lead next (the first other online member, as Group::RemoveMemberQueue picks); before, the
+    // leader's leaving skipped the offer, and the group was never asked to look for a replacement.
     ObjectGuid lguid = sLFGMgr->GetLeader(gguid);
-    if (state != LFG_STATE_FINISHED_DUNGEON && lguid != guid) // Need more players to finish the dungeon
+    if (lguid == guid)
+    {
+        lguid.Clear();
+        for (Group::MemberSlot const& slot : group->GetMemberSlots())
+            if (slot.Guid != guid && ObjectAccessor::IsPlayerOnline(slot.Guid))
+            {
+                lguid = slot.Guid;
+                break;
+            }
+    }
+    if (state != LFG_STATE_FINISHED_DUNGEON && !lguid.IsEmpty() && lguid != guid) // Need more players to finish the dungeon
     {
         uint32 const dungeonId = sLFGMgr->GetDungeon(gguid, false);
         ObjectAccessor::PostToPlayer(lguid, [dungeonId](Player* leader) -> void { leader->SendLfgOfferContinue(dungeonId); }, 0, ObjectAccessor::PlayerScope::InWorld);
