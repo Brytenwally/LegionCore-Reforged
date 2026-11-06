@@ -346,6 +346,8 @@ public:
     std::vector<uint32> GetQueueIds(ObjectGuid guid);
     bool GetRoleCheckRoles(ObjectGuid gguid, ObjectGuid guid, uint8& roles);
     uint32 GetPendingProposal(ObjectGuid guid);
+    // a vote to kick from group gguid still waiting for guid's answer: its victim and who voted yes so far
+    bool GetPendingBoot(ObjectGuid gguid, ObjectGuid guid, ObjectGuid& victim, std::vector<ObjectGuid>& agreed);
     uint32 GetOptions();
     void SetOptions(uint32 options);
     bool isOptionEnabled(uint32 option);

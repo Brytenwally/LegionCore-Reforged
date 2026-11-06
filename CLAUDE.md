@@ -235,6 +235,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   offer and lead change": the offer goes to the next leader (first other online member) when the leader leaves, and
   dungeon finder groups may change leader inside their instance (their instance is bound to the group, the exploit
   check is for hand-made groups). The module makes bot leaders pass the lead to a player.
+- Vote kicks (2026-11-06): `LFGMgr::BootsStore` is private; core commit "Add pending boot vote accessor for modules"
+  adds `GetPendingBoot(gguid, guid, victim, agreed)` (a kick vote waiting for his answer, its victim, who voted yes;
+  the kicker is not stored, he is among the yes votes). A module votes with `UpdateBoot(gguid, guid, accept)` on the
+  player's thread, as `HandleLfgBootPlayerVote`.
 - Group loot (2026-11-05): `Group::RollId` (the rolls) is private; core commit "Add pending loot rolls accessor
   for modules" adds `Group::GetPendingRolls(member)` (rolls of live loot still waiting for his vote). A module
   votes with `CountRollVote(player, aoeSlot, choice)` on the player's own thread, like `HandleLootRoll`.

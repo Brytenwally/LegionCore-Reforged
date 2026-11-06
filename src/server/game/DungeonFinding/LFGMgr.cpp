@@ -2296,6 +2296,23 @@ uint32 LFGMgr::GetPendingProposal(ObjectGuid guid)
     return 0;
 }
 
+bool LFGMgr::GetPendingBoot(ObjectGuid gguid, ObjectGuid guid, ObjectGuid& victim, std::vector<ObjectGuid>& agreed)
+{
+    LfgGuard _lock(m_lock);
+    auto itBoot = BootsStore.find(gguid);
+    if (itBoot == BootsStore.end() || !itBoot->second.inProgress)
+        return false;
+    auto itVote = itBoot->second.votes.find(guid);
+    if (itVote == itBoot->second.votes.end() || itVote->second != LFG_ANSWER_PENDING)
+        return false;
+    victim = itBoot->second.victim;
+    agreed.clear();
+    for (auto const& vote : itBoot->second.votes)
+        if (vote.second == LFG_ANSWER_AGREE)
+            agreed.push_back(vote.first);
+    return true;
+}
+
 LfgDungeonSet LFGMgr::GetSelectedDungeons(ObjectGuid guid, uint32 queueId)
 {
     LfgGuard _lock(m_lock);
