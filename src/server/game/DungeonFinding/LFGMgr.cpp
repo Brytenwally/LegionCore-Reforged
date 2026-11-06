@@ -695,7 +695,8 @@ void LFGMgr::JoinLfg(Player* player, uint8 requestedRoles, LfgDungeonSet& reques
     };
 
     auto finishJoin = [this, playerGuid, groupGuid, playerTeam, playerTeamId, playerName, selfResult](Player* joiner, uint8 roles, LfgDungeonSet& dungeons,
-        bool hasGroup, uint32 groupSize, bool groupIsLfg, std::vector<MemberInfo> const& members, LfgJoinResult membersResult, LfgLockPartyMap const& lockedByPlayer)
+        bool hasGroup, uint32 groupSize, bool groupIsLfg, std::vector<MemberInfo> const& members, LfgJoinResult membersResult,
+        LfgJoinResult membersContinueResult, LfgLockPartyMap const& lockedByPlayer)
     {
         LfgGuard _lock(m_lock);
 
@@ -756,9 +757,15 @@ void LFGMgr::JoinLfg(Player* player, uint8 requestedRoles, LfgDungeonSet& reques
                 queue.RemoveFromQueue(groupGuid);
         }
 
+        // A group of the dungeon finder looking for a replacement continues its own dungeon: the random dungeon cooldown,
+        // given to everyone on entering it, does not stop that (as on TrinityCore); before, it refused every such request
+        LfgJoinResult const ownResult = isContinueDungeonRequest && selfResult == LFG_JOIN_RANDOM_COOLDOWN ? LFG_JOIN_OK : selfResult;
+        if (isContinueDungeonRequest)
+            membersResult = membersContinueResult;
+
         // Check player or group member restrictions
-        if (selfResult != LFG_JOIN_OK)
-            joinData.result = selfResult;
+        if (ownResult != LFG_JOIN_OK)
+            joinData.result = ownResult;
         else if (dungeons.empty())
             joinData.result = LFG_JOIN_NOT_MEET_REQS;
         else if (hasGroup)
@@ -978,7 +985,7 @@ void LFGMgr::JoinLfg(Player* player, uint8 requestedRoles, LfgDungeonSet& reques
     {
         LfgLockPartyMap lockedByPlayer;
         lockedByPlayer[playerGuid] = GetLockedDungeons(playerGuid);
-        finishJoin(player, requestedRoles, requestedDungeons, false, 1, false, std::vector<MemberInfo>(), LFG_JOIN_OK, lockedByPlayer);
+        finishJoin(player, requestedRoles, requestedDungeons, false, 1, false, std::vector<MemberInfo>(), LFG_JOIN_OK, LFG_JOIN_OK, lockedByPlayer);
         return;
     }
 
@@ -1012,6 +1019,7 @@ void LFGMgr::JoinLfg(Player* player, uint8 requestedRoles, LfgDungeonSet& reques
         // slot order, as the checks were made in one pass before
         std::vector<MemberInfo> members;
         LfgJoinResult membersResult = LFG_JOIN_OK;
+        LfgJoinResult membersContinueResult = LFG_JOIN_OK;     // the same without the random dungeon cooldown
         LfgLockPartyMap lockedByPlayer;
         for (size_t i = 0; i < memberGuids.size(); ++i)
         {
@@ -1020,13 +1028,15 @@ void LFGMgr::JoinLfg(Player* player, uint8 requestedRoles, LfgDungeonSet& reques
 
             if (membersResult == LFG_JOIN_OK)
                 membersResult = reports[i].result;
+            if (membersContinueResult == LFG_JOIN_OK && reports[i].result != LFG_JOIN_PARTY_RANDOM_COOLDOWN)
+                membersContinueResult = reports[i].result;
 
             members.push_back({ memberGuids[i], reports[i].teamId, memberNames[i] });
             lockedByPlayer[memberGuids[i]] = reports[i].locks;
         }
 
         LfgDungeonSet dungeonsCopy = joinDungeons;
-        finishJoin(leader, requestedRoles, dungeonsCopy, true, groupSize, groupIsLfg, members, membersResult, lockedByPlayer);
+        finishJoin(leader, requestedRoles, dungeonsCopy, true, groupSize, groupIsLfg, members, membersResult, membersContinueResult, lockedByPlayer);
     });
 }
 

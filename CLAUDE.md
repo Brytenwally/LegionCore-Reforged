@@ -235,6 +235,15 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   offer and lead change": the offer goes to the next leader (first other online member) when the leader leaves, and
   dungeon finder groups may change leader inside their instance (their instance is bound to the group, the exploit
   check is for hand-made groups). The module makes bot leaders pass the lead to a player.
+- **Still no replacement queue on build #30** (owner, 2026-11-06: the offer now reaches him, but neither it nor a
+  manual join requeues the group). Cause: `LFGMgr::JoinLfg` refused every member with the random dungeon cooldown
+  (71328, cast on each member 10 ms after a random dungeon's group is made, `LFGMgr` ~1488) with
+  `LFG_JOIN_RANDOM_COOLDOWN` / `PARTY_RANDOM_COOLDOWN`, even for a continue request (a dungeon finder group asking for a
+  replacement in its own dungeon); TrinityCore skips that check when `isContinue`. Reforged's threaded rewrite of
+  `JoinLfg` computes the player and member checks before it knows whether the request continues, and applied them
+  always. Core commit "Let dungeon finder groups requeue for a replacement": the cooldown no longer stops a continue
+  request (deserter and battleground checks still do). The log showed no join at all, only `RemoveFromGroupQueue`
+  lines (`TC_LOG_ERROR` in `LFGMgr::RemoveFromGroupQueue`: printed by every leave, not an error).
 - Vote kicks (2026-11-06): `LFGMgr::BootsStore` is private; core commit "Add pending boot vote accessor for modules"
   adds `GetPendingBoot(gguid, guid, victim, agreed)` (a kick vote waiting for his answer, its victim, who voted yes;
   the kicker is not stored, he is among the yes votes). A module votes with `UpdateBoot(gguid, guid, accept)` on the
