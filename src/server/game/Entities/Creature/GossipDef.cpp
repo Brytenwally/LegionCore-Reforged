@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "QuestDef.h"
 #include "GossipDef.h"
@@ -27,6 +21,10 @@
 #include "NPCPackets.h"
 #include "QuestData.h"
 #include "GossipData.h"
+#include "Player.h"
+#include "DB2Stores.h"
+#include "SpellInfo.h"
+#include "SpellMgr.h"
 
 GossipMenu::GossipMenu()
 {
@@ -498,7 +496,7 @@ void PlayerMenu::SendQuestGiverStatus(QuestGiverStatus questStatus, ObjectGuid n
         player->SendDirectMessage(packet.Write());
 }
 
-void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGUID, bool autoLaunched, bool displayPopup, bool isAreaTrigger /*=false*/, uint32 questStartItemId /*= 0*/) const
+void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGUID, bool autoLaunched, bool displayPopup, bool isAreaTrigger /*=false*/, uint32 questStartItemId /*= 0*/, bool resent /*= false*/) const
 {
     Player* player = _session->GetPlayer();
     if (!player)
@@ -545,8 +543,11 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGU
     packet.QuestFlags[1] = quest->FlagsEx;
     packet.SuggestedPartyMembers = quest->SuggestedPlayers;
 
+    // the accept spell is shown as learnt only when it teaches something: most of them play a scene or set a phase
     if (quest->SourceSpellID)
-        packet.LearnSpells.push_back(quest->SourceSpellID);
+        if (SpellInfo const* sourceSpell = sSpellMgr->GetSpellInfo(quest->SourceSpellID))
+            if (sourceSpell->HasEffect(SPELL_EFFECT_LEARN_SPELL))
+                packet.LearnSpells.push_back(quest->SourceSpellID);
 
     packet.QuestStartItemID = questStartItemId;
 
@@ -572,6 +573,19 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGU
     _session->SendPacket(packet.Write());
 
     player->SendDirectMessage(packet.Write());
+
+    // the client draws reward items it does not know yet as blank until the window is shown again: it is sent once more, a quarter of a second later
+    bool const hasItems = packet.Rewards.ChoiceItemCount || packet.Rewards.ItemCount;
+    if (hasItems && !resent)
+    {
+        uint32 const questId = quest->GetQuestId();
+        player->AddDelayedEvent(250, [player, questId, npcGUID, autoLaunched, displayPopup, isAreaTrigger, questStartItemId]() -> void
+        {
+            Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
+            if (quest && player->GetQuestStatus(questId) == QUEST_STATUS_NONE)
+                player->PlayerTalkClass->SendQuestGiverQuestDetails(quest, npcGUID, autoLaunched, displayPopup, isAreaTrigger, questStartItemId, true);
+        });
+    }
 }
 
 void PlayerMenu::SendQuestQueryResponse(uint32 questId) const
@@ -613,7 +627,7 @@ void PlayerMenu::SendQuestQueryResponse(uint32 questId) const
     packet.Info.QuestType = quest->Type;
     packet.Info.QuestLevel = quest->Level;
     packet.Info.QuestMaxScalingLevel = quest->MaxScalingLevel;
-    packet.Info.QuestPackageID = quest->PackageID;
+    packet.Info.QuestPackageID = quest->GetClientPackageID();
     packet.Info.QuestMinLevel = quest->MinLevel;
     packet.Info.QuestSortID = quest->QuestSortID;
     packet.Info.QuestInfoID = quest->QuestInfoID;
@@ -669,6 +683,30 @@ void PlayerMenu::SendQuestQueryResponse(uint32 questId) const
             packet.Info.UnfilteredChoiceItems[i].ItemID = quest->RewardChoiceItemId[i];
             packet.Info.UnfilteredChoiceItems[i].Quantity = quest->RewardChoiceItemCount[i];
         }
+
+        // the quest log does not show a reward package either: it lists the package items this player can take
+        if (quest->PackageID && !quest->GetClientPackageID())
+        {
+            Player* player = _session->GetPlayer();
+            uint8 count = 0;
+            auto addItems = [&](std::vector<QuestPackageItemEntry const*> const* questPackageItems, bool filtered)
+            {
+                if (!questPackageItems)
+                    return;
+
+                for (QuestPackageItemEntry const* questPackageItem : *questPackageItems)
+                    if (count < QUEST_REWARD_CHOICES_COUNT && (!filtered || (player && player->CanSelectQuestPackageItem(questPackageItem))))
+                    {
+                        packet.Info.UnfilteredChoiceItems[count].ItemID = questPackageItem->ItemID;
+                        packet.Info.UnfilteredChoiceItems[count].Quantity = questPackageItem->ItemQuantity;
+                        ++count;
+                    }
+            };
+
+            addItems(sDB2Manager.GetQuestPackageItems(quest->PackageID), true);
+            if (!count)
+                addItems(sDB2Manager.GetQuestPackageItemsFallback(quest->PackageID), false);
+        }
     }
 
     for (uint8 i = 0; i < QUEST_REWARD_REPUTATIONS_COUNT; ++i)
@@ -719,7 +757,7 @@ void PlayerMenu::SendQuestQueryResponse(uint32 questId) const
         player->SendDirectMessage(packet.Write());
 }
 
-void PlayerMenu::SendQuestGiverOfferReward(Quest const* quest, ObjectGuid npcGUID, bool autoLaunched) const
+void PlayerMenu::SendQuestGiverOfferReward(Quest const* quest, ObjectGuid npcGUID, bool autoLaunched, bool resent /*= false*/) const
 {
     Player* player = _session->GetPlayer();
 
@@ -771,8 +809,20 @@ void PlayerMenu::SendQuestGiverOfferReward(Quest const* quest, ObjectGuid npcGUI
     packet.PortraitGiverName = portraitGiverName;
     packet.PortraitTurnInText = portraitTurnInText;
     packet.PortraitTurnInName = portraitTurnInName;
-    packet.QuestPackageID = quest->PackageID;
+    packet.QuestPackageID = quest->GetClientPackageID();
     player->SendDirectMessage(packet.Write());
+
+    // as for the quest details: reward items the client does not know yet are drawn blank until the window is sent again
+    if ((offer.Rewards.ChoiceItemCount || offer.Rewards.ItemCount) && !resent)
+    {
+        uint32 const questId = quest->GetQuestId();
+        player->AddDelayedEvent(250, [player, questId, npcGUID, autoLaunched]() -> void
+        {
+            Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
+            if (quest && player->GetQuestStatus(questId) == QUEST_STATUS_COMPLETE)
+                player->PlayerTalkClass->SendQuestGiverOfferReward(quest, npcGUID, autoLaunched, true);
+        });
+    }
 }
 
 uint32 GossipMenu::GetMenuItemCount() const

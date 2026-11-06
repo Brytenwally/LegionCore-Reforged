@@ -527,7 +527,8 @@ void Creature::AddToWorld()
         if (auto bg = GetBattleground())
             bg->OnCreatureCreate(this);
 
-        if (MaxVisible && !isAnySummons())
+        // a spawned vehicle (siege engine, ship) is seen from afar too: only summons are left out
+        if (MaxVisible && !isSummon() && !(m_unitTypeMask & (UNIT_MASK_GUARDIAN | UNIT_MASK_PET | UNIT_MASK_HUNTER_PET | UNIT_MASK_TOTEM)))
             if (Map* mapInfo = GetMap())
                 mapInfo->AddMaxVisible(this);
 
@@ -552,7 +553,7 @@ void Creature::RemoveFromWorld()
             if (auto bg = GetBattleground())
                 bg->OnCreatureRemove(this);
 
-            if (MaxVisible && !isAnySummons())
+            if (MaxVisible)
                 mapInfo->RemoveMaxVisible(this);
 
         }
@@ -1195,7 +1196,11 @@ void Creature::Update(uint32 diff)
             if (m_respawnCombatDelay)
             {
                 if (m_respawnCombatDelay <= diff)
+                {
                     m_respawnCombatDelay = 0;
+                    // the neighbours were looked at while it could not fight yet: standing still, they will not be seen again
+                    ScheduleAINotify();
+                }
                 else
                     m_respawnCombatDelay -= diff;
             }
@@ -1916,6 +1921,13 @@ void Creature::SaveToDB(uint32 mapid, uint64 spawnMask, uint32 phaseMask)
     stmt->setBool(index++, isActiveObject());
     stmt->setFloat(index++, data.personalSize);
     trans->Append(stmt);
+
+    // the phases it stands in: left out, it came back in no phase at all, unseen by and blind to everything around it
+    std::string phases;
+    for (uint32 phase : GetPhases())
+        phases += (phases.empty() ? "" : " ") + std::to_string(phase);
+    data.PhaseID = GetPhases();
+    trans->PAppend("UPDATE creature SET PhaseId = '%s' WHERE guid = %llu", phases.c_str(), (unsigned long long)m_DBTableGuid);
 
     WorldDatabase.CommitTransaction(trans);
 }
