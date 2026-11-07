@@ -262,6 +262,23 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   checked against the module the same day: every module hook survives, no API it uses changed, all 14 module files
   compile. Behaviour notes: `RewardQuest` now gives a package quest's only selectable item when no reward is chosen
   (bots choose one anyway); `Quest::GetClientPackageID` hides packages the server lists as choices.
+- **Class hall messengers after "In the Blink of an Eye"** (owner, 2026-11-07: players never got their artifact
+  quests after 44663). Cause: every class's first artifact / class hall quest has its giver in the database with a
+  SmartAI made for being summoned (`SMART_EVENT_JUST_SUMMONED` -> follow invoker, personal visibility, talk, despawn
+  after 30 s or on quest accept), but nothing summons them and none is spawned (the retail summon spells are client
+  data, not in the repo; only the hotfix rows of `spell_effect` are). The mage (41035) and death knight (40714) quests
+  have no giver at all (retail popups). The world DB has **no English quest titles** (`quest_template.LogTitle` is
+  NULL, `quest_template_locale` holds frFR...): quests were identified by class, level 98 and French titles. New
+  script `scripts/Legion/legion_class_hall_messengers.cpp` (PlayerScript): 5 s - 2 min after 44663 / 44184 is
+  rewarded, or at login / map change for a character who has it done, on the Broken Isles (map 1220), while his class's
+  first quest is untaken and takeable, the messenger is summoned 3 yd behind him for him alone (`SummonCreature` with
+  `viewerGuid`, 2 min timed despawn, followed by its SmartAI or a `MoveFollow` when it has none); retried every 3 min
+  (15 s while in combat / flying / in a vehicle). DK and mage: popup offer (`SetPopupQuestId` +
+  `SendQuestGiverQuestDetails(quest, player guid)`: `HandleQuestGiverAcceptQuest` accepts a self-given quest only as
+  the popup quest), every 5 min. Quests / messengers: Warrior 42814 / 108961 (Alliance), 41052 / 93775 (Horde),
+  Paladin 38710 / 92909, Hunter 40384 / 100786, Rogue 40832 / 102018, Priest 40705 / 101344, Shaman 39746 / 91731
+  (also spawned in Dalaran), Warlock 40716 / 103506, Monk 12103 / 98519 (its SmartAI teleports with 194004), Druid
+  40643 / 101061, Demon Hunter 39047 / 99343. Bot sessions are skipped. Compiled in the container; untested.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
