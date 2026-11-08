@@ -267,8 +267,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   SmartAI made for being summoned (`SMART_EVENT_JUST_SUMMONED` -> follow invoker, personal visibility, talk, despawn
   after 30 s or on quest accept), but nothing summons them and none is spawned (the retail summon spells are client
   data, not in the repo; only the hotfix rows of `spell_effect` are). The mage (41035) and death knight (40714) quests
-  have no giver at all (retail popups). The world DB has **no English quest titles** (`quest_template.LogTitle` is
-  NULL, `quest_template_locale` holds frFR...): quests were identified by class, level 98 and French titles. New
+  have no giver at all (retail popups). The world DB had **no English titles for most Legion quests** (`quest_template.LogTitle`
+  NULL, only frFR in `quest_template_locale`; filled from TDB 735 on 2026-11-08, see "English only"): quests were
+  identified by class, level 98 and French titles. New
   script `scripts/Legion/legion_class_hall_messengers.cpp` (PlayerScript): 5 s - 2 min after 44663 / 44184 is
   rewarded, or at login / map change for a character who has it done, on the Broken Isles (map 1220), while his class's
   first quest is untaken and takeable, the messenger is summoned 3 yd behind him for him alone (`SummonCreature` with
@@ -279,6 +280,33 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   Paladin 38710 / 92909, Hunter 40384 / 100786, Rogue 40832 / 102018, Priest 40705 / 101344, Shaman 39746 / 91731
   (also spawned in Dalaran), Warlock 40716 / 103506, Monk 12103 / 98519 (its SmartAI teleports with 194004), Druid
   40643 / 101061, Demon Hunter 39047 / 99343. Bot sessions are skipped. Compiled in the container; untested.
+- **English only** (owner, 2026-11-08: "get rid of all the French text and switch it to English", his client is enUS).
+  Findings: the server picks text by the session locale, taken from the client at login (`account.locale`, bnetserver
+  `LOGIN_UPD_ACCOUNT_LOGIN_INFO`), and every quest / creature text / hotfix path uses the base (English) column unless
+  the session is not enUS (`ObjectMgr::GetLocaleString`, `DB2StorageBase::WriteRecord`); no code falls back to
+  another locale. Upstream Reforged is maintained in French: its updates rightly put French into the `_locale` rows
+  and `content_loc2` / `...Localized` columns, but **~9,800 quests (mostly Legion) had no English at all** (NULL
+  `quest_template.LogTitle` and texts, only `quest_template_locale` frFR), a few dozen rows held French in English
+  columns, and some C++ messages were French. Changes:
+  - `sql/updates/world/2026_11_08_00_quest_texts_english.sql`: English from TrinityCore's **TDB 735.00** (2018-02-19,
+    same build; release asset `TDB_full_735.00_2018_02_19.7z`) into quest fields still empty here (`IF(col IS NULL OR
+    col = '', ...)`, existing English never overwritten): 9,295 titles, ~3,900 descriptions, 5,043 objective
+    descriptions, reward / progress texts; plus the reused ids whose English was a placeholder ("REUSE",
+    "DEPRECATED": 8237, 11997, **12103 = the monk's "Before the Storm"**, 24661) get all of TDB's texts. 525 titles stay
+    empty (not in TDB either).
+  - `.../2026_11_08_01_french_texts_english.sql`: shop entries (`battlepay_display_info`, unofficial translations of
+    the custom shop's names), `battlepay_tokens` "Credits", custom quest 316999, `creature_text` 56056 / 57106 (lines
+    without a broadcast text; lines with one show the broadcast text, so the garbled Russian / German duplicates in
+    `creature_text` never reach the client), gossip 44202, `script_texts` -1850507, calendar `...Localized` = English.
+  - `.../2026_11_08_02_remove_french_locale.sql` and `hotfixes/2026_11_08_01_remove_french_locale.sql`: every frFR row
+    of the 12 world and 200 hotfix `_locale(s)` tables deleted, `*_loc2` columns emptied. A later upstream update may
+    add French rows again: harmless, only a frFR client gets them.
+  - `hotfixes/2026_11_08_00_character_service_info_english.sql`: the level 90 / 100 boost texts.
+  - C++: Recruit-a-Friend messages (`ReferAFriendHandler.cpp`, `.account raf` in `cs_account.cpp`), the rename log
+    command (`cs_character.cpp`), Icecrown jousting trainers' gossip (`zone_icecrown.cpp`, garbled French defines).
+  Checked: all five SQL files run (twice) on MariaDB against the affected base tables; the C++ compiles. Untested in game.
+  Tools for next time: the base dumps are one `INSERT` per table per line; a small parser of those lines (values in
+  parentheses, MySQL escapes) answers most data questions without a database.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

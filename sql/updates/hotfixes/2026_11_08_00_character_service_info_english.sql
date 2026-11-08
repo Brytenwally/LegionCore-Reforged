@@ -1,0 +1,3 @@
+-- Character boost texts in English (owner, 2026-11-08: the base (English) columns held French).
+UPDATE `character_service_info` SET `FlowTitle` = 'Level 100 Character Boost', `PopupTitle` = 'Free Level 100 Character Boost', `PopupDescription` = 'World of Warcraft: Legion includes a Level 100 Character Boost. You can choose to boost an existing character to level 100, try a new class before using your boost, or close this window to use the boost later.' WHERE `ID` = 1;
+UPDATE `character_service_info` SET `FlowTitle` = 'Level 90 Character Boost', `PopupTitle` = 'Free Level 90 Character Boost', `PopupDescription` = 'You received this boost as a gift for purchasing Warlords of Draenor.' WHERE `ID` = 6;

@@ -73,7 +73,7 @@ static void SendRafAnswerHint(ChatHandler& chat)
     if (!sWorld->getBoolConfig(CONFIG_RECRUIT_A_FRIEND_COMMANDS_ENABLE))
         return;
 
-    chat.SendSysMessage("Tapez |cff00ccff.account raf list|r pour la consulter, puis |cff00ccff.account raf accept|r ou |cff00ccff.account raf refuse|r suivi de son numéro.");
+    chat.SendSysMessage("Type |cff00ccff.account raf list|r to view it, then |cff00ccff.account raf accept|r or |cff00ccff.account raf refuse|r followed by its number.");
 }
 
 // Answers the check the client sends when the social panel opens. Without it the invitation
@@ -101,7 +101,7 @@ void WorldSession::HandleRecruitAFriend(WorldPackets::ReferAFriend::RecruitAFrie
 
     if (!sWorld->getBoolConfig(CONFIG_RECRUIT_A_FRIEND_ENABLE))
     {
-        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, "", "Le parrainage n'est pas actif sur ce royaume.");
+        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, "", "Recruit-a-Friend is not active on this realm.");
         return;
     }
 
@@ -110,13 +110,13 @@ void WorldSession::HandleRecruitAFriend(WorldPackets::ReferAFriend::RecruitAFrie
 
     if (email.empty() || email.find('@') == std::string::npos)
     {
-        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, email, "Adresse e-mail invalide.");
+        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, email, "Invalid e-mail address.");
         return;
     }
 
     if (!RafInviteAllowed(GetAccountId()))
     {
-        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, email, "Veuillez patienter quelques secondes avant une nouvelle invitation.");
+        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, email, "Please wait a few seconds before sending another invitation.");
         return;
     }
 
@@ -149,7 +149,7 @@ void WorldSession::HandleRecruitAFriend(WorldPackets::ReferAFriend::RecruitAFrie
 
     if (recruitedId == GetAccountId())
     {
-        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, email, "Vous ne pouvez pas vous parrainer vous-meme.");
+        sendFailure(ERR_REFER_A_FRIEND_NOT_NOW, email, "You cannot recruit yourself.");
         return;
     }
 
@@ -176,7 +176,7 @@ void WorldSession::HandleRecruitAFriend(WorldPackets::ReferAFriend::RecruitAFrie
     LoginDatabase.PExecute("INSERT INTO account_raf_invite (recruiter_id, recruited_id, recruited_email, note) VALUES (%u, %u, '%s', '%s')",
         GetAccountId(), recruitedId, escapedEmail.c_str(), note.c_str());
 
-    TC_LOG_INFO("misc", "Parrainage : le compte %u invite le compte %u (%s).",
+    TC_LOG_INFO("misc", "Recruit-a-Friend: account %u invites account %u (%s).",
         GetAccountId(), recruitedId, email.c_str());
 
     // Already online: tell them now rather than waiting for their next login, and mark the
@@ -371,7 +371,7 @@ void WorldSession::HandleRafAddonMessage(std::string const& message)
 
     if (!result)
     {
-        SendRafAddonMessage("ERR Cette invitation n est plus valide.");
+        SendRafAddonMessage("ERR This invitation is no longer valid.");
         return;
     }
 
@@ -393,7 +393,7 @@ void WorldSession::HandleRafAddonMessage(std::string const& message)
         "WHERE recruited_id = %u AND status = 0", accountId);
 
     SendRafAddonMessage("DONE ACCEPT");
-    TC_LOG_INFO("misc", "Parrainage : le compte %u a accepte l'invitation du compte %u.",
+    TC_LOG_INFO("misc", "Recruit-a-Friend: account %u accepted the invitation of account %u.",
         accountId, recruiterId);
 }
 
@@ -414,7 +414,7 @@ void WorldSession::SendRafInviteReceived(std::string const& recruiterName)
         return;
 
     ChatHandler chat(this);
-    chat.PSendSysMessage("|cff00ff00[Parrainage]|r %s vient de vous envoyer une demande de parrainage.",
+    chat.PSendSysMessage("|cff00ff00[Recruit-a-Friend]|r %s has just sent you a recruitment request.",
         recruiterName.c_str());
     SendRafAnswerHint(chat);
 }
@@ -457,20 +457,20 @@ void WorldSession::SendRafInviteNotification()
     if (fresh)
     {
         if (fresh > 1)
-            chat.PSendSysMessage("|cff00ff00[Parrainage]|r Vous avez reçu %u demandes de parrainage, dont une de la part de %s.",
+            chat.PSendSysMessage("|cff00ff00[Recruit-a-Friend]|r You have received %u recruitment requests, including one from %s.",
                 fresh, firstRecruiter.c_str());
         else
-            chat.PSendSysMessage("|cff00ff00[Parrainage]|r Vous avez reçu une demande de parrainage de la part de %s.",
+            chat.PSendSysMessage("|cff00ff00[Recruit-a-Friend]|r You have received a recruitment request from %s.",
                 firstRecruiter.c_str());
 
         LoginDatabase.PExecute("UPDATE account_raf_invite SET notified = 1 WHERE recruited_id = %u AND status = 0",
             accountId);
     }
     else if (total > 1)
-        chat.PSendSysMessage("|cff00ff00[Parrainage]|r Vous avez %u demandes de parrainage en attente, dont une de la part de %s.",
+        chat.PSendSysMessage("|cff00ff00[Recruit-a-Friend]|r You have %u pending recruitment requests, including one from %s.",
             total, firstRecruiter.c_str());
     else
-        chat.PSendSysMessage("|cff00ff00[Parrainage]|r Vous avez une demande de parrainage en attente, de la part de %s.",
+        chat.PSendSysMessage("|cff00ff00[Recruit-a-Friend]|r You have a pending recruitment request from %s.",
             firstRecruiter.c_str());
 
     SendRafAnswerHint(chat);

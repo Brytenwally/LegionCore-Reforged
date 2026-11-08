@@ -86,7 +86,7 @@ public:
         if (sWorld->getBoolConfig(CONFIG_RECRUIT_A_FRIEND_COMMANDS_ENABLE))
             return true;
 
-        handler->SendSysMessage("Le parrainage n'est pas disponible sur ce royaume.");
+        handler->SendSysMessage("Recruit-a-Friend is not available on this realm.");
         handler->SetSentErrorMessage(true);
         return false;
     }
@@ -114,19 +114,19 @@ public:
 
         if (!result)
         {
-            handler->SendSysMessage("Aucune invitation de parrainage en attente.");
+            handler->SendSysMessage("No pending Recruit-a-Friend invitation.");
             return true;
         }
 
-        handler->SendSysMessage("Invitations de parrainage en attente :");
+        handler->SendSysMessage("Pending Recruit-a-Friend invitations:");
         do
         {
             Field* fields = result->Fetch();
-            handler->PSendSysMessage("  [%u] de %s : %s", fields[0].GetUInt32(),
+            handler->PSendSysMessage("  [%u] from %s: %s", fields[0].GetUInt32(),
                 fields[1].GetCString(), fields[2].GetCString());
         } while (result->NextRow());
 
-        handler->SendSysMessage("Repondez avec .account raf accept <id> ou .account raf refuse <id>.");
+        handler->SendSysMessage("Answer with .account raf accept <id> or .account raf refuse <id>.");
         return true;
     }
 
@@ -138,7 +138,7 @@ public:
 
         if (!*args)
         {
-            handler->SendSysMessage("Precisez le numero de l'invitation. Utilisez .account raf list.");
+            handler->SendSysMessage("Give the invitation number. Use .account raf list.");
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -153,7 +153,7 @@ public:
 
         if (!result)
         {
-            handler->SendSysMessage("Aucune invitation en attente sous ce numero.");
+            handler->SendSysMessage("No pending invitation with this number.");
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -165,7 +165,7 @@ public:
 
         if (!accepted)
         {
-            handler->SendSysMessage("Invitation refusee.");
+            handler->SendSysMessage("Invitation refused.");
             return true;
         }
 
@@ -175,8 +175,8 @@ public:
         LoginDatabase.PExecute("UPDATE account_raf_invite SET status = 3, responded_at = NOW() "
             "WHERE recruited_id = %u AND status = 0", accountId);
 
-        handler->SendSysMessage("Parrainage accepte. Le bonus s'appliquera a votre prochaine connexion.");
-        TC_LOG_INFO("misc", "Parrainage : le compte %u a accepte l'invitation du compte %u.",
+        handler->SendSysMessage("Recruitment accepted. The bonus will apply at your next login.");
+        TC_LOG_INFO("misc", "Recruit-a-Friend: account %u accepted the invitation of account %u.",
             accountId, recruiterId);
         return true;
     }

@@ -1038,12 +1038,12 @@ public:
             QueryResult result = CharacterDatabase.PQuery("SELECT * FROM log_rename WHERE guid = '%u'", PlayerGuid.GetGUIDLow());
             if (!result)
             {
-                handler->PSendSysMessage("Aucun rename pour le personnage de guid '%u'", PlayerGuid.GetGUIDLow());
+                handler->PSendSysMessage("No rename for the character with guid '%u'", PlayerGuid.GetGUIDLow());
                 return true;
             }
             std::string PlayerNewName;
             ObjectMgr::GetPlayerNameByGUID(PlayerGuid, PlayerNewName); // current name in case of multiple renames!
-            handler->PSendSysMessage("Le nom actuel du joueur de guid '%u' est : '%s'", PlayerGuid.GetGUIDLow(), PlayerNewName.c_str());
+            handler->PSendSysMessage("The current name of the player with guid '%u' is: '%s'", PlayerGuid.GetGUIDLow(), PlayerNewName.c_str());
             return true;
         }
         if (!normalizePlayerName(character))
@@ -1052,14 +1052,14 @@ public:
         QueryResult result = CharacterDatabase.PQuery("SELECT guid FROM log_rename WHERE oldName = '%s'", character.c_str());
         if (!result)
         {
-            handler->PSendSysMessage("Aucun rename pour le personnage '%s'", character.c_str());
+            handler->PSendSysMessage("No rename for the character '%s'", character.c_str());
             return true;
         }
         else
         {
             std::string PlayerNewName;
             ObjectMgr::GetPlayerNameByGUID(ObjectGuid::Create<HighGuid::Player>(result->Fetch()->GetUInt64()), PlayerNewName); // current name in case of multiple renames!
-            handler->PSendSysMessage("Le nom actuel du joueur '%s' est : '%s' (guid : '%u')", character.c_str(), PlayerNewName.c_str(), result->Fetch()->GetUInt32());
+            handler->PSendSysMessage("The current name of the player '%s' is: '%s' (guid: '%u')", character.c_str(), PlayerNewName.c_str(), result->Fetch()->GetUInt32());
             return true;
         }
         return true;
