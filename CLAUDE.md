@@ -13,9 +13,11 @@ Full features take months; the owner wants baby steps, one working milestone at 
 ## Owner's decisions so far
 
 - **Reforged is the base.** No commits from LegionCore-7.3.5 are brought in for now.
-- Later (not started): bring over from LegionCore-7.3.5 only its Legion content (class halls,
-  artifact acquisition, artifact scenarios, Legion dungeon/raid fixes, likely the zone
-  questlines). See "LegionCore-7.3.5" below before touching that.
+- **Started 2026-11-09** (owner: "map all the features they implemented that our core hasn't and implement as
+  many as possible", in steps): bringing over LegionCore-7.3.5's work since the leak. The map, the phases and the
+  method are in `docs/legioncore-735-port.md`; `docs/legioncore-735-files.tsv` lists every changed C++ file with its
+  status against Reforged (CLEAN: take as is, NEW: copy + register, BOTH_CHANGED: merge by hand). Phase 1 (artifact
+  choice onboarding) is done; see "LegionCore-7.3.5 port" below.
 - **Random bots' open-world life is the absolute last priority** (owner, 2026-11-02): random
   bots questing on their own, roaming level-appropriate zones, grinding and the like come after
   everything else in the plan. Bots the player adds and leads (group, dungeons/LFG, raids,
@@ -318,6 +320,18 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   **The client caches quest texts** (`Cache/WDB/enUS`): quests it saw blank stay blank until that folder is deleted.
   Tools for next time: the base dumps are one `INSERT` per table per line; a small parser of those lines (values in
   parentheses, MySQL escapes) answers most data questions without a database.
+- **LegionCore-7.3.5 port** (2026-11-09, plan in `docs/legioncore-735-port.md`). LegionCore-7.3.5 is cloned read-only at
+  `/home/user/brytenwally/legioncore-7.3.5` in a session (`add_repo` says public reads go through the git proxy; clone with
+  `GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 ...`, then `git fetch --depth=3000 origin main` to reach `fed58f79`).
+  Its developer's `docs/audits` explain each fix. **Phase 1, artifact choice onboarding**: core hook
+  `PlayerScript::OnPlayerChoiceResponse(player, choiceId, responseId)` (`ScriptMgr`), called at the end of
+  `WorldSession::HandleChoiceResponse` after the reward spell, plus LegionCore-7.3.5's recheck of the choice / response
+  conditions for the warlock (245) and hunter (240) panels at execution (a stale panel could restart a finished route);
+  script `scripts/Legion/ClassHalls/class_hall_artifact_onboarding.cpp` (copied unchanged): for the 36 artifact
+  responses (choices 235-266; same ids and responses in our database, checked) it credits the class hall quest's
+  selection objective and starts that weapon's acquisition quest, and at login it starts the quest for a character
+  whose hidden "<spec> Chosen" quest is rewarded. It complements the class hall messengers (they bring the first class
+  hall quest; the choice comes later in that campaign). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

@@ -14,6 +14,7 @@
 #include "AreaTriggerData.h"
 #include "CharacterPackets.h"
 #include "Chat.h"
+#include "ConditionMgr.h"
 #include "ContributionMgr.h"
 #include "Corpse.h"
 #include "InstancePackets.h"
@@ -700,9 +701,22 @@ void WorldSession::HandleChoiceResponse(WorldPackets::Misc::ChoiceResponse& pack
 
     _player->ClearOpenPlayerChoice();
 
+    // LegionCore-7.3.5: recheck at execution, so a stale artifact selection window (warlock 245, hunter 240) cannot
+    // restart a completed artifact route or cast its hidden "Chosen" quest reward spell again
+    if ((packet.ChoiceID == 245 || packet.ChoiceID == 240) &&
+        (!sConditionMgr->IsObjectMeetToConditions(_player,
+            sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE, packet.ChoiceID)) ||
+         !sConditionMgr->IsObjectMeetToConditions(_player,
+            sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE_RESPONS, packet.ResponseID))))
+        return;
+
     if (auto reward = playerChoiceResponse->Reward)
         if (reward.has_value() && reward->SpellID)
             _player->CastSpell(_player, reward->SpellID, true);
+
+    // the reward spell records the hidden "<specialization> Chosen" quest; class hall scripts then advance the visible
+    // selection objective and start the chosen acquisition quest
+    sScriptMgr->OnPlayerChoiceResponse(_player, packet.ChoiceID, packet.ResponseID);
 }
 
 void WorldSession::HandleQueryWorldCountwodnTimer(WorldPackets::Instance::QueryWorldCountwodnTimer& packet)

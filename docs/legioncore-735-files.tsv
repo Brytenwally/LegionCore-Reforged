@@ -1,0 +1,650 @@
+status	added	removed	legioncore_735_path	reforged_path
+CLEAN	22	9	src/common/DataStores/DB2FileLoader.cpp	src/common/DataStores/DB2FileLoader.cpp
+CLEAN	7	0	src/common/Logging/AppenderConsole.cpp	src/common/Logging/AppenderConsole.cpp
+NEW	42	0	src/common/Platform/ServerInstanceGuard.h	
+CLEAN	19	0	src/server/bnetserver/Main.cpp	src/server/bnetserver/Main.cpp
+CLEAN	5	2	src/server/bnetserver/Server/SslContext.cpp	src/server/bnetserver/Server/SslContext.cpp
+BOTH_CHANGED	9	2	src/server/database/Database/Implementation/CharacterDatabase.cpp	src/server/database/Database/Implementation/CharacterDatabase.cpp
+BOTH_CHANGED	7	0	src/server/database/Database/Implementation/CharacterDatabase.h	src/server/database/Database/Implementation/CharacterDatabase.h
+BOTH_CHANGED	1	1	src/server/database/Database/Implementation/HotfixDatabase.cpp	src/server/database/Database/Implementation/HotfixDatabase.cpp
+BOTH_CHANGED	3	1	src/server/database/Database/Implementation/LoginDatabase.cpp	src/server/database/Database/Implementation/LoginDatabase.cpp
+BOTH_CHANGED	1	1	src/server/database/Database/Implementation/WorldDatabase.cpp	src/server/database/Database/Implementation/WorldDatabase.cpp
+BOTH_CHANGED	7	1	src/server/game/AI/CoreAI/CombatAI.cpp	src/server/game/AI/CoreAI/CombatAI.cpp
+CLEAN	1	0	src/server/game/AI/CoreAI/GameObjectAI.h	src/server/game/AI/CoreAI/GameObjectAI.h
+BOTH_CHANGED	4	0	src/server/game/AI/CoreAI/UnitAI.h	src/server/game/AI/CoreAI/UnitAI.h
+BOTH_CHANGED	13	0	src/server/game/AI/CreatureAI.h	src/server/game/AI/CreatureAI.h
+BOTH_CHANGED	28	10	src/server/game/AI/SmartScripts/SmartAI.cpp	src/server/game/AI/SmartScripts/SmartAI.cpp
+BOTH_CHANGED	4	1	src/server/game/AI/SmartScripts/SmartAI.h	src/server/game/AI/SmartScripts/SmartAI.h
+BOTH_CHANGED	383	24	src/server/game/AI/SmartScripts/SmartScript.cpp	src/server/game/AI/SmartScripts/SmartScript.cpp
+BOTH_CHANGED	41	0	src/server/game/AI/SmartScripts/SmartScript.h	src/server/game/AI/SmartScripts/SmartScript.h
+BOTH_CHANGED	33	0	src/server/game/AI/SmartScripts/SmartScriptMgr.cpp	src/server/game/AI/SmartScripts/SmartScriptMgr.cpp
+BOTH_CHANGED	24	3	src/server/game/AI/SmartScripts/SmartScriptMgr.h	src/server/game/AI/SmartScripts/SmartScriptMgr.h
+BOTH_CHANGED	4	1	src/server/game/Achievements/AchievementMgr.cpp	src/server/game/Achievements/AchievementMgr.cpp
+BOTH_CHANGED	467	138	src/server/game/BattlePay/BattlePayMgr.cpp	src/server/game/BattlePay/BattlePayMgr.cpp
+BOTH_CHANGED	35	4	src/server/game/BattlePay/BattlePayMgr.h	src/server/game/BattlePay/BattlePayMgr.h
+NEW	162	0	src/server/game/BattlePay/BoostActionBars.h	
+BOTH_CHANGED	771	2	src/server/game/BattlePay/CharacterService.cpp	src/server/game/BattlePay/CharacterService.cpp
+BOTH_CHANGED	16	2	src/server/game/BattlePay/CharacterService.h	src/server/game/BattlePay/CharacterService.h
+BOTH_CHANGED	5	1	src/server/game/Conditions/ConditionMgr.cpp	src/server/game/Conditions/ConditionMgr.cpp
+BOTH_CHANGED	349	107	src/server/game/Contribution/ContributionMgr.cpp	src/server/game/Contribution/ContributionMgr.cpp
+BOTH_CHANGED	29	24	src/server/game/Contribution/ContributionMgr.h	src/server/game/Contribution/ContributionMgr.h
+BOTH_CHANGED	1	1	src/server/game/DataStores/DB2LoadInfo.h	src/server/game/DataStores/DB2LoadInfo.h
+BOTH_CHANGED	23	4	src/server/game/DataStores/DB2Stores.cpp	src/server/game/DataStores/DB2Stores.cpp
+BOTH_CHANGED	6	1	src/server/game/DataStores/DB2Stores.h	src/server/game/DataStores/DB2Stores.h
+BOTH_CHANGED	2	1	src/server/game/DataStores/DB2Structure.h	src/server/game/DataStores/DB2Structure.h
+BOTH_CHANGED	1	1	src/server/game/DataStores/DBCEnums.h	src/server/game/DataStores/DBCEnums.h
+NEW	65	0	src/server/game/DataStores/StromkarBladeVisual.h	
+NEW	33	0	src/server/game/DataStores/StromkarGroundCrackData.h	
+BOTH_CHANGED	102	10	src/server/game/DungeonFinding/LFGMgr.cpp	src/server/game/DungeonFinding/LFGMgr.cpp
+BOTH_CHANGED	2	0	src/server/game/DungeonFinding/LFGMgr.h	src/server/game/DungeonFinding/LFGMgr.h
+CLEAN	8	0	src/server/game/DungeonFinding/LFGQueue.cpp	src/server/game/DungeonFinding/LFGQueue.cpp
+BOTH_CHANGED	4	2	src/server/game/DungeonFinding/LFGScripts.cpp	src/server/game/DungeonFinding/LFGScripts.cpp
+BOTH_CHANGED	30	3	src/server/game/Entities/Conversation/Conversation.cpp	src/server/game/Entities/Conversation/Conversation.cpp
+BOTH_CHANGED	2	0	src/server/game/Entities/Conversation/Conversation.h	src/server/game/Entities/Conversation/Conversation.h
+BOTH_CHANGED	68	3	src/server/game/Entities/Creature/Creature.cpp	src/server/game/Entities/Creature/Creature.cpp
+BOTH_CHANGED	2	0	src/server/game/Entities/Creature/Creature.h	src/server/game/Entities/Creature/Creature.h
+NEW	14	0	src/server/game/Entities/Creature/CreatureScaling.h	
+BOTH_CHANGED	13	8	src/server/game/Entities/Creature/GossipDef.cpp	src/server/game/Entities/Creature/GossipDef.cpp
+BOTH_CHANGED	1	0	src/server/game/Entities/Creature/GossipDef.h	src/server/game/Entities/Creature/GossipDef.h
+BOTH_CHANGED	14	0	src/server/game/Entities/Creature/TemporarySummon.cpp	src/server/game/Entities/Creature/TemporarySummon.cpp
+CLEAN	15	1	src/server/game/Entities/EventObject/EventObject.cpp	src/server/game/Entities/EventObject/EventObject.cpp
+BOTH_CHANGED	77	2	src/server/game/Entities/GameObject/GameObject.cpp	src/server/game/Entities/GameObject/GameObject.cpp
+BOTH_CHANGED	3	0	src/server/game/Entities/GameObject/GameObject.h	src/server/game/Entities/GameObject/GameObject.h
+BOTH_CHANGED	63	23	src/server/game/Entities/Item/Item.cpp	src/server/game/Entities/Item/Item.cpp
+BOTH_CHANGED	1	1	src/server/game/Entities/Item/Item.h	src/server/game/Entities/Item/Item.h
+BOTH_CHANGED	57	3	src/server/game/Entities/Object/Object.cpp	src/server/game/Entities/Object/Object.cpp
+BOTH_CHANGED	10	0	src/server/game/Entities/Object/Object.h	src/server/game/Entities/Object/Object.h
+NEW	49	0	src/server/game/Entities/Object/QuestObjectScope.h	
+BOTH_CHANGED	14	7	src/server/game/Entities/Pet/Pet.cpp	src/server/game/Entities/Pet/Pet.cpp
+CLEAN	22	1	src/server/game/Entities/Pet/PetDefines.h	src/server/game/Entities/Pet/PetDefines.h
+NEW	40	0	src/server/game/Entities/Player/ClientMoverHistory.h	
+BOTH_CHANGED	1453	207	src/server/game/Entities/Player/Player.cpp	src/server/game/Entities/Player/Player.cpp
+BOTH_CHANGED	69	5	src/server/game/Entities/Player/Player.h	src/server/game/Entities/Player/Player.h
+NEW	248	0	src/server/game/Entities/Player/PlayerScenario.cpp	
+CLEAN	4	0	src/server/game/Entities/Player/RestMgr.cpp	src/server/game/Entities/Player/RestMgr.cpp
+BOTH_CHANGED	0	37	src/server/game/Entities/Totem/Totem.cpp	src/server/game/Entities/Totem/Totem.cpp
+BOTH_CHANGED	5	1	src/server/game/Entities/Transport/Transport.cpp	src/server/game/Entities/Transport/Transport.cpp
+BOTH_CHANGED	5	1	src/server/game/Entities/Unit/CharmInfo.cpp	src/server/game/Entities/Unit/CharmInfo.cpp
+BOTH_CHANGED	363	204	src/server/game/Entities/Unit/Unit.cpp	src/server/game/Entities/Unit/Unit.cpp
+BOTH_CHANGED	3	0	src/server/game/Entities/Unit/Unit.h	src/server/game/Entities/Unit/Unit.h
+CLEAN	1	1	src/server/game/Entities/Unit/UnitDefines.h	src/server/game/Entities/Unit/UnitDefines.h
+BOTH_CHANGED	48	16	src/server/game/Entities/Vehicle/Vehicle.cpp	src/server/game/Entities/Vehicle/Vehicle.cpp
+BOTH_CHANGED	2	2	src/server/game/Events/GameEventMgr.cpp	src/server/game/Events/GameEventMgr.cpp
+BOTH_CHANGED	14	0	src/server/game/Garrison/GarrisonMgr.cpp	src/server/game/Garrison/GarrisonMgr.cpp
+BOTH_CHANGED	5	1	src/server/game/Globals/BattlePetData.cpp	src/server/game/Globals/BattlePetData.cpp
+CLEAN	1	0	src/server/game/Globals/EventObjectData.h	src/server/game/Globals/EventObjectData.h
+BOTH_CHANGED	6	2	src/server/game/Globals/GossipData.cpp	src/server/game/Globals/GossipData.cpp
+BOTH_CHANGED	5	0	src/server/game/Globals/ObjectAccessor.cpp	src/server/game/Globals/ObjectAccessor.cpp
+BOTH_CHANGED	19	6	src/server/game/Globals/ObjectMgr.cpp	src/server/game/Globals/ObjectMgr.cpp
+BOTH_CHANGED	38	4	src/server/game/Globals/QuestData.cpp	src/server/game/Globals/QuestData.cpp
+CLEAN	1	53	src/server/game/Globals/ScriptsData.cpp	src/server/game/Globals/ScriptsData.cpp
+CLEAN	0	2	src/server/game/Globals/ScriptsData.h	src/server/game/Globals/ScriptsData.h
+BOTH_CHANGED	9	0	src/server/game/Grids/Notifiers/GridNotifiers.cpp	src/server/game/Grids/Notifiers/GridNotifiers.cpp
+BOTH_CHANGED	103	41	src/server/game/Groups/Group.cpp	src/server/game/Groups/Group.cpp
+BOTH_CHANGED	1	0	src/server/game/Groups/Group.h	src/server/game/Groups/Group.h
+BOTH_CHANGED	6	3	src/server/game/Groups/GroupMgr.cpp	src/server/game/Groups/GroupMgr.cpp
+BOTH_CHANGED	90	23	src/server/game/Handlers/ArtifactHandler.cpp	src/server/game/Handlers/ArtifactHandler.cpp
+BOTH_CHANGED	3	1	src/server/game/Handlers/AuthHandler.cpp	src/server/game/Handlers/AuthHandler.cpp
+BOTH_CHANGED	231	39	src/server/game/Handlers/BattlePayHandler.cpp	src/server/game/Handlers/BattlePayHandler.cpp
+BOTH_CHANGED	82	109	src/server/game/Handlers/BattlePetHandler.cpp	src/server/game/Handlers/BattlePetHandler.cpp
+BOTH_CHANGED	1	2	src/server/game/Handlers/CalendarHandler.cpp	src/server/game/Handlers/CalendarHandler.cpp
+BOTH_CHANGED	116	12	src/server/game/Handlers/CharacterHandler.cpp	src/server/game/Handlers/CharacterHandler.cpp
+BOTH_CHANGED	87	41	src/server/game/Handlers/ItemHandler.cpp	src/server/game/Handlers/ItemHandler.cpp
+BOTH_CHANGED	4	0	src/server/game/Handlers/LoginQueryHolder.cpp	src/server/game/Handlers/LoginQueryHolder.cpp
+BOTH_CHANGED	35	11	src/server/game/Handlers/LootHandler.cpp	src/server/game/Handlers/LootHandler.cpp
+BOTH_CHANGED	18	4	src/server/game/Handlers/MiscHandler.cpp	src/server/game/Handlers/MiscHandler.cpp
+BOTH_CHANGED	57	12	src/server/game/Handlers/MovementHandler.cpp	src/server/game/Handlers/MovementHandler.cpp
+BOTH_CHANGED	4	2	src/server/game/Handlers/NPCHandler.cpp	src/server/game/Handlers/NPCHandler.cpp
+BOTH_CHANGED	79	14	src/server/game/Handlers/QuestHandler.cpp	src/server/game/Handlers/QuestHandler.cpp
+BOTH_CHANGED	2	2	src/server/game/Handlers/SkillHandler.cpp	src/server/game/Handlers/SkillHandler.cpp
+BOTH_CHANGED	4	0	src/server/game/Handlers/SpellHandler.cpp	src/server/game/Handlers/SpellHandler.cpp
+BOTH_CHANGED	3	0	src/server/game/Handlers/TransmogrificationHandler.cpp	src/server/game/Handlers/TransmogrificationHandler.cpp
+BOTH_CHANGED	15	4	src/server/game/Handlers/VoidStorageHandler.cpp	src/server/game/Handlers/VoidStorageHandler.cpp
+BOTH_CHANGED	3	0	src/server/game/Instances/InstanceScript.h	src/server/game/Instances/InstanceScript.h
+BOTH_CHANGED	177	25	src/server/game/Loot/LootMgr.cpp	src/server/game/Loot/LootMgr.cpp
+BOTH_CHANGED	17	0	src/server/game/Loot/LootMgr.h	src/server/game/Loot/LootMgr.h
+BOTH_CHANGED	233	22	src/server/game/Maps/Map.cpp	src/server/game/Maps/Map.cpp
+BOTH_CHANGED	4	1	src/server/game/Maps/Map.h	src/server/game/Maps/Map.h
+BOTH_CHANGED	20	10	src/server/game/Maps/MapInstanced.cpp	src/server/game/Maps/MapInstanced.cpp
+BOTH_CHANGED	41	22	src/server/game/Maps/MapManager.cpp	src/server/game/Maps/MapManager.cpp
+BOTH_CHANGED	3	1	src/server/game/Maps/PhaseMgr.cpp	src/server/game/Maps/PhaseMgr.cpp
+BOTH_CHANGED	18	2	src/server/game/Movement/MotionMaster.cpp	src/server/game/Movement/MotionMaster.cpp
+BOTH_CHANGED	19	9	src/server/game/Movement/MovementGenerators/FlightPathMovementGenerator.cpp	src/server/game/Movement/MovementGenerators/FlightPathMovementGenerator.cpp
+BOTH_CHANGED	16	2	src/server/game/Movement/MovementGenerators/PointMovementGenerator.cpp	src/server/game/Movement/MovementGenerators/PointMovementGenerator.cpp
+BOTH_CHANGED	3	1	src/server/game/Movement/MovementGenerators/PointMovementGenerator.h	src/server/game/Movement/MovementGenerators/PointMovementGenerator.h
+BOTH_CHANGED	15	13	src/server/game/Movement/MovementGenerators/TargetedMovementGenerator.cpp	src/server/game/Movement/MovementGenerators/TargetedMovementGenerator.cpp
+BOTH_CHANGED	1	2	src/server/game/Movement/MovementGenerators/TargetedMovementGenerator.h	src/server/game/Movement/MovementGenerators/TargetedMovementGenerator.h
+BOTH_CHANGED	2	0	src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.h	src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.h
+BOTH_CHANGED	27	1	src/server/game/Movement/PathGenerator.cpp	src/server/game/Movement/PathGenerator.cpp
+BOTH_CHANGED	2	0	src/server/game/Movement/PathGenerator.h	src/server/game/Movement/PathGenerator.h
+NEW	32	0	src/server/game/Movement/SkyholdDeparture.h	
+CLEAN	2	1	src/server/game/Movement/Spline/MoveSplineInit.cpp	src/server/game/Movement/Spline/MoveSplineInit.cpp
+NEW	44	0	src/server/game/Movement/TimeSync.h	
+NEW	83	0	src/server/game/Movement/TransportGroundPath.h	
+NEW	69	0	src/server/game/Movement/TransportJumpPath.h	
+BOTH_CHANGED	121	4	src/server/game/OutdoorPvP/OutdoorPvP.cpp	src/server/game/OutdoorPvP/OutdoorPvP.cpp
+BOTH_CHANGED	4	0	src/server/game/OutdoorPvP/OutdoorPvPMgr.cpp	src/server/game/OutdoorPvP/OutdoorPvPMgr.cpp
+BOTH_CHANGED	10	1	src/server/game/PetBattle/PetBattle.cpp	src/server/game/PetBattle/PetBattle.cpp
+BOTH_CHANGED	30	2	src/server/game/Quests/QuestDef.cpp	src/server/game/Quests/QuestDef.cpp
+BOTH_CHANGED	5	0	src/server/game/Quests/QuestDef.h	src/server/game/Quests/QuestDef.h
+NEW	24	0	src/server/game/Quests/QuestRewardDisplay.h	
+NEW	36	0	src/server/game/Scenarios/BrokenShoreClassRoute.h	
+BOTH_CHANGED	42	9	src/server/game/Scenarios/Scenario.cpp	src/server/game/Scenarios/Scenario.cpp
+BOTH_CHANGED	2	0	src/server/game/Scenarios/Scenario.h	src/server/game/Scenarios/Scenario.h
+BOTH_CHANGED	11	0	src/server/game/Scenarios/ScenarioMgr.cpp	src/server/game/Scenarios/ScenarioMgr.cpp
+BOTH_CHANGED	1	0	src/server/game/Scenarios/ScenarioMgr.h	src/server/game/Scenarios/ScenarioMgr.h
+NEW	45	0	src/server/game/Scenarios/ScenarioResume.h	
+BOTH_CHANGED	36	4	src/server/game/Scripting/MapScripts.cpp	src/server/game/Scripting/MapScripts.cpp
+BOTH_CHANGED	23	0	src/server/game/Scripting/ScriptMgr.cpp	src/server/game/Scripting/ScriptMgr.cpp
+BOTH_CHANGED	18	0	src/server/game/Scripting/ScriptMgr.h	src/server/game/Scripting/ScriptMgr.h
+NEW	30	0	src/server/game/Server/Packets/BattlePayBoostChoice.h	
+BOTH_CHANGED	20	6	src/server/game/Server/Packets/BattlePayPackets.cpp	src/server/game/Server/Packets/BattlePayPackets.cpp
+BOTH_CHANGED	8	2	src/server/game/Server/Packets/BattlePayPackets.h	src/server/game/Server/Packets/BattlePayPackets.h
+BOTH_CHANGED	7	2	src/server/game/Server/Packets/CharacterPackets.cpp	src/server/game/Server/Packets/CharacterPackets.cpp
+BOTH_CHANGED	9	6	src/server/game/Server/Protocol/Opcodes.cpp	src/server/game/Server/Protocol/Opcodes.cpp
+BOTH_CHANGED	96	26	src/server/game/Server/WorldSession.cpp	src/server/game/Server/WorldSession.cpp
+BOTH_CHANGED	15	2	src/server/game/Server/WorldSession.h	src/server/game/Server/WorldSession.h
+BOTH_CHANGED	98	79	src/server/game/Server/WorldSocket.cpp	src/server/game/Server/WorldSocket.cpp
+BOTH_CHANGED	2	0	src/server/game/Server/WorldSocket.h	src/server/game/Server/WorldSocket.h
+NEW	41	0	src/server/game/Server/WorldSocketDiagnostics.h	
+CLEAN	3	0	src/server/game/Server/WorldSocketMgr.cpp	src/server/game/Server/WorldSocketMgr.cpp
+BOTH_CHANGED	26	0	src/server/game/Services/WorldserverService.cpp	src/server/game/Services/WorldserverService.cpp
+CLEAN	22	0	src/server/game/Services/WorldserverService.h	src/server/game/Services/WorldserverService.h
+CLEAN	2	2	src/server/game/Services/WorldserverServiceDispatcher.cpp	src/server/game/Services/WorldserverServiceDispatcher.cpp
+BOTH_CHANGED	62	65	src/server/game/Spells/Auras/SpellAuraEffects.cpp	src/server/game/Spells/Auras/SpellAuraEffects.cpp
+BOTH_CHANGED	11	8	src/server/game/Spells/Auras/SpellAuras.cpp	src/server/game/Spells/Auras/SpellAuras.cpp
+BOTH_CHANGED	61	76	src/server/game/Spells/Spell.cpp	src/server/game/Spells/Spell.cpp
+BOTH_CHANGED	1	0	src/server/game/Spells/Spell.h	src/server/game/Spells/Spell.h
+BOTH_CHANGED	260	120	src/server/game/Spells/SpellEffects.cpp	src/server/game/Spells/SpellEffects.cpp
+BOTH_CHANGED	27	0	src/server/game/Spells/SpellInfo.cpp	src/server/game/Spells/SpellInfo.cpp
+BOTH_CHANGED	104	82	src/server/game/Spells/SpellMgr.cpp	src/server/game/Spells/SpellMgr.cpp
+BOTH_CHANGED	5	0	src/server/game/Spells/SpellScript.cpp	src/server/game/Spells/SpellScript.cpp
+BOTH_CHANGED	3	0	src/server/game/Spells/SpellScript.h	src/server/game/Spells/SpellScript.h
+BOTH_CHANGED	17	4	src/server/game/World/World.cpp	src/server/game/World/World.cpp
+BOTH_CHANGED	4	14	src/server/scripts/BattlePay/battlepay_services.cpp	src/server/scripts/BattlePay/battlepay_services.cpp
+CLEAN	85	3	src/server/scripts/Commands/cs_battlepay.cpp	src/server/scripts/Commands/cs_battlepay.cpp
+BOTH_CHANGED	8	2	src/server/scripts/Commands/cs_misc.cpp	src/server/scripts/Commands/cs_misc.cpp
+CLEAN	0	9	src/server/scripts/Commands/cs_reload.cpp	src/server/scripts/Commands/cs_reload.cpp
+BOTH_CHANGED	2	0	src/server/scripts/Commands/cs_script_loader.cpp	src/server/scripts/Commands/cs_script_loader.cpp
+NEW	2567	0	src/server/scripts/Custom/LegionBotAI.cpp	
+NEW	1038	0	src/server/scripts/Custom/LegionBotMgr.cpp	
+MISSING_IN_REFORGED	7	3	src/server/scripts/Custom/Solocraft.cpp	
+BOTH_CHANGED	6	0	src/server/scripts/Custom/custom_script_loader.cpp	src/server/scripts/Custom/custom_script_loader.cpp
+NEW	100	0	src/server/scripts/Custom/npc_change_rates.cpp	
+BOTH_CHANGED	6	6	src/server/scripts/Draenor/Auchindoun/auchindoun.hpp	src/server/scripts/Draenor/Auchindoun/auchindoun.hpp
+BOTH_CHANGED	5	5	src/server/scripts/Draenor/Auchindoun/boss_kaathar.cpp	src/server/scripts/Draenor/Auchindoun/boss_kaathar.cpp
+BOTH_CHANGED	7	7	src/server/scripts/Draenor/Auchindoun/boss_teronogor.cpp	src/server/scripts/Draenor/Auchindoun/boss_teronogor.cpp
+BOTH_CHANGED	10	21	src/server/scripts/Draenor/Auchindoun/instance_auchindoun.cpp	src/server/scripts/Draenor/Auchindoun/instance_auchindoun.cpp
+NEW_BUT_EXISTS	1115	0	src/server/scripts/Draenor/GrimrailDepot/boss_nitrogg_thundertower.cpp	src/server/scripts/Draenor/GrimrailDepot/boss_nitrogg_thundertower.cpp
+NEW_BUT_EXISTS	1008	0	src/server/scripts/Draenor/GrimrailDepot/boss_rocketspark_and_borka.cpp	src/server/scripts/Draenor/GrimrailDepot/boss_rocketspark_and_borka.cpp
+NEW_BUT_EXISTS	766	0	src/server/scripts/Draenor/GrimrailDepot/boss_skylord_tovra.cpp	src/server/scripts/Draenor/GrimrailDepot/boss_skylord_tovra.cpp
+NEW_BUT_EXISTS	1431	0	src/server/scripts/Draenor/GrimrailDepot/grimrail_depot.cpp	src/server/scripts/Draenor/GrimrailDepot/grimrail_depot.cpp
+NEW	199	0	src/server/scripts/Draenor/GrimrailDepot/grimrail_depot.hpp	
+NEW_BUT_EXISTS	234	0	src/server/scripts/Draenor/GrimrailDepot/instance_grimrail_depot.cpp	src/server/scripts/Draenor/GrimrailDepot/instance_grimrail_depot.cpp
+BOTH_CHANGED	1	1	src/server/scripts/Draenor/Highmaul/boss_imperator_margok.cpp	src/server/scripts/Draenor/Highmaul/boss_imperator_margok.cpp
+NEW	323	0	src/server/scripts/Draenor/bloodmaul_campaign_events.cpp	
+NEW	184	0	src/server/scripts/Draenor/draenor_campaign_recovery.cpp	
+NEW	39	0	src/server/scripts/Draenor/draenor_campaign_recovery.h	
+BOTH_CHANGED	20	0	src/server/scripts/Draenor/draenor_script_loader.cpp	src/server/scripts/Draenor/draenor_script_loader.cpp
+NEW	331	0	src/server/scripts/Draenor/exarch_campaign.cpp	
+NEW	119	0	src/server/scripts/Draenor/garrison_campaign_actors.h	
+NEW	318	0	src/server/scripts/Draenor/seismic_campaign.cpp	
+CLEAN	1	2	src/server/scripts/EasternKingdoms/AlteracValley/boss_drekthar.cpp	src/server/scripts/EasternKingdoms/AlteracValley/boss_drekthar.cpp
+CLEAN	0	2	src/server/scripts/EasternKingdoms/BaradinHold/boss_alizabal.cpp	src/server/scripts/EasternKingdoms/BaradinHold/boss_alizabal.cpp
+CLEAN	0	1	src/server/scripts/EasternKingdoms/BaradinHold/boss_occuthar.cpp	src/server/scripts/EasternKingdoms/BaradinHold/boss_occuthar.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/BlackrockCaverns/boss_corla_hearld_of_twilight.cpp	src/server/scripts/EasternKingdoms/BlackrockCaverns/boss_corla_hearld_of_twilight.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/BlackrockDepths/boss_anubshiah.cpp	src/server/scripts/EasternKingdoms/BlackrockDepths/boss_anubshiah.cpp
+CLEAN	4	4	src/server/scripts/EasternKingdoms/BlackrockDepths/boss_high_interrogator_gerstahn.cpp	src/server/scripts/EasternKingdoms/BlackrockDepths/boss_high_interrogator_gerstahn.cpp
+CLEAN	3	8	src/server/scripts/EasternKingdoms/BlackrockDepths/boss_moira_bronzebeard.cpp	src/server/scripts/EasternKingdoms/BlackrockDepths/boss_moira_bronzebeard.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/BlackrockSpire/boss_highlord_omokk.cpp	src/server/scripts/EasternKingdoms/BlackrockSpire/boss_highlord_omokk.cpp
+CLEAN	0	2	src/server/scripts/EasternKingdoms/BlackrockSpire/boss_pyroguard_emberseer.cpp	src/server/scripts/EasternKingdoms/BlackrockSpire/boss_pyroguard_emberseer.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/BlackrockSpire/boss_warmaster_voone.cpp	src/server/scripts/EasternKingdoms/BlackrockSpire/boss_warmaster_voone.cpp
+BOTH_CHANGED	1	6	src/server/scripts/EasternKingdoms/BlackwingDescent/blackwing_descent.cpp	src/server/scripts/EasternKingdoms/BlackwingDescent/blackwing_descent.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/BlackwingDescent/boss_magmaw.cpp	src/server/scripts/EasternKingdoms/BlackwingDescent/boss_magmaw.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/BlackwingLair/boss_razorgore.cpp	src/server/scripts/EasternKingdoms/BlackwingLair/boss_razorgore.cpp
+CLEAN	2	7	src/server/scripts/EasternKingdoms/Deadmines/boss_foereaper5000.cpp	src/server/scripts/EasternKingdoms/Deadmines/boss_foereaper5000.cpp
+CLEAN	1	3	src/server/scripts/EasternKingdoms/Deadmines/boss_helix_gearbreaker.cpp	src/server/scripts/EasternKingdoms/Deadmines/boss_helix_gearbreaker.cpp
+CLEAN	1	2	src/server/scripts/EasternKingdoms/GrimBatol/grim_batol.cpp	src/server/scripts/EasternKingdoms/GrimBatol/grim_batol.cpp
+CLEAN	0	1	src/server/scripts/EasternKingdoms/MoltenCore/boss_ragnaros.cpp	src/server/scripts/EasternKingdoms/MoltenCore/boss_ragnaros.cpp
+CLEAN	1	12	src/server/scripts/EasternKingdoms/ScarletEnclave/chapter1.cpp	src/server/scripts/EasternKingdoms/ScarletEnclave/chapter1.cpp
+BOTH_CHANGED	0	1	src/server/scripts/EasternKingdoms/ScarletMonastery/boss_headless_horseman.cpp	src/server/scripts/EasternKingdoms/ScarletMonastery/boss_headless_horseman.cpp
+CLEAN	3	2	src/server/scripts/EasternKingdoms/ScarletMonastery/boss_high_inquisitor_whitemane.cpp	src/server/scripts/EasternKingdoms/ScarletMonastery/boss_high_inquisitor_whitemane.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/Scholomance/boss_jandice_barov.cpp	src/server/scripts/EasternKingdoms/Scholomance/boss_jandice_barov.cpp
+CLEAN	2	5	src/server/scripts/EasternKingdoms/ShadowfangKeep/boss_baron_ashbury.cpp	src/server/scripts/EasternKingdoms/ShadowfangKeep/boss_baron_ashbury.cpp
+CLEAN	5	7	src/server/scripts/EasternKingdoms/ShadowfangKeep/boss_commander_springvale.cpp	src/server/scripts/EasternKingdoms/ShadowfangKeep/boss_commander_springvale.cpp
+CLEAN	1	4	src/server/scripts/EasternKingdoms/ShadowfangKeep/boss_lord_valden.cpp	src/server/scripts/EasternKingdoms/ShadowfangKeep/boss_lord_valden.cpp
+CLEAN	1	4	src/server/scripts/EasternKingdoms/SunwellPlateau/boss_eredar_twins.cpp	src/server/scripts/EasternKingdoms/SunwellPlateau/boss_eredar_twins.cpp
+CLEAN	2	4	src/server/scripts/EasternKingdoms/SunwellPlateau/boss_kiljaeden.cpp	src/server/scripts/EasternKingdoms/SunwellPlateau/boss_kiljaeden.cpp
+NEW	195	0	src/server/scripts/EasternKingdoms/TheStockade/boss_hogger.cpp	
+NEW	103	0	src/server/scripts/EasternKingdoms/TheStockade/boss_lord_overheat.cpp	
+NEW	216	0	src/server/scripts/EasternKingdoms/TheStockade/boss_randolph_moloch.cpp	
+NEW	37	0	src/server/scripts/EasternKingdoms/TheStockade/instance_the_stockade.cpp	
+NEW	273	0	src/server/scripts/EasternKingdoms/TheStockade/the_stockade.cpp	
+NEW	42	0	src/server/scripts/EasternKingdoms/TheStockade/the_stockade.h	
+CLEAN	5	4	src/server/scripts/EasternKingdoms/ThroneoftheTides/boss_lady_nazjar.cpp	src/server/scripts/EasternKingdoms/ThroneoftheTides/boss_lady_nazjar.cpp
+CLEAN	4	9	src/server/scripts/EasternKingdoms/ThroneoftheTides/boss_ozumat.cpp	src/server/scripts/EasternKingdoms/ThroneoftheTides/boss_ozumat.cpp
+CLEAN	2	2	src/server/scripts/EasternKingdoms/ZulAman/boss_hexlord.cpp	src/server/scripts/EasternKingdoms/ZulAman/boss_hexlord.cpp
+CLEAN	3	5	src/server/scripts/EasternKingdoms/ZulGurub/boss_kilnara.cpp	src/server/scripts/EasternKingdoms/ZulGurub/boss_kilnara.cpp
+CLEAN	1	3	src/server/scripts/EasternKingdoms/ZulGurub/boss_zanzil.cpp	src/server/scripts/EasternKingdoms/ZulGurub/boss_zanzil.cpp
+BOTH_CHANGED	16	1	src/server/scripts/EasternKingdoms/eastern_kingdoms_script_loader.cpp	src/server/scripts/EasternKingdoms/eastern_kingdoms_script_loader.cpp
+NEW	192	0	src/server/scripts/EasternKingdoms/karazhan_campaign.cpp	
+CLEAN	18	33	src/server/scripts/EasternKingdoms/zone_eversong_woods.cpp	src/server/scripts/EasternKingdoms/zone_eversong_woods.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/zone_tirisfal_glades.cpp	src/server/scripts/EasternKingdoms/zone_tirisfal_glades.cpp
+CLEAN	1	1	src/server/scripts/EasternKingdoms/zone_wetlands.cpp	src/server/scripts/EasternKingdoms/zone_wetlands.cpp
+CLEAN	3	5	src/server/scripts/Kalimdor/CavernsOfTime/CullingOfStratholme/boss_mal_ganis.cpp	src/server/scripts/Kalimdor/CavernsOfTime/CullingOfStratholme/boss_mal_ganis.cpp
+CLEAN	0	1	src/server/scripts/Kalimdor/CavernsOfTime/CullingOfStratholme/boss_salramm.cpp	src/server/scripts/Kalimdor/CavernsOfTime/CullingOfStratholme/boss_salramm.cpp
+CLEAN	4	3	src/server/scripts/Kalimdor/CavernsOfTime/DragonSoul/boss_madness_of_deathwing.cpp	src/server/scripts/Kalimdor/CavernsOfTime/DragonSoul/boss_madness_of_deathwing.cpp
+CLEAN	5	4	src/server/scripts/Kalimdor/CavernsOfTime/EndTime/boss_murozond.cpp	src/server/scripts/Kalimdor/CavernsOfTime/EndTime/boss_murozond.cpp
+NEW	63	0	src/server/scripts/Kalimdor/DireMaul/dire_maul.h	
+NEW	108	0	src/server/scripts/Kalimdor/DireMaul/instance_dire_maul.cpp	
+CLEAN	4	6	src/server/scripts/Kalimdor/Firelands/boss_baleroc.cpp	src/server/scripts/Kalimdor/Firelands/boss_baleroc.cpp
+CLEAN	1	2	src/server/scripts/Kalimdor/Firelands/boss_lord_rhyolith.cpp	src/server/scripts/Kalimdor/Firelands/boss_lord_rhyolith.cpp
+CLEAN	6	5	src/server/scripts/Kalimdor/Firelands/boss_ragnaros_firelands.cpp	src/server/scripts/Kalimdor/Firelands/boss_ragnaros_firelands.cpp
+CLEAN	0	1	src/server/scripts/Kalimdor/HallsOfOrigination/boss_ammunae.cpp	src/server/scripts/Kalimdor/HallsOfOrigination/boss_ammunae.cpp
+CLEAN	0	2	src/server/scripts/Kalimdor/HallsOfOrigination/boss_anraphet.cpp	src/server/scripts/Kalimdor/HallsOfOrigination/boss_anraphet.cpp
+CLEAN	2	1	src/server/scripts/Kalimdor/HallsOfOrigination/halls_of_origination.h	src/server/scripts/Kalimdor/HallsOfOrigination/halls_of_origination.h
+CLEAN	1	1	src/server/scripts/Kalimdor/HallsOfOrigination/instance_halls_of_origination.cpp	src/server/scripts/Kalimdor/HallsOfOrigination/instance_halls_of_origination.cpp
+CLEAN	2	2	src/server/scripts/Kalimdor/LostCityOfTheTolvir/boss_high_prophet_barim.cpp	src/server/scripts/Kalimdor/LostCityOfTheTolvir/boss_high_prophet_barim.cpp
+BOTH_CHANGED	2	10	src/server/scripts/Kalimdor/LostCityOfTheTolvir/boss_siamat.cpp	src/server/scripts/Kalimdor/LostCityOfTheTolvir/boss_siamat.cpp
+CLEAN	19	21	src/server/scripts/Kalimdor/RagefireChasm/boss_slagmaw.cpp	src/server/scripts/Kalimdor/RagefireChasm/boss_slagmaw.cpp
+CLEAN	1	2	src/server/scripts/Kalimdor/TheVortexPinnacle/boss_asaad.cpp	src/server/scripts/Kalimdor/TheVortexPinnacle/boss_asaad.cpp
+CLEAN	0	1	src/server/scripts/Kalimdor/TheVortexPinnacle/the_vortex_pinnacle.cpp	src/server/scripts/Kalimdor/TheVortexPinnacle/the_vortex_pinnacle.cpp
+CLEAN	13	45	src/server/scripts/Kalimdor/ThroneOfTheFourWinds/boss_alakir.cpp	src/server/scripts/Kalimdor/ThroneOfTheFourWinds/boss_alakir.cpp
+CLEAN	3	3	src/server/scripts/Kalimdor/ThroneOfTheFourWinds/boss_conclave_of_wind.cpp	src/server/scripts/Kalimdor/ThroneOfTheFourWinds/boss_conclave_of_wind.cpp
+CLEAN	2	2	src/server/scripts/Kalimdor/WailingCaverns/wailing_caverns.cpp	src/server/scripts/Kalimdor/WailingCaverns/wailing_caverns.cpp
+BOTH_CHANGED	5	1	src/server/scripts/Kalimdor/kalimdor_script_loader.cpp	src/server/scripts/Kalimdor/kalimdor_script_loader.cpp
+CLEAN	1	1	src/server/scripts/Kalimdor/zone_bloodmyst_isle.cpp	src/server/scripts/Kalimdor/zone_bloodmyst_isle.cpp
+BOTH_CHANGED	2	2	src/server/scripts/Legion/AntorusTheBurningThrone/antorus.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/antorus.cpp
+BOTH_CHANGED	0	7	src/server/scripts/Legion/AntorusTheBurningThrone/boss_aggramar.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_aggramar.cpp
+CLEAN	0	6	src/server/scripts/Legion/AntorusTheBurningThrone/boss_antoran.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_antoran.cpp
+BOTH_CHANGED	24	15	src/server/scripts/Legion/AntorusTheBurningThrone/boss_argus.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_argus.cpp
+BOTH_CHANGED	0	7	src/server/scripts/Legion/AntorusTheBurningThrone/boss_coven_shivarres.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_coven_shivarres.cpp
+BOTH_CHANGED	0	3	src/server/scripts/Legion/AntorusTheBurningThrone/boss_eonar.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_eonar.cpp
+CLEAN	0	9	src/server/scripts/Legion/AntorusTheBurningThrone/boss_felhounds.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_felhounds.cpp
+CLEAN	0	6	src/server/scripts/Legion/AntorusTheBurningThrone/boss_hasabel.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_hasabel.cpp
+CLEAN	0	4	src/server/scripts/Legion/AntorusTheBurningThrone/boss_imonar.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_imonar.cpp
+CLEAN	0	7	src/server/scripts/Legion/AntorusTheBurningThrone/boss_kingaroth.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_kingaroth.cpp
+CLEAN	0	7	src/server/scripts/Legion/AntorusTheBurningThrone/boss_varimathras.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_varimathras.cpp
+CLEAN	0	5	src/server/scripts/Legion/AntorusTheBurningThrone/boss_worldbreaker.cpp	src/server/scripts/Legion/AntorusTheBurningThrone/boss_worldbreaker.cpp
+NEW	2299	0	src/server/scripts/Legion/ClassHalls/artifact_acquisition.cpp	
+NEW	198	0	src/server/scripts/Legion/ClassHalls/class_hall_artifact_onboarding.cpp	
+NEW	73	0	src/server/scripts/Legion/ClassHalls/commanders_valor.cpp	
+NEW	473	0	src/server/scripts/Legion/ClassHalls/dark_riders_artifact.cpp	
+NEW	160	0	src/server/scripts/Legion/ClassHalls/dark_whispers_artifact.cpp	
+NEW	65	0	src/server/scripts/Legion/ClassHalls/dreadscar_followup.cpp	
+NEW	321	0	src/server/scripts/Legion/ClassHalls/fire_return_recovery.h	
+NEW	656	0	src/server/scripts/Legion/ClassHalls/lights_wrath_pickup.h	
+NEW	484	0	src/server/scripts/Legion/ClassHalls/lights_wrath_takeover.h	
+NEW	82	0	src/server/scripts/Legion/ClassHalls/monk_kite_travel.h	
+NEW	420	0	src/server/scripts/Legion/ClassHalls/stromkar_awakening.h	
+NEW	78	0	src/server/scripts/Legion/ClassHalls/stromkar_ground_cracks.h	
+NEW	202	0	src/server/scripts/Legion/ClassHalls/stromkar_return.h	
+NEW	61	0	src/server/scripts/Legion/ClassHalls/stromkar_ritual_beam.h	
+NEW	118	0	src/server/scripts/Legion/ClassHalls/stromkar_ritual_torture.h	
+NEW	305	0	src/server/scripts/Legion/ClassHalls/stromkar_split.h	
+NEW	324	0	src/server/scripts/Legion/ClassHalls/talonclaw_boarded_departure.h	
+NEW	119	0	src/server/scripts/Legion/ClassHalls/valzuun_intel.h	
+CLEAN	17	4	src/server/scripts/Legion/DarkHeartThicket/boss_arch_druid_glaidalis.cpp	src/server/scripts/Legion/DarkHeartThicket/boss_arch_druid_glaidalis.cpp
+CLEAN	28	2	src/server/scripts/Legion/DarkHeartThicket/boss_oakheart.cpp	src/server/scripts/Legion/DarkHeartThicket/boss_oakheart.cpp
+BOTH_CHANGED	9	3	src/server/scripts/Legion/DarkHeartThicket/boss_shade_of_xavius.cpp	src/server/scripts/Legion/DarkHeartThicket/boss_shade_of_xavius.cpp
+CLEAN	9	1	src/server/scripts/Legion/DarkHeartThicket/darkheart_thicket.h	src/server/scripts/Legion/DarkHeartThicket/darkheart_thicket.h
+NEW	366	0	src/server/scripts/Legion/DarkHeartThicket/darkheart_thicket_trash.cpp	
+CLEAN	67	1	src/server/scripts/Legion/DarkHeartThicket/instance_darkheart_thicket.cpp	src/server/scripts/Legion/DarkHeartThicket/instance_darkheart_thicket.cpp
+CLEAN	2	3	src/server/scripts/Legion/EyeofAzshara/boss_serpentrix.cpp	src/server/scripts/Legion/EyeofAzshara/boss_serpentrix.cpp
+NEW	89	0	src/server/scripts/Legion/EyeofAzshara/eye_of_azshara_quests.cpp	
+CLEAN	28	3	src/server/scripts/Legion/EyeofAzshara/instance_eye_of_azshara.cpp	src/server/scripts/Legion/EyeofAzshara/instance_eye_of_azshara.cpp
+CLEAN	28	7	src/server/scripts/Legion/HallsofValor/boss_god_king_skovald.cpp	src/server/scripts/Legion/HallsofValor/boss_god_king_skovald.cpp
+CLEAN	42	22	src/server/scripts/Legion/HallsofValor/boss_odyn.cpp	src/server/scripts/Legion/HallsofValor/boss_odyn.cpp
+NEW	71	0	src/server/scripts/Legion/HallsofValor/halls_of_valor_aegis.cpp	
+BOTH_CHANGED	2	2	src/server/scripts/Legion/MawofSouls/boss_helya.cpp	src/server/scripts/Legion/MawofSouls/boss_helya.cpp
+CLEAN	15	4	src/server/scripts/Legion/TheEmeraldNightmare/boss_elerethe_renferal.cpp	src/server/scripts/Legion/TheEmeraldNightmare/boss_elerethe_renferal.cpp
+CLEAN	24	10	src/server/scripts/Legion/TheEmeraldNightmare/boss_nythendra.cpp	src/server/scripts/Legion/TheEmeraldNightmare/boss_nythendra.cpp
+CLEAN	1	2	src/server/scripts/Legion/TombOfSargeras/boss_MaidenofVigilance.cpp	src/server/scripts/Legion/TombOfSargeras/boss_MaidenofVigilance.cpp
+CLEAN	5	6	src/server/scripts/Legion/TombOfSargeras/boss_SistersoftheMoon.cpp	src/server/scripts/Legion/TombOfSargeras/boss_SistersoftheMoon.cpp
+CLEAN	6	8	src/server/scripts/Legion/TombOfSargeras/boss_TheDesolateHost.cpp	src/server/scripts/Legion/TombOfSargeras/boss_TheDesolateHost.cpp
+BOTH_CHANGED	388	121	src/server/scripts/Legion/TrialOfValor/boss_tov_helya.cpp	src/server/scripts/Legion/TrialOfValor/boss_tov_helya.cpp
+CLEAN	94	48	src/server/scripts/Legion/TrialOfValor/boss_tov_odyn.cpp	src/server/scripts/Legion/TrialOfValor/boss_tov_odyn.cpp
+CLEAN	44	37	src/server/scripts/Legion/TrialOfValor/instance_trial_of_valor.cpp	src/server/scripts/Legion/TrialOfValor/instance_trial_of_valor.cpp
+CLEAN	10	10	src/server/scripts/Legion/TrialOfValor/trial_of_valor.cpp	src/server/scripts/Legion/TrialOfValor/trial_of_valor.cpp
+CLEAN	2	2	src/server/scripts/Legion/VaultoftheWardens/boss_ashgolm.cpp	src/server/scripts/Legion/VaultoftheWardens/boss_ashgolm.cpp
+NEW	350	0	src/server/scripts/Legion/azsuna_rescue.cpp	
+NEW	277	0	src/server/scripts/Legion/azsuna_scythe.cpp	
+NEW	484	0	src/server/scripts/Legion/azurewing_repose.cpp	
+NEW	425	0	src/server/scripts/Legion/faronaar_chain.cpp	
+NEW	134	0	src/server/scripts/Legion/grey_shoals.h	
+NEW	196	0	src/server/scripts/Legion/highmountain_audience.cpp	
+NEW	231	0	src/server/scripts/Legion/highmountain_aviash.cpp	
+NEW	26	0	src/server/scripts/Legion/highmountain_aviash_route.h	
+NEW	112	0	src/server/scripts/Legion/highmountain_blood_debt.cpp	
+NEW	195	0	src/server/scripts/Legion/highmountain_blood_rite.cpp	
+NEW	179	0	src/server/scripts/Legion/highmountain_blood_trial.cpp	
+NEW	39	0	src/server/scripts/Legion/highmountain_bloodtotem.cpp	
+NEW	300	0	src/server/scripts/Legion/highmountain_dargrul.cpp	
+NEW	210	0	src/server/scripts/Legion/highmountain_evacuation.cpp	
+NEW	202	0	src/server/scripts/Legion/highmountain_highground.cpp	
+NEW	217	0	src/server/scripts/Legion/highmountain_hunting.h	
+NEW	117	0	src/server/scripts/Legion/highmountain_intro.cpp	
+NEW	301	0	src/server/scripts/Legion/highmountain_justice.cpp	
+NEW	83	0	src/server/scripts/Legion/highmountain_justice_route.h	
+NEW	35	0	src/server/scripts/Legion/highmountain_lair.cpp	
+NEW	147	0	src/server/scripts/Legion/highmountain_lifespring.cpp	
+NEW	89	0	src/server/scripts/Legion/highmountain_river.cpp	
+NEW	181	0	src/server/scripts/Legion/highmountain_riverbend.cpp	
+NEW	146	0	src/server/scripts/Legion/highmountain_rock_escape.cpp	
+NEW	146	0	src/server/scripts/Legion/highmountain_skyhorn_ritual.cpp	
+NEW	52	0	src/server/scripts/Legion/highmountain_snowblind_combat.cpp	
+NEW	132	0	src/server/scripts/Legion/highmountain_stands.cpp	
+NEW	141	0	src/server/scripts/Legion/highmountain_underking.cpp	
+NEW	101	0	src/server/scripts/Legion/highmountain_underking_escape.cpp	
+NEW	141	0	src/server/scripts/Legion/highmountain_unexpected_allies.cpp	
+NEW	246	0	src/server/scripts/Legion/highmountain_worm_support.cpp	
+BOTH_CHANGED	176	0	src/server/scripts/Legion/legion_script_loader.cpp	src/server/scripts/Legion/legion_script_loader.cpp
+NEW	396	0	src/server/scripts/Legion/narthalas_academy.cpp	
+NEW	472	0	src/server/scripts/Legion/new_blood.cpp	
+NEW	256	0	src/server/scripts/Legion/ritual_ruination.cpp	
+NEW	492	0	src/server/scripts/Legion/rockaway_coast.h	
+NEW	218	0	src/server/scripts/Legion/stormheim_another_way.cpp	
+NEW	191	0	src/server/scripts/Legion/stormheim_batrider.cpp	
+NEW	18	0	src/server/scripts/Legion/stormheim_batrider_path.h	
+NEW	272	0	src/server/scripts/Legion/stormheim_blessing.cpp	
+NEW	112	0	src/server/scripts/Legion/stormheim_bones.cpp	
+NEW	256	0	src/server/scripts/Legion/stormheim_cry_thunder.cpp	
+NEW	49	0	src/server/scripts/Legion/stormheim_cry_thunder_route.h	
+NEW	244	0	src/server/scripts/Legion/stormheim_departure.cpp	
+NEW	12	0	src/server/scripts/Legion/stormheim_departure.h	
+NEW	357	0	src/server/scripts/Legion/stormheim_dragons.cpp	
+NEW	20	0	src/server/scripts/Legion/stormheim_dragons_route.h	
+NEW	34	0	src/server/scripts/Legion/stormheim_dreadwake.cpp	
+NEW	187	0	src/server/scripts/Legion/stormheim_drowning_valkyra.cpp	
+NEW	157	0	src/server/scripts/Legion/stormheim_familiar_fate.cpp	
+NEW	321	0	src/server/scripts/Legion/stormheim_final_judgment.cpp	
+NEW	786	0	src/server/scripts/Legion/stormheim_fleet.cpp	
+NEW	6	0	src/server/scripts/Legion/stormheim_fleet.h	
+NEW	57	0	src/server/scripts/Legion/stormheim_fleet_state.h	
+NEW	333	0	src/server/scripts/Legion/stormheim_followup.cpp	
+NEW	36	0	src/server/scripts/Legion/stormheim_geir.cpp	
+NEW	90	0	src/server/scripts/Legion/stormheim_gift.cpp	
+NEW	132	0	src/server/scripts/Legion/stormheim_grapple.cpp	
+NEW	88	0	src/server/scripts/Legion/stormheim_greywatch.cpp	
+NEW	252	0	src/server/scripts/Legion/stormheim_heart.cpp	
+NEW	23	0	src/server/scripts/Legion/stormheim_heart_route.h	
+NEW	233	0	src/server/scripts/Legion/stormheim_heavy_burden.cpp	
+NEW	148	0	src/server/scripts/Legion/stormheim_helheim_bargain.cpp	
+NEW	187	0	src/server/scripts/Legion/stormheim_helheim_disguise.cpp	
+NEW	95	0	src/server/scripts/Legion/stormheim_impalement.cpp	
+NEW	118	0	src/server/scripts/Legion/stormheim_intro.cpp	
+NEW	242	0	src/server/scripts/Legion/stormheim_judgment.cpp	
+NEW	302	0	src/server/scripts/Legion/stormheim_lifeblood.cpp	
+NEW	11	0	src/server/scripts/Legion/stormheim_lifeblood.h	
+NEW	273	0	src/server/scripts/Legion/stormheim_might.cpp	
+NEW	98	0	src/server/scripts/Legion/stormheim_new_beginning.cpp	
+NEW	251	0	src/server/scripts/Legion/stormheim_no_wings.cpp	
+NEW	40	0	src/server/scripts/Legion/stormheim_reformation.cpp	
+NEW	326	0	src/server/scripts/Legion/stormheim_rounds.cpp	
+NEW	30	0	src/server/scripts/Legion/stormheim_rounds.h	
+NEW	194	0	src/server/scripts/Legion/stormheim_runewood.cpp	
+NEW	66	0	src/server/scripts/Legion/stormheim_salvation.cpp	
+NEW	224	0	src/server/scripts/Legion/stormheim_shore.cpp	
+NEW	366	0	src/server/scripts/Legion/stormheim_signal.cpp	
+NEW	180	0	src/server/scripts/Legion/stormheim_skold_ashil.cpp	
+NEW	271	0	src/server/scripts/Legion/stormheim_stem_tide.cpp	
+NEW	202	0	src/server/scripts/Legion/stormheim_sundered.cpp	
+NEW	275	0	src/server/scripts/Legion/stormheim_trials.cpp	
+NEW	287	0	src/server/scripts/Legion/stormheim_valor.cpp	
+NEW	322	0	src/server/scripts/Legion/stormheim_will.cpp	
+NEW	170	0	src/server/scripts/Legion/stormheim_wings.cpp	
+NEW	14	0	src/server/scripts/Legion/stormheim_wings_departure.h	
+NEW	111	0	src/server/scripts/Legion/stormheim_winter.cpp	
+NEW	96	0	src/server/scripts/Legion/titanstrike_rune_wave.h	
+NEW	288	0	src/server/scripts/Legion/titanstrike_runes.cpp	
+NEW	87	0	src/server/scripts/Legion/titanstrike_storms.cpp	
+NEW	127	0	src/server/scripts/Legion/titanstrike_workshop.cpp	
+NEW	305	0	src/server/scripts/Legion/valsharah_finale.cpp	
+NEW	28	0	src/server/scripts/Legion/valsharah_quest_support.cpp	
+NEW	281	0	src/server/scripts/Legion/valsharah_rituals.cpp	
+NEW	130	0	src/server/scripts/Legion/valsharah_tyrande_handoff.cpp	
+NEW	121	0	src/server/scripts/Legion/vrekt.h	
+NEW	316	0	src/server/scripts/Legion/vrekt_scene.h	
+CLEAN	44	1	src/server/scripts/Legion/zone_azsuna.cpp	src/server/scripts/Legion/zone_azsuna.cpp
+CLEAN	49	1	src/server/scripts/Legion/zone_highmountain.cpp	src/server/scripts/Legion/zone_highmountain.cpp
+CLEAN	173	1	src/server/scripts/Legion/zone_stormheim.cpp	src/server/scripts/Legion/zone_stormheim.cpp
+CLEAN	0	10	src/server/scripts/Maelstrom/TheStonecore/the_stonecore.cpp	src/server/scripts/Maelstrom/TheStonecore/the_stonecore.cpp
+CLEAN	30	46	src/server/scripts/Northrend/ChamberOfAspects/RubySanctum/boss_halion.cpp	src/server/scripts/Northrend/ChamberOfAspects/RubySanctum/boss_halion.cpp
+CLEAN	3	9	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/boss_argent_challenge.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/boss_argent_challenge.cpp
+CLEAN	1	13	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/boss_black_knight.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/boss_black_knight.cpp
+CLEAN	1	9	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/boss_grand_champions.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/boss_grand_champions.cpp
+CLEAN	5	5	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/instance_trial_of_the_champion.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/instance_trial_of_the_champion.cpp
+CLEAN	6	5	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/trial_of_the_champion.h	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheChampion/trial_of_the_champion.h
+CLEAN	1	1	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_anubarak_trial.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_anubarak_trial.cpp
+BOTH_CHANGED	2	2	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_faction_champions.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_faction_champions.cpp
+CLEAN	1	2	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_lord_jaraxxus.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_lord_jaraxxus.cpp
+CLEAN	1	2	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_northrend_beasts.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_northrend_beasts.cpp
+BOTH_CHANGED	2	2	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_twin_valkyr.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/boss_twin_valkyr.cpp
+CLEAN	3	3	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/instance_trial_of_the_crusader.cpp	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/instance_trial_of_the_crusader.cpp
+CLEAN	3	3	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/trial_of_the_crusader.h	src/server/scripts/Northrend/CrusadersColiseum/TrialOfTheCrusader/trial_of_the_crusader.h
+CLEAN	3	8	src/server/scripts/Northrend/FrozenHalls/ForgeOfSouls/boss_devourer_of_souls.cpp	src/server/scripts/Northrend/FrozenHalls/ForgeOfSouls/boss_devourer_of_souls.cpp
+CLEAN	1	1	src/server/scripts/Northrend/FrozenHalls/HallsOfReflection/halls_of_reflection.cpp	src/server/scripts/Northrend/FrozenHalls/HallsOfReflection/halls_of_reflection.cpp
+CLEAN	6	108	src/server/scripts/Northrend/FrozenHalls/PitOfSaron/pit_of_saron.cpp	src/server/scripts/Northrend/FrozenHalls/PitOfSaron/pit_of_saron.cpp
+BOTH_CHANGED	2	8	src/server/scripts/Northrend/IcecrownCitadel/boss_lady_deathwhisper.cpp	src/server/scripts/Northrend/IcecrownCitadel/boss_lady_deathwhisper.cpp
+CLEAN	2	2	src/server/scripts/Northrend/IcecrownCitadel/boss_professor_putricide.cpp	src/server/scripts/Northrend/IcecrownCitadel/boss_professor_putricide.cpp
+CLEAN	1	1	src/server/scripts/Northrend/IcecrownCitadel/boss_sindragosa.cpp	src/server/scripts/Northrend/IcecrownCitadel/boss_sindragosa.cpp
+CLEAN	3	7	src/server/scripts/Northrend/IcecrownCitadel/boss_valithria_dreamwalker.cpp	src/server/scripts/Northrend/IcecrownCitadel/boss_valithria_dreamwalker.cpp
+CLEAN	1	2	src/server/scripts/Northrend/IcecrownCitadel/icecrown_citadel.cpp	src/server/scripts/Northrend/IcecrownCitadel/icecrown_citadel.cpp
+CLEAN	22	22	src/server/scripts/Northrend/Naxxramas/boss_kelthuzad.cpp	src/server/scripts/Northrend/Naxxramas/boss_kelthuzad.cpp
+CLEAN	2	2	src/server/scripts/Northrend/Ulduar/HallsOfStone/halls_of_stone.cpp	src/server/scripts/Northrend/Ulduar/HallsOfStone/halls_of_stone.cpp
+CLEAN	6	6	src/server/scripts/Northrend/Ulduar/Ulduar/boss_freya.cpp	src/server/scripts/Northrend/Ulduar/Ulduar/boss_freya.cpp
+CLEAN	0	17	src/server/scripts/Northrend/Ulduar/Ulduar/boss_general_vezax.cpp	src/server/scripts/Northrend/Ulduar/Ulduar/boss_general_vezax.cpp
+CLEAN	1	1	src/server/scripts/Northrend/VaultOfArchavon/instance_vault_of_archavon.cpp	src/server/scripts/Northrend/VaultOfArchavon/instance_vault_of_archavon.cpp
+CLEAN	1	1	src/server/scripts/Northrend/VaultOfArchavon/vault_of_archavon.h	src/server/scripts/Northrend/VaultOfArchavon/vault_of_archavon.h
+BOTH_CHANGED	2	2	src/server/scripts/OutdoorPvP/Ashran/AshranDatas.hpp	src/server/scripts/Draenor/Ashran/AshranDatas.hpp
+NEW	249	0	src/server/scripts/OutdoorPvP/Ashran/AshranInstance.cpp	
+BOTH_CHANGED	42	14	src/server/scripts/OutdoorPvP/Ashran/AshranMgr.cpp	src/server/scripts/Draenor/Ashran/AshranMgr.cpp
+BOTH_CHANGED	1	0	src/server/scripts/OutdoorPvP/Ashran/AshranMgr.hpp	src/server/scripts/Draenor/Ashran/AshranMgr.hpp
+BOTH_CHANGED	26	26	src/server/scripts/OutdoorPvP/Ashran/AshranNPCAlliance.cpp	src/server/scripts/Draenor/Ashran/AshranNPCAlliance.cpp
+BOTH_CHANGED	27	27	src/server/scripts/OutdoorPvP/Ashran/AshranNPCHorde.cpp	src/server/scripts/Draenor/Ashran/AshranNPCHorde.cpp
+BOTH_CHANGED	4	4	src/server/scripts/OutdoorPvP/Ashran/AshranNPCNeutral.cpp	src/server/scripts/Draenor/Ashran/AshranNPCNeutral.cpp
+BOTH_CHANGED	39	6	src/server/scripts/OutdoorPvP/Ashran/AshranQuest.cpp	src/server/scripts/Draenor/Ashran/AshranQuest.cpp
+BOTH_CHANGED	3	3	src/server/scripts/OutdoorPvP/Ashran/AshranSpell.cpp	src/server/scripts/Draenor/Ashran/AshranSpell.cpp
+NEW	23	0	src/server/scripts/Outland/Auchindoun/AuchenaiCrypts/auchenai_crypts.h	
+CLEAN	6	2	src/server/scripts/Outland/Auchindoun/AuchenaiCrypts/boss_exarch_maladaar.cpp	src/server/scripts/Outland/Auchindoun/AuchenaiCrypts/boss_exarch_maladaar.cpp
+CLEAN	12	3	src/server/scripts/Outland/Auchindoun/AuchenaiCrypts/boss_shirrak_the_dead_watcher.cpp	src/server/scripts/Outland/Auchindoun/AuchenaiCrypts/boss_shirrak_the_dead_watcher.cpp
+NEW	37	0	src/server/scripts/Outland/Auchindoun/AuchenaiCrypts/instance_auchenai_crypts.cpp	
+CLEAN	7	3	src/server/scripts/Outland/Auchindoun/ManaTombs/boss_nexusprince_shaffar.cpp	src/server/scripts/Outland/Auchindoun/ManaTombs/boss_nexusprince_shaffar.cpp
+CLEAN	8	4	src/server/scripts/Outland/Auchindoun/ManaTombs/boss_pandemonius.cpp	src/server/scripts/Outland/Auchindoun/ManaTombs/boss_pandemonius.cpp
+NEW	96	0	src/server/scripts/Outland/Auchindoun/ManaTombs/boss_tavarok.cpp	
+NEW	36	0	src/server/scripts/Outland/Auchindoun/ManaTombs/instance_mana_tombs.cpp	
+NEW	23	0	src/server/scripts/Outland/Auchindoun/ManaTombs/mana_tombs.h	
+NEW	103	0	src/server/scripts/Outland/CoilfangReservoir/underbog/boss_ghazan.cpp	
+CLEAN	10	2	src/server/scripts/Outland/CoilfangReservoir/underbog/boss_hungarfen.cpp	src/server/scripts/Outland/CoilfangReservoir/underbog/boss_hungarfen.cpp
+NEW	225	0	src/server/scripts/Outland/CoilfangReservoir/underbog/boss_swamplord_muselek.cpp	
+CLEAN	9	3	src/server/scripts/Outland/CoilfangReservoir/underbog/boss_the_black_stalker.cpp	src/server/scripts/Outland/CoilfangReservoir/underbog/boss_the_black_stalker.cpp
+NEW	46	0	src/server/scripts/Outland/CoilfangReservoir/underbog/instance_the_underbog.cpp	
+NEW	34	0	src/server/scripts/Outland/CoilfangReservoir/underbog/the_underbog.h	
+CLEAN	1	1	src/server/scripts/Outland/TempestKeep/Eye/boss_kaelthas.cpp	src/server/scripts/Outland/TempestKeep/Eye/boss_kaelthas.cpp
+NEW	157	0	src/server/scripts/Outland/TempestKeep/botanica/boss_commander_sarannis.cpp	
+CLEAN	6	2	src/server/scripts/Outland/TempestKeep/botanica/boss_high_botanist_freywinn.cpp	src/server/scripts/Outland/TempestKeep/botanica/boss_high_botanist_freywinn.cpp
+CLEAN	13	3	src/server/scripts/Outland/TempestKeep/botanica/boss_laj.cpp	src/server/scripts/Outland/TempestKeep/botanica/boss_laj.cpp
+NEW	141	0	src/server/scripts/Outland/TempestKeep/botanica/boss_thorngrin_the_tender.cpp	
+BOTH_CHANGED	6	2	src/server/scripts/Outland/TempestKeep/botanica/boss_warp_splinter.cpp	src/server/scripts/Outland/TempestKeep/botanica/boss_warp_splinter.cpp
+NEW	36	0	src/server/scripts/Outland/TempestKeep/botanica/instance_the_botanica.cpp	
+NEW	25	0	src/server/scripts/Outland/TempestKeep/botanica/the_botanica.h	
+CLEAN	18	0	src/server/scripts/Outland/outland_script_loader.cpp	src/server/scripts/Outland/outland_script_loader.cpp
+CLEAN	5	2	src/server/scripts/Pandaria/HeartFear/instance_heart_of_fear.cpp	src/server/scripts/Pandaria/HeartFear/instance_heart_of_fear.cpp
+CLEAN	33	14	src/server/scripts/Pandaria/MogushanVault/boss_will_of_emperor.cpp	src/server/scripts/Pandaria/MogushanVault/boss_will_of_emperor.cpp
+CLEAN	11	3	src/server/scripts/Pandaria/ShadopanMonastery/boss_sha_of_violence.cpp	src/server/scripts/Pandaria/ShadopanMonastery/boss_sha_of_violence.cpp
+CLEAN	0	11	src/server/scripts/Pandaria/ShadopanMonastery/shadopan_monastery.cpp	src/server/scripts/Pandaria/ShadopanMonastery/shadopan_monastery.cpp
+CLEAN	1	1	src/server/scripts/Pandaria/SiegeNiuzaoTemple/boss_wing_leader_neronok.cpp	src/server/scripts/Pandaria/SiegeNiuzaoTemple/boss_wing_leader_neronok.cpp
+CLEAN	4	10	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_garrosh_hellscream.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_garrosh_hellscream.cpp
+CLEAN	3	3	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_general_nazgrim.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_general_nazgrim.cpp
+CLEAN	2	2	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_immerseus.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_immerseus.cpp
+CLEAN	2	2	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_norushen.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_norushen.cpp
+BOTH_CHANGED	4	23	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_paragons_of_the_klaxxi.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_paragons_of_the_klaxxi.cpp
+CLEAN	1	10	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_spoils_of_pandaria.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/boss_spoils_of_pandaria.cpp
+CLEAN	7	2	src/server/scripts/Pandaria/SiegeofOrgrimmar/instance_siege_of_orgrimmar.cpp	src/server/scripts/Pandaria/SiegeofOrgrimmar/instance_siege_of_orgrimmar.cpp
+CLEAN	1	2	src/server/scripts/Pandaria/TempleJadeSerpent/boss_sha_of_doubt.cpp	src/server/scripts/Pandaria/TempleJadeSerpent/boss_sha_of_doubt.cpp
+CLEAN	0	1	src/server/scripts/Pandaria/TempleJadeSerpent/instance_temple_of_jade_serpent.cpp	src/server/scripts/Pandaria/TempleJadeSerpent/instance_temple_of_jade_serpent.cpp
+CLEAN	1	1	src/server/scripts/Pandaria/ThroneOfThunder/boss_council_of_elders.cpp	src/server/scripts/Pandaria/ThroneOfThunder/boss_council_of_elders.cpp
+CLEAN	4	29	src/server/scripts/Pandaria/ThroneOfThunder/boss_ra_den.cpp	src/server/scripts/Pandaria/ThroneOfThunder/boss_ra_den.cpp
+CLEAN	925	17	src/server/scripts/Scenario/ABrewingStorm/a_brewing_storm.cpp	src/server/scripts/Pandaria/Scenario/ABrewingStorm/a_brewing_storm.cpp
+CLEAN	126	28	src/server/scripts/Scenario/ABrewingStorm/a_brewing_storm.h	src/server/scripts/Pandaria/Scenario/ABrewingStorm/a_brewing_storm.h
+CLEAN	210	58	src/server/scripts/Scenario/ABrewingStorm/instance_a_brewing_storm.cpp	src/server/scripts/Pandaria/Scenario/ABrewingStorm/instance_a_brewing_storm.cpp
+CLEAN	991	16	src/server/scripts/Scenario/ALittlePatience/a_little_patience.cpp	src/server/scripts/Pandaria/Scenario/ALittlePatience/a_little_patience.cpp
+CLEAN	224	25	src/server/scripts/Scenario/ALittlePatience/a_little_patience.h	src/server/scripts/Pandaria/Scenario/ALittlePatience/a_little_patience.h
+CLEAN	405	53	src/server/scripts/Scenario/ALittlePatience/instance_a_little_patience.cpp	src/server/scripts/Pandaria/Scenario/ALittlePatience/instance_a_little_patience.cpp
+BOTH_CHANGED	3	4	src/server/scripts/Scenario/Artifacts/DemonHunter/Vengeance/DH_vengeance_art_scenario.cpp	src/server/scripts/Legion/Scenario/Artifacts/DemonHunter/Vengeance/DH_vengeance_art_scenario.cpp
+BOTH_CHANGED	1	1	src/server/scripts/Scenario/Artifacts/Monk/Intro/monk_intro_scenario.cpp	src/server/scripts/Legion/Scenario/Artifacts/Monk/Intro/monk_intro_scenario.cpp
+CLEAN	55	168	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/Sheylun.cpp	src/server/scripts/Legion/Scenario/Artifacts/Monk/Shey-lun/Sheylun.cpp
+NEW	639	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_acquisition.h	
+NEW	15	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_acquisition_api.h	
+NEW	342	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_acquisition_scripts.h	
+NEW	35	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_companion_wounds.h	
+NEW	157	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_plan.h	
+NEW	470	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_return.h	
+NEW	52	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_return_route.h	
+NEW	41	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_tactics.h	
+NEW	111	0	src/server/scripts/Scenario/Artifacts/Monk/Shey-lun/sheilun_taran_intro.h	
+NEW	123	0	src/server/scripts/Scenario/Artifacts/Monk/TempleOfTheJadeSerpent/fuzan_belphiar.h	
+NEW	258	0	src/server/scripts/Scenario/Artifacts/Monk/TempleOfTheJadeSerpent/fuzan_summerpetal.h	
+NEW	429	0	src/server/scripts/Scenario/Artifacts/Monk/TempleOfTheJadeSerpent/fuzan_temple_intro.h	
+NEW	99	0	src/server/scripts/Scenario/Artifacts/Monk/TempleOfTheJadeSerpent/fuzan_temple_sanctuary_door.h	
+CLEAN	28	47	src/server/scripts/Scenario/Artifacts/Monk/TempleOfTheJadeSerpent/instance_temple_of_the_jade_serpent.cpp	src/server/scripts/Legion/Scenario/Artifacts/Monk/TempleOfTheJadeSerpent/instance_temple_of_the_jade_serpent.cpp
+BOTH_CHANGED	83	12	src/server/scripts/Scenario/Artifacts/Paladin/BrokenShore/broken_shore.cpp	src/server/scripts/Legion/Scenario/Artifacts/Paladin/BrokenShore/broken_shore.cpp
+CLEAN	49	10	src/server/scripts/Scenario/Artifacts/Paladin/BrokenShore/instance_broken_shore.cpp	src/server/scripts/Legion/Scenario/Artifacts/Paladin/BrokenShore/instance_broken_shore.cpp
+CLEAN	152	30	src/server/scripts/Scenario/Artifacts/Paladin/ShieldsRest/instance_shields_rest.cpp	src/server/scripts/Legion/Scenario/Artifacts/Paladin/ShieldsRest/instance_shields_rest.cpp
+BOTH_CHANGED	297	50	src/server/scripts/Scenario/Artifacts/Paladin/ShieldsRest/shields_rest.cpp	src/server/scripts/Legion/Scenario/Artifacts/Paladin/ShieldsRest/shields_rest.cpp
+CLEAN	1051	216	src/server/scripts/Scenario/Artifacts/Paladin/SilverHand/SilverHand.cpp	src/server/scripts/Legion/Scenario/Artifacts/Paladin/SilverHand/SilverHand.cpp
+CLEAN	85	8	src/server/scripts/Scenario/Artifacts/Paladin/SilverHand/instance_silver_hand.cpp	src/server/scripts/Legion/Scenario/Artifacts/Paladin/SilverHand/instance_silver_hand.cpp
+NEW	193	0	src/server/scripts/Scenario/Artifacts/Paladin/SilverHand/silver_hand_first_fight.h	
+NEW	128	0	src/server/scripts/Scenario/Artifacts/Paladin/SilverHand/silver_hand_first_path.h	
+NEW	107	0	src/server/scripts/Scenario/Artifacts/Paladin/SilverHand/silver_hand_first_room.h	
+NEW	51	0	src/server/scripts/Scenario/Artifacts/Paladin/SilverHand/silver_hand_procession.h	
+BOTH_CHANGED	758	224	src/server/scripts/Scenario/Artifacts/Priest/Tuure/Tuure.cpp	src/server/scripts/Legion/Scenario/Artifacts/Priest/Tuure/Tuure.cpp
+NEW	22	0	src/server/scripts/Scenario/Artifacts/Priest/Tuure/Tuure.h	
+CLEAN	658	9	src/server/scripts/Scenario/Artifacts/Priest/Tuure/instance_tuure.cpp	src/server/scripts/Legion/Scenario/Artifacts/Priest/Tuure/instance_tuure.cpp
+CLEAN	241	68	src/server/scripts/Scenario/Artifacts/Rogue/Dreadblades/Dreadblades.cpp	src/server/scripts/Legion/Scenario/Artifacts/Rogue/Dreadblades/Dreadblades.cpp
+NEW	228	0	src/server/scripts/Scenario/Artifacts/Rogue/Dreadblades/bilaal_death.h	
+NEW	93	0	src/server/scripts/Scenario/Artifacts/Rogue/Dreadblades/bilaal_portal.h	
+CLEAN	33	3	src/server/scripts/Scenario/Artifacts/Rogue/Dreadblades/instance_class_art_scenarios.cpp	src/server/scripts/Legion/Scenario/Artifacts/Rogue/Dreadblades/instance_class_art_scenarios.cpp
+CLEAN	282	47	src/server/scripts/Scenario/Artifacts/Rogue/FangsoftheDevourer/Devourer.cpp	src/server/scripts/Legion/Scenario/Artifacts/Rogue/FangsoftheDevourer/Devourer.cpp
+BOTH_CHANGED	288	81	src/server/scripts/Scenario/Artifacts/Rogue/Kingslayers/Kingslayers.cpp	src/server/scripts/Legion/Scenario/Artifacts/Rogue/Kingslayers/Kingslayers.cpp
+NEW	222	0	src/server/scripts/Scenario/Artifacts/Rogue/Kingslayers/kingslayers_return.h	
+CLEAN	687	242	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/Sharasdal.cpp	src/server/scripts/Legion/Scenario/Artifacts/Shaman/Sharasdal/Sharasdal.cpp
+CLEAN	669	18	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/instance_sharasdal.cpp	src/server/scripts/Legion/Scenario/Artifacts/Shaman/Sharasdal/instance_sharasdal.cpp
+NEW	332	0	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/sharasdal_acquisition.h	
+NEW	152	0	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/sharasdal_erunak_entry.h	
+NEW	226	0	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/sharasdal_erunak_upper.h	
+NEW	152	0	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/sharasdal_gauntlet_arrival.h	
+NEW	239	0	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/sharasdal_lower_ascent.h	
+NEW	170	0	src/server/scripts/Scenario/Artifacts/Shaman/Sharasdal/sharasdal_upper_wall.h	
+BOTH_CHANGED	774	77	src/server/scripts/Scenario/Artifacts/Warrior/EarthWarder/EarthWarder.cpp	src/server/scripts/Legion/Scenario/Artifacts/Warrior/EarthWarder/EarthWarder.cpp
+NEW	163	0	src/server/scripts/Scenario/Artifacts/Warrior/Intro/malgalor_finale.h	
+NEW	51	0	src/server/scripts/Scenario/Artifacts/Warrior/Intro/malgalor_scene.h	
+NEW	193	0	src/server/scripts/Scenario/Artifacts/Warrior/Intro/reinforcement_transition.h	
+CLEAN	91	73	src/server/scripts/Scenario/Artifacts/Warrior/Intro/wars_intro_scenario.cpp	src/server/scripts/Legion/Scenario/Artifacts/Warrior/Intro/wars_intro_scenario.cpp
+CLEAN	623	83	src/server/scripts/Scenario/Artifacts/Warrior/Warswords/Warswords.cpp	src/server/scripts/Legion/Scenario/Artifacts/Warrior/Warswords/Warswords.cpp
+BOTH_CHANGED	49	6	src/server/scripts/Scenario/Artifacts/Warrior/Warswords/instance_warswords.cpp	src/server/scripts/Legion/Scenario/Artifacts/Warrior/Warswords/instance_warswords.cpp
+CLEAN	1384	16	src/server/scripts/Scenario/AssoultOnZanvess/assault_on_zanvess.cpp	src/server/scripts/Pandaria/Scenario/AssoultOnZanvess/assault_on_zanvess.cpp
+CLEAN	203	23	src/server/scripts/Scenario/AssoultOnZanvess/assault_on_zanvess.h	src/server/scripts/Pandaria/Scenario/AssoultOnZanvess/assault_on_zanvess.h
+CLEAN	374	54	src/server/scripts/Scenario/AssoultOnZanvess/instance_assault_on_zanvess.cpp	src/server/scripts/Pandaria/Scenario/AssoultOnZanvess/instance_assault_on_zanvess.cpp
+CLEAN	1568	16	src/server/scripts/Scenario/BattleOnTheHighSeas/battle_on_the_high_seas.cpp	src/server/scripts/Pandaria/Scenario/BattleOnTheHighSeas/battle_on_the_high_seas.cpp
+CLEAN	195	25	src/server/scripts/Scenario/BattleOnTheHighSeas/battle_on_the_high_seas.h	src/server/scripts/Pandaria/Scenario/BattleOnTheHighSeas/battle_on_the_high_seas.h
+CLEAN	451	53	src/server/scripts/Scenario/BattleOnTheHighSeas/instance_battle_on_the_high_seas.cpp	src/server/scripts/Pandaria/Scenario/BattleOnTheHighSeas/instance_battle_on_the_high_seas.cpp
+CLEAN	1508	16	src/server/scripts/Scenario/BloodInTheSnow/blood_in_the_snow.cpp	src/server/scripts/Pandaria/Scenario/BloodInTheSnow/blood_in_the_snow.cpp
+CLEAN	92	26	src/server/scripts/Scenario/BloodInTheSnow/blood_in_the_snow.h	src/server/scripts/Pandaria/Scenario/BloodInTheSnow/blood_in_the_snow.h
+CLEAN	460	54	src/server/scripts/Scenario/BloodInTheSnow/instance_blood_in_the_snow.cpp	src/server/scripts/Pandaria/Scenario/BloodInTheSnow/instance_blood_in_the_snow.cpp
+NEW	137	0	src/server/scripts/Scenario/Bonetown/bonetown.cpp	
+NEW	54	0	src/server/scripts/Scenario/Bonetown/bonetown.h	
+NEW	348	0	src/server/scripts/Scenario/Bonetown/instance_bonetown.cpp	
+NEW	1424	0	src/server/scripts/Scenario/BoostExperience/boost_experience.cpp	
+CLEAN	1827	16	src/server/scripts/Scenario/BrewmoonFestival/brewmoon_festival.cpp	src/server/scripts/Pandaria/Scenario/BrewmoonFestival/brewmoon_festival.cpp
+CLEAN	204	23	src/server/scripts/Scenario/BrewmoonFestival/brewmoon_festival.h	src/server/scripts/Pandaria/Scenario/BrewmoonFestival/brewmoon_festival.h
+CLEAN	502	54	src/server/scripts/Scenario/BrewmoonFestival/instance_brewmoon_festival.cpp	src/server/scripts/Pandaria/Scenario/BrewmoonFestival/instance_brewmoon_festival.cpp
+NEW	26	0	src/server/scripts/Scenario/BrokenIslands/KrosusReach.h	
+BOTH_CHANGED	296	117	src/server/scripts/Scenario/BrokenIslands/broken_islands.cpp	src/server/scripts/Legion/Scenario/BrokenIslands/broken_islands.cpp
+CLEAN	1	0	src/server/scripts/Scenario/BrokenIslands/broken_islands.h	src/server/scripts/Legion/Scenario/BrokenIslands/broken_islands.h
+CLEAN	149	26	src/server/scripts/Scenario/BrokenIslands/instance_broken_islands.cpp	src/server/scripts/Legion/Scenario/BrokenIslands/instance_broken_islands.cpp
+CLEAN	28	5	src/server/scripts/Scenario/CelestialTournament/celestial_tournament.h	src/server/scripts/Pandaria/Scenario/CelestialTournament/celestial_tournament.h
+CLEAN	220	9	src/server/scripts/Scenario/CelestialTournament/instance_celestial_tournament.cpp	src/server/scripts/Pandaria/Scenario/CelestialTournament/instance_celestial_tournament.cpp
+NEW	211	0	src/server/scripts/Scenario/ColdridgeCataclysm/coldridge_cataclysm.cpp	
+NEW	65	0	src/server/scripts/Scenario/ColdridgeCataclysm/coldridge_cataclysm.h	
+NEW	405	0	src/server/scripts/Scenario/ColdridgeCataclysm/instance_coldridge_cataclysm.cpp	
+CLEAN	1417	16	src/server/scripts/Scenario/CryptOfForgottenKings/crypt_of_forgotten_kings.cpp	src/server/scripts/Pandaria/Scenario/CryptOfForgottenKings/crypt_of_forgotten_kings.cpp
+CLEAN	98	23	src/server/scripts/Scenario/CryptOfForgottenKings/crypt_of_forgotten_kings.h	src/server/scripts/Pandaria/Scenario/CryptOfForgottenKings/crypt_of_forgotten_kings.h
+CLEAN	244	48	src/server/scripts/Scenario/CryptOfForgottenKings/instance_crypt_of_forgotten_kings.cpp	src/server/scripts/Pandaria/Scenario/CryptOfForgottenKings/instance_crypt_of_forgotten_kings.cpp
+CLEAN	2037	16	src/server/scripts/Scenario/DaggerInTheDark/dagger_in_the_dark.cpp	src/server/scripts/Pandaria/Scenario/DaggerInTheDark/dagger_in_the_dark.cpp
+CLEAN	271	25	src/server/scripts/Scenario/DaggerInTheDark/dagger_in_the_dark.h	src/server/scripts/Pandaria/Scenario/DaggerInTheDark/dagger_in_the_dark.h
+CLEAN	394	54	src/server/scripts/Scenario/DaggerInTheDark/instance_dagger_in_the_dark.cpp	src/server/scripts/Pandaria/Scenario/DaggerInTheDark/instance_dagger_in_the_dark.cpp
+CLEAN	951	16	src/server/scripts/Scenario/DarkHeartOfPandaria/dark_heart_of_pandaria.cpp	src/server/scripts/Pandaria/Scenario/DarkHeartOfPandaria/dark_heart_of_pandaria.cpp
+CLEAN	127	25	src/server/scripts/Scenario/DarkHeartOfPandaria/dark_heart_of_pandaria.h	src/server/scripts/Pandaria/Scenario/DarkHeartOfPandaria/dark_heart_of_pandaria.h
+CLEAN	445	57	src/server/scripts/Scenario/DarkHeartOfPandaria/instance_dark_heart_of_pandaria.cpp	src/server/scripts/Pandaria/Scenario/DarkHeartOfPandaria/instance_dark_heart_of_pandaria.cpp
+NEW	287	0	src/server/scripts/Scenario/DeathsOfChromie/deaths_of_chromie.cpp	
+NEW	57	0	src/server/scripts/Scenario/DeathsOfChromie/deaths_of_chromie.h	
+NEW	177	0	src/server/scripts/Scenario/DeathsOfChromie/instance_deaths_of_chromie.cpp	
+CLEAN	110	9	src/server/scripts/Scenario/DominationPoint/domination_point.cpp	src/server/scripts/Pandaria/Scenario/DominationPoint/domination_point.cpp
+CLEAN	63	18	src/server/scripts/Scenario/DominationPoint/domination_point.h	src/server/scripts/Pandaria/Scenario/DominationPoint/domination_point.h
+CLEAN	258	24	src/server/scripts/Scenario/DominationPoint/instance_domination_point.cpp	src/server/scripts/Pandaria/Scenario/DominationPoint/instance_domination_point.cpp
+NEW	1486	0	src/server/scripts/Scenario/FallOfTheramoreAlliance/fall_of_theramore_alliance.cpp	
+NEW	115	0	src/server/scripts/Scenario/FallOfTheramoreAlliance/fall_of_theramore_alliance.h	
+NEW	401	0	src/server/scripts/Scenario/FallOfTheramoreAlliance/instance_fall_of_theramore_alliance.cpp	
+NEW	1164	0	src/server/scripts/Scenario/FallOfTheramoreHorde/fall_of_theramore_horde.cpp	
+NEW	102	0	src/server/scripts/Scenario/FallOfTheramoreHorde/fall_of_theramore_horde.h	
+NEW	313	0	src/server/scripts/Scenario/FallOfTheramoreHorde/instance_fall_of_theramore_horde.cpp	
+CLEAN	1276	16	src/server/scripts/Scenario/GreenstoneVillage/greenstone_village.cpp	src/server/scripts/Pandaria/Scenario/GreenstoneVillage/greenstone_village.cpp
+CLEAN	141	23	src/server/scripts/Scenario/GreenstoneVillage/greenstone_village.h	src/server/scripts/Pandaria/Scenario/GreenstoneVillage/greenstone_village.h
+CLEAN	291	55	src/server/scripts/Scenario/GreenstoneVillage/instance_greenstone_villaget.cpp	src/server/scripts/Pandaria/Scenario/GreenstoneVillage/instance_greenstone_villaget.cpp
+NEW	1322	0	src/server/scripts/Scenario/IsleOfThunder/instance_isle_of_thunder.cpp	
+NEW	7001	0	src/server/scripts/Scenario/IsleOfThunder/isle_of_thunder.cpp	
+NEW	789	0	src/server/scripts/Scenario/IsleOfThunder/isle_of_thunder.h	
+NEW	524	0	src/server/scripts/Scenario/IsleOfThunder/isle_of_thunder_ambient.cpp	
+CLEAN	260	24	src/server/scripts/Scenario/LionsLanding/instance_lions_landing.cpp	src/server/scripts/Pandaria/Scenario/LionsLanding/instance_lions_landing.cpp
+CLEAN	145	9	src/server/scripts/Scenario/LionsLanding/lions_landing.cpp	src/server/scripts/Pandaria/Scenario/LionsLanding/lions_landing.cpp
+CLEAN	61	19	src/server/scripts/Scenario/LionsLanding/lions_landing.h	src/server/scripts/Pandaria/Scenario/LionsLanding/lions_landing.h
+NEW	107	0	src/server/scripts/Scenario/NightborneUnlock/nightborne_unlock.cpp	
+NEW	31	0	src/server/scripts/Scenario/NightborneUnlock/nightborne_unlock.h	
+NEW	598	0	src/server/scripts/Scenario/NoodleTime/instance_noodle_time.cpp	
+NEW	178	0	src/server/scripts/Scenario/NoodleTime/noodle_time.cpp	
+NEW	77	0	src/server/scripts/Scenario/NoodleTime/noodle_time.h	
+CLEAN	316	37	src/server/scripts/Scenario/ProvingGrounds/instance_proving_grounds.cpp	src/server/scripts/Pandaria/Scenario/ProvingGrounds/instance_proving_grounds.cpp
+CLEAN	3697	0	src/server/scripts/Scenario/ProvingGrounds/proving_grounds.cpp	src/server/scripts/Pandaria/Scenario/ProvingGrounds/proving_grounds.cpp
+CLEAN	1012	7	src/server/scripts/Scenario/ProvingGrounds/proving_grounds.h	src/server/scripts/Pandaria/Scenario/ProvingGrounds/proving_grounds.h
+CLEAN	2	3	src/server/scripts/Scenario/PursuingTheBlackHarvest/pursuing_the_black_harvest.cpp	src/server/scripts/Pandaria/Scenario/PursuingTheBlackHarvest/pursuing_the_black_harvest.cpp
+CLEAN	0	1	src/server/scripts/Scenario/PursuingTheBlackHarvest/pursuing_the_black_harvest.h	src/server/scripts/Pandaria/Scenario/PursuingTheBlackHarvest/pursuing_the_black_harvest.h
+CLEAN	479	55	src/server/scripts/Scenario/TheSecretsOfRagefire/instance_the_secrets_of_ragefire.cpp	src/server/scripts/Pandaria/Scenario/TheSecretsOfRagefire/instance_the_secrets_of_ragefire.cpp
+CLEAN	1671	16	src/server/scripts/Scenario/TheSecretsOfRagefire/the_secrets_of_ragefire.cpp	src/server/scripts/Pandaria/Scenario/TheSecretsOfRagefire/the_secrets_of_ragefire.cpp
+CLEAN	451	23	src/server/scripts/Scenario/TheSecretsOfRagefire/the_secrets_of_ragefire.h	src/server/scripts/Pandaria/Scenario/TheSecretsOfRagefire/the_secrets_of_ragefire.h
+BOTH_CHANGED	3	18	src/server/scripts/Scenario/ThunderForge/thunder_forge.cpp	src/server/scripts/Pandaria/Scenario/ThunderForge/thunder_forge.cpp
+CLEAN	254	79	src/server/scripts/Scenario/TrovesOfTheThunderKing/instance_troves_of_the_thunder_king.cpp	src/server/scripts/Pandaria/Scenario/TrovesOfTheThunderKing/instance_troves_of_the_thunder_king.cpp
+CLEAN	795	191	src/server/scripts/Scenario/TrovesOfTheThunderKing/troves_of_the_thunder_king.cpp	src/server/scripts/Pandaria/Scenario/TrovesOfTheThunderKing/troves_of_the_thunder_king.cpp
+CLEAN	72	185	src/server/scripts/Scenario/TrovesOfTheThunderKing/troves_of_the_thunder_king.h	src/server/scripts/Pandaria/Scenario/TrovesOfTheThunderKing/troves_of_the_thunder_king.h
+CLEAN	534	54	src/server/scripts/Scenario/UngaIngoo/instance_unga_ingoo.cpp	src/server/scripts/Pandaria/Scenario/UngaIngoo/instance_unga_ingoo.cpp
+CLEAN	1313	16	src/server/scripts/Scenario/UngaIngoo/unga_ingoo.cpp	src/server/scripts/Pandaria/Scenario/UngaIngoo/unga_ingoo.cpp
+CLEAN	202	23	src/server/scripts/Scenario/UngaIngoo/unga_ingoo.h	src/server/scripts/Pandaria/Scenario/UngaIngoo/unga_ingoo.h
+MISSING_IN_REFORGED	66	14	src/server/scripts/Scenario/scenario_script_loader.cpp	
+BOTH_CHANGED	415	75	src/server/scripts/Spells/spell_dh.cpp	src/server/scripts/Spells/spell_dh.cpp
+CLEAN	742	70	src/server/scripts/Spells/spell_dk.cpp	src/server/scripts/Spells/spell_dk.cpp
+BOTH_CHANGED	167	28	src/server/scripts/Spells/spell_druid.cpp	src/server/scripts/Spells/spell_druid.cpp
+BOTH_CHANGED	299	101	src/server/scripts/Spells/spell_generic.cpp	src/server/scripts/Spells/spell_generic.cpp
+CLEAN	1019	77	src/server/scripts/Spells/spell_hunter.cpp	src/server/scripts/Spells/spell_hunter.cpp
+BOTH_CHANGED	159	12	src/server/scripts/Spells/spell_item.cpp	src/server/scripts/Spells/spell_item.cpp
+CLEAN	853	153	src/server/scripts/Spells/spell_mage.cpp	src/server/scripts/Spells/spell_mage.cpp
+BOTH_CHANGED	777	162	src/server/scripts/Spells/spell_monk.cpp	src/server/scripts/Spells/spell_monk.cpp
+BOTH_CHANGED	413	132	src/server/scripts/Spells/spell_paladin.cpp	src/server/scripts/Spells/spell_paladin.cpp
+BOTH_CHANGED	989	60	src/server/scripts/Spells/spell_priest.cpp	src/server/scripts/Spells/spell_priest.cpp
+BOTH_CHANGED	7	3	src/server/scripts/Spells/spell_quest.cpp	src/server/scripts/Spells/spell_quest.cpp
+BOTH_CHANGED	871	71	src/server/scripts/Spells/spell_rogue.cpp	src/server/scripts/Spells/spell_rogue.cpp
+CLEAN	933	190	src/server/scripts/Spells/spell_shaman.cpp	src/server/scripts/Spells/spell_shaman.cpp
+BOTH_CHANGED	774	113	src/server/scripts/Spells/spell_warlock.cpp	src/server/scripts/Spells/spell_warlock.cpp
+CLEAN	887	5	src/server/scripts/Spells/spell_warrior.cpp	src/server/scripts/Spells/spell_warrior.cpp
+BOTH_CHANGED	6	1	src/server/scripts/World/PetBattle/PetBattleTrainer.cpp	src/server/scripts/World/PetBattle/PetBattleTrainer.cpp
+CLEAN	0	1	src/server/scripts/World/boss_emerald_dragons.cpp	src/server/scripts/World/boss_emerald_dragons.cpp
+BOTH_CHANGED	0	58	src/server/scripts/World/go_scripts.cpp	src/server/scripts/World/go_scripts.cpp
+BOTH_CHANGED	46	585	src/server/scripts/World/npcs_special.cpp	src/server/scripts/World/npcs_special.cpp
+BOTH_CHANGED	13	0	src/server/scripts/World/world_script_loader.cpp	src/server/scripts/World/world_script_loader.cpp
+CLEAN	7	4	src/server/shared/Networking/AsyncAcceptor.h	src/server/shared/Networking/AsyncAcceptor.h
+BOTH_CHANGED	15	7	src/server/shared/Networking/NetworkThread.h	src/server/shared/Networking/NetworkThread.h
+CLEAN	18	0	src/server/shared/Networking/Socket.h	src/server/shared/Networking/Socket.h
+CLEAN	2	2	src/server/shared/Networking/SocketMgr.h	src/server/shared/Networking/SocketMgr.h
+CLEAN	6	1	src/server/shared/Realm/RealmList.cpp	src/server/shared/Realm/RealmList.cpp
+CLEAN	6	0	src/server/worldserver/CommandLine/CliRunnable.cpp	src/server/worldserver/CommandLine/CliRunnable.cpp
+CLEAN	22	1	src/server/worldserver/Main.cpp	src/server/worldserver/Main.cpp
+BOTH_CHANGED	7	3	src/server/worldserver/worldserver.conf.dist	src/server/worldserver/worldserver.conf.dist
