@@ -359,3 +359,18 @@ SQL `2026_11_10_75..99` and `2026_11_11_00..06` (`_lc735_*`); the port tool now 
   already fixed the Enslave Demon crash and the vehicle join events itself.
 - Not here: the warlock legendary refund and pet healing files and the pet regeneration change (class mechanics, phase 4).
 - All 32 SQL files passed verbatim on the database copy except Sothozz (text only).
+
+## Phase 3.12, part 1: Warrior's Warswords, Earth-Warder and Broken Shore (2026-11-09)
+
+- **Fury, Warswords** (map 1500, scenario 933, the class route of 3.2): `Warswords.cpp` and `Intro/wars_intro_scenario.cpp`
+  (CLEAN: taken), `instance_warswords.cpp` merged three-way (one conflict, a `MoveJump` compile fix on both sides), the
+  Malgalor headers copied in 3.7; SQL weapon phase, real loot, scene equip, intro bubble, Malgalor's scene replacement
+  (`2026_11_11_07..10`, `_19`). Core: the Broken Shore login exit deferred from phase 2 (`ExitCompletedBrokenShoreLogin`):
+  a refused login after Malgalor's saved defeat goes to Skyhold, and after the Broken Isles intro's (map 1460) saved finale
+  to the finale's destination, instead of the homebind.
+- **Protection, Scale of the Earth-Warder**: `EarthWarder.cpp` merged three-way (3 conflicts: `MoveJump` compile fixes and
+  one summon block, LegionCore-7.3.5's side); SQL real loot, scene equip, weapon beam, Hruthnir's and Magnar's
+  conversations and intro scene (`_11..17`).
+- Warrior creation actions (`_18`). All 13 SQL files passed verbatim.
+- Part 2 (Arms, Strom'kar; the Skyhold jumps and the shared jump-arrival guard, also for Sharas'dal; Commander's Valor)
+  follows.

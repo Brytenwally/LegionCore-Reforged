@@ -3322,6 +3322,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         bool IsMapObjectArrivalProtected() const { return false; }
         bool ExitCompletedSheilunLogin();
         bool ExitCompletedDarkRidersLogin();
+        bool ExitCompletedBrokenShoreLogin();
 
         // Adventures.
         uint16 getAdventureQuestID();

@@ -18,6 +18,7 @@
 #include "ScenarioMgr.h"
 #include "WorldSession.h"
 #include "QuestData.h"
+#include "SpellMgr.h"
 #include "Item.h"
 #include "BrokenShoreClassRoute.h"
 
@@ -231,5 +232,44 @@ bool Player::ExitCompletedDarkRidersLogin()
     m_scenarioLoginId = m_scenarioLoginInstance = 0;
     SetScenarioId(0);
     TC_LOG_INFO("entities.player", "Dark Riders: completed scenario login returns player %u to outdoor Revil", GetGUIDLow());
+    return true;
+}
+
+// Broken Shore (LegionCore-7.3.5): a refused login after a saved victory leaves the scenario for its real destination
+// instead of the homebind. Warrior (map 1500, scenario 933, quests 38904 / 42815): the victory over Malgalor is saved,
+// the logout only cut the optional rescue presentation. The Broken Isles intro (map 1460, quest 42740 / 40518): the
+// finale's teleport may have been cancelled by the logout; the quest stays to be turned in.
+bool Player::ExitCompletedBrokenShoreLogin()
+{
+    if (GetMapId() == 1500 && getClass() == CLASS_WARRIOR && (!m_scenarioLoginId || m_scenarioLoginId == 933))
+        for (uint32 quest : {38904u, 42815u})
+            if (GetQuestStatus(quest) == QUEST_STATUS_COMPLETE && GetQuestObjectiveData(quest, 103661))
+            {
+                for (uint32 aura : {185627u, 185673u, 185674u})
+                    RemoveAurasDueToSpell(aura, GetGUID());
+                if (!TeleportTo(1479, 1071.81f, 7224.32f, 97.891f, 3.15048f))
+                    return false;
+                m_scenarioResume = {};
+                m_scenarioLoginId = m_scenarioLoginInstance = 0;
+                SetScenarioId(0);
+                return true;
+            }
+    uint32 const questId = GetTeam() == ALLIANCE ? 42740 : 40518;
+    if (GetMapId() != 1460 ||
+        (m_scenarioLoginId && m_scenarioLoginId != (GetTeam() == ALLIANCE ? 786 : 1189)) ||
+        (GetQuestStatus(questId) != QUEST_STATUS_COMPLETE && !IsQuestRewarded(questId)))
+        return false;
+
+    // the same destination as the native finale, even if its delayed teleport was cancelled by the logout
+    auto destination = sSpellMgr->GetSpellTargetPosition(GetTeam() == ALLIANCE ? 208514 : 208517);
+    if (!destination || !MapManager::IsValidMapCoord(destination->target_mapId,
+        destination->target_X, destination->target_Y, destination->target_Z, destination->target_Orientation) ||
+        !TeleportTo(destination->target_mapId, destination->target_X, destination->target_Y,
+            destination->target_Z, destination->target_Orientation))
+        return false;
+
+    m_scenarioResume = {};
+    m_scenarioLoginId = m_scenarioLoginInstance = 0;
+    SetScenarioId(0);
     return true;
 }

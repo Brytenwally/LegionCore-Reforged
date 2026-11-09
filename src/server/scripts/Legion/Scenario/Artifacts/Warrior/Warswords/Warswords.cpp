@@ -6,6 +6,12 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "Conversation.h"
+#include "Item.h"
+#include "ObjectAccessor.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include <algorithm>
 
 // 245188
 class go_mystic_bonfire : public GameObjectScript
@@ -110,18 +116,77 @@ public:
         EventMap events;
         SummonList summons;
         uint32 count_adds;
-        bool phase, check_first_rephase;
+        bool phase = false, check_first_rephase;
+        bool secondRetreatStarted;
+        ObjectGuid spectres[2] = {};
+        bool spectreDefeated[2] = {};
+        bool spectreActive = false;
+        uint32 spectreSlot = 2;
+        uint32 spectreRetryTimer = 0;
+        uint32 spectreGeneration = 0;
+
+        void CancelSpectreRush()
+        {
+            ++spectreGeneration;
+            spectreActive = false;
+            spectreSlot = 2;
+            spectreRetryTimer = 0;
+            count_adds = 0;
+            for (uint32 index = 0; index < 2; ++index)
+            {
+                spectres[index] = {};
+                spectreDefeated[index] = false;
+            }
+        }
 
         void Reset() override
         {
+            bool wasRetreating = phase;
             phase = false;
             check_first_rephase = false;
+            secondRetreatStarted = false;
 
             events.Reset();
+            CancelSpectreRush();
             summons.DespawnAll();
+            me->RemoveAura(195996);
             count_adds = 0;
             me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
             me->SetReactState(REACT_AGGRESSIVE);
+            if (wasRetreating && me->GetEntry() == 98007 && me->GetMapId() == 1511)
+                me->UpdateObjectVisibility();
+        }
+
+        bool IsEncounterActive() const
+        {
+            if (me->GetEntry() != 98007 || me->GetMapId() != 1511)
+                return true;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            return scenario && scenario->GetScenarioId() == 944 &&
+                (scenario->GetCurrentStep() == 4 || (scenario->GetCurrentStep() == 5 && phase));
+        }
+
+        bool IsEncounterReady() const
+        {
+            if (me->GetEntry() != 98007 || me->GetMapId() != 1511)
+                return true;
+            return !phase && IsEncounterActive();
+        }
+
+        bool CanBeVisibleFor(WorldObject const*) const override
+        {
+            return IsEncounterActive();
+        }
+
+        bool CanAIAttack(Unit const*) const override
+        {
+            return IsEncounterReady();
+        }
+
+        void AttackStart(Unit* target) override
+        {
+            if (IsEncounterReady())
+                ScriptedAI::AttackStart(target);
         }
 
         void EnterCombat(Unit* who) override
@@ -134,6 +199,8 @@ public:
 
         void JustSummoned(Creature* summon) override
         {
+            if (spectreActive && spectreSlot < 2 && summon->GetEntry() == 99609 && summon->IsInWorld() && summon->IsAlive())
+                spectres[spectreSlot] = summon->GetGUID();
             summons.Summon(summon);
             summon->CastSpell(summon, 197852);
             summon->GetMotionMaster()->MoveRandom(10.0f);
@@ -141,24 +208,94 @@ public:
 
         void SummonedCreatureDies(Creature* summon, Unit* /*killer*/) override
         {
-            if (summon->GetEntry() == 99609)
-            {
-                count_adds++;
-                if (count_adds >= 2)
+            if (!spectreActive || !me->IsAlive() || !summon || summon->IsAlive() || summon->GetEntry() != 99609)
+                return;
+            for (uint32 index = 0; index < 2; ++index)
+                if (!spectreDefeated[index] && spectres[index] == summon->GetGUID())
                 {
-                    me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                    me->SetReactState(REACT_AGGRESSIVE);
-                    count_adds = 0;
-                    me->RemoveAura(195996);
+                    spectreDefeated[index] = true;
+                    if (++count_adds == 2)
+                    {
+                        spectreActive = false;
+                        me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        me->SetReactState(REACT_AGGRESSIVE);
+                        me->RemoveAura(195996);
+                    }
+                    return;
                 }
+        }
+
+        void SummonedCreatureDespawn(Creature* summon) override
+        {
+            if (!summon)
+                return;
+            summons.Despawn(summon);
+            if (!spectreActive)
+                return;
+            for (uint32 index = 0; index < 2; ++index)
+                if (!spectreDefeated[index] && spectres[index] == summon->GetGUID())
+                    spectres[index] = {};
+        }
+
+        void UpdateSpectreRush(uint32 diff)
+        {
+            if (phase || !spectreActive || !me->IsAlive() || !me->IsInWorld())
+                return;
+            if (spectreRetryTimer > diff)
+            {
+                spectreRetryTimer -= diff;
+                return;
             }
+            spectreRetryTimer = 1000;
+            uint32 generation = spectreGeneration;
+            for (uint32 index = 0; index < 2; ++index)
+            {
+                if (spectreDefeated[index])
+                    continue;
+                if (Creature* spectre = ObjectAccessor::GetCreature(*me, spectres[index]))
+                    if (spectre->IsAlive())
+                        continue;
+                spectres[index] = {};
+                spectreSlot = index;
+                me->SummonCreature(99609, me->GetPositionX() + irand(-5, 5), me->GetPositionY() + irand(-5, 5), me->GetPositionZ(), 0);
+                if (generation != spectreGeneration || !spectreActive)
+                    return;
+                spectreSlot = 2;
+            }
+        }
+
+        void BeginSpectreRush()
+        {
+            if (phase || spectreActive)
+                return;
+            CancelSpectreRush();
+            spectreActive = true;
+            uint32 generation = spectreGeneration;
+            me->StopAttack();
+            me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+            me->SetReactState(REACT_PASSIVE);
+            DoCast(195996);
+            if (generation != spectreGeneration || !spectreActive)
+                return;
+            UpdateSpectreRush(0);
+            if (generation == spectreGeneration)
+                events.RescheduleEvent(EVENT_3, 51000);
+        }
+
+        void JustDied(Unit*) override
+        {
+            CancelSpectreRush();
+            summons.DespawnAll();
         }
 
         void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
         {
+            if (!IsEncounterActive())
+                return;
             if (check_first_rephase)
             {
                 check_first_rephase = false;
+                secondRetreatStarted = true;
                 Talk(7);
                 me->RemoveAura(128264);
                 std::list<Creature*> adds;
@@ -172,19 +309,51 @@ public:
                 me->GetMotionMaster()->MovePoint(2, 3514.32f, 1800.86f, 0.6f);
                 me->DespawnOrUnsummon(7000);
             }
+        }
 
-            if (me->HealthBelowPct(50) && !phase)
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType) override
+        {
+            if (!IsEncounterActive())
             {
-                Talk(5);
-                phase = true;
-                if (Player* pl = me->FindNearestPlayer(100.0f))
-                    pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46982);
-                me->StopAttack();
-                me->SetReactState(REACT_PASSIVE);
-                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
-                me->GetMotionMaster()->MovePoint(1, 3444.66f, 1703.69f, 0.43f);
-                events.Reset();
+                damage = 0;
+                return;
             }
+            if (!attacker || !damage || !me->IsAlive() || me->GetEntry() != 98007 || me->GetMapId() != 1511)
+                return;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 944 || scenario->GetCurrentStep() < 4 || scenario->GetCurrentStep() > 5)
+                return;
+            if (phase)
+            {
+                damage = 0;
+                return;
+            }
+            if (scenario->GetCurrentStep() != 4)
+                return;
+            uint64 health = me->GetHealth(attacker);
+            if (damage < health && health - damage >= me->CountPctFromMaxHealth(50, attacker))
+                return;
+            damage = 0;
+            uint64 retreatHealth = std::max<uint64>(1, me->CountPctFromMaxHealth(50));
+            if (me->GetHealth() > retreatHealth)
+                me->SetHealth(retreatHealth);
+            Player* player = attacker->GetCharmerOrOwnerPlayerOrPlayerItself();
+            if (!player || !player->IsAlive() || !player->CanContact() || player->getClass() != CLASS_WARRIOR ||
+                player->GetMap() != me->GetMap() || !player->InSamePhase(me) || !player->IsWithinDistInMap(me, 100.0f) ||
+                player->GetQuestRewardStatus(40043) ||
+                (player->GetQuestStatus(40043) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(40043) != QUEST_STATUS_COMPLETE))
+                return;
+            phase = true;
+            CancelSpectreRush();
+            summons.DespawnAll();
+            me->RemoveAura(195996);
+            Talk(5);
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46982);
+            me->StopAttack();
+            me->SetReactState(REACT_PASSIVE);
+            me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
+            me->GetMotionMaster()->MovePoint(1, 3444.66f, 1703.69f, 0.43f);
+            events.Reset();
         }
 
         void MovementInform(uint32 type, uint32 id) override
@@ -192,10 +361,10 @@ public:
             if (type != POINT_MOTION_TYPE)
                 return;
 
-            if (id == 1)
+            if (id == 1 && phase && !check_first_rephase && !secondRetreatStarted)
             {
-                DoCast(128264);
                 check_first_rephase = true;
+                DoCast(128264);
                 me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
             }
         }
@@ -203,11 +372,13 @@ public:
 
         void UpdateAI(uint32 diff) override
         {
-
+            if (!IsEncounterReady())
+                return;
+            UpdateSpectreRush(diff);
             if (!UpdateVictim())
                 return;
 
-            if (me->HasAura(195996))
+            if (spectreActive || me->HasAura(195996))
                 return;
 
             events.Update(diff);
@@ -228,15 +399,7 @@ public:
                         events.RescheduleEvent(EVENT_2, 23000); // 195575 23 + after 195996
                         break;
                     case EVENT_3:
-                        DoCast(195996);
-                        me->StopAttack();
-                        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                        me->SetReactState(REACT_PASSIVE);
-                        for (uint8 i = 0; i < 2; ++i)
-                        {
-                            me->SummonCreature(99609, me->GetPositionX() + irand(-5, 5), me->GetPositionY() + irand(-5, 5), me->GetPositionZ(), 0);
-                        }
-                        events.RescheduleEvent(EVENT_3, 51000);
+                        BeginSpectreRush();
                         break;
                 }
             }
@@ -270,16 +433,103 @@ public:
         uint32 count_adds;
 
         bool phase1, phase2, introDone;
+        bool introPending = false;
+        uint32 introGeneration = 0;
+        uint32 introRetryTimer = 0;
+        ObjectGuid spectres[2] = {};
+        bool spectreDefeated[2] = {};
+        bool spectreActive = false;
+        uint32 spectreSlot = 2;
+        uint32 spectreRetryTimer = 0;
+        uint32 spectreGeneration = 0;
+        uint32 introVisualRetryTimer = 0;
+        bool introVisualWarned = false;
+        ObjectGuid introConversation = {};
+
+        void CancelSpectreRush()
+        {
+            ++spectreGeneration;
+            spectreActive = false;
+            spectreSlot = 2;
+            spectreRetryTimer = 0;
+            count_adds = 0;
+            for (uint32 index = 0; index < 2; ++index)
+            {
+                spectres[index] = {};
+                spectreDefeated[index] = false;
+            }
+        }
 
         void Reset() override
         {
+            ++introGeneration;
+            if (introPending)
+                introDone = false;
+            introPending = false;
+            introRetryTimer = 0;
+            introVisualRetryTimer = 0;
+            introVisualWarned = false;
+            if (introDone && me->GetEntry() == 98602 && me->GetMapId() == 1511)
+                me->RemoveAura(205424);
             phase1 = false;
             phase2 = false;
             events.Reset();
+            CancelSpectreRush();
             summons.DespawnAll();
+            me->RemoveAura(195996);
             me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
             me->SetReactState(REACT_AGGRESSIVE);
             count_adds = 0;
+            RemoveIntroConversation();
+        }
+
+        void RemoveIntroConversation()
+        {
+            ObjectGuid guid = introConversation;
+            introConversation = {};
+            if (guid)
+                if (Conversation* conversation = ObjectAccessor::GetConversation(*me, guid))
+                    conversation->Remove();
+        }
+
+        bool IsEncounterReady() const
+        {
+            if (me->GetEntry() != 98602 || me->GetMapId() != 1511)
+                return true;
+            if (!introDone || introPending)
+                return false;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            return scenario && scenario->GetScenarioId() == 944 && scenario->GetCurrentStep() == 5;
+        }
+
+        void UpdateLifecycle(uint32) override
+        {
+            if (me->GetEntry() == 98602 && me->GetMapId() == 1511 && !me->IsAlive())
+            {
+                RemoveIntroConversation();
+                if (me->HasAura(205424))
+                    me->RemoveAura(205424);
+            }
+        }
+
+        bool CanAIAttack(Unit const*) const override
+        {
+            return IsEncounterReady();
+        }
+
+        bool CanBeVisibleFor(WorldObject const*) const override
+        {
+            if (me->GetEntry() != 98602 || me->GetMapId() != 1511)
+                return true;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            return scenario && scenario->GetScenarioId() == 944 &&
+                scenario->GetCurrentStep() >= 5 && scenario->GetCurrentStep() <= 7;
+        }
+
+        void AttackStart(Unit* target) override
+        {
+            if (IsEncounterReady())
+                ScriptedAI::AttackStart(target);
         }
 
         void EnterCombat(Unit* who) override
@@ -292,6 +542,8 @@ public:
 
         void JustSummoned(Creature* summon) override
         {
+            if (spectreActive && spectreSlot < 2 && summon->GetEntry() == 99609 && summon->IsInWorld() && summon->IsAlive())
+                spectres[spectreSlot] = summon->GetGUID();
             summons.Summon(summon);
             summon->CastSpell(summon, 197852);
             summon->GetMotionMaster()->MoveRandom(10.0f);
@@ -299,62 +551,277 @@ public:
 
         void SummonedCreatureDies(Creature* summon, Unit* /*killer*/) override
         {
-            if (summon->GetEntry() == 99609)
-            {
-                count_adds++;
-                if (count_adds >= 2)
+            if (!spectreActive || !me->IsAlive() || !summon || summon->IsAlive() || summon->GetEntry() != 99609)
+                return;
+            for (uint32 index = 0; index < 2; ++index)
+                if (!spectreDefeated[index] && spectres[index] == summon->GetGUID())
                 {
-                    me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                    me->SetReactState(REACT_AGGRESSIVE);
-                    me->RemoveAura(195996);
-                    count_adds = 0;
+                    spectreDefeated[index] = true;
+                    if (++count_adds == 2)
+                    {
+                        spectreActive = false;
+                        me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        me->SetReactState(REACT_AGGRESSIVE);
+                        me->RemoveAura(195996);
+                    }
+                    return;
                 }
+        }
+
+        void SummonedCreatureDespawn(Creature* summon) override
+        {
+            if (!summon)
+                return;
+            summons.Despawn(summon);
+            if (!spectreActive)
+                return;
+            for (uint32 index = 0; index < 2; ++index)
+                if (!spectreDefeated[index] && spectres[index] == summon->GetGUID())
+                    spectres[index] = {};
+        }
+
+        void UpdateSpectreRush(uint32 diff)
+        {
+            if (!spectreActive || !me->IsAlive() || !me->IsInWorld())
+                return;
+            if (spectreRetryTimer > diff)
+            {
+                spectreRetryTimer -= diff;
+                return;
             }
+            spectreRetryTimer = 1000;
+            uint32 generation = spectreGeneration;
+            for (uint32 index = 0; index < 2; ++index)
+            {
+                if (spectreDefeated[index])
+                    continue;
+                if (Creature* spectre = ObjectAccessor::GetCreature(*me, spectres[index]))
+                    if (spectre->IsAlive())
+                        continue;
+                spectres[index] = {};
+                spectreSlot = index;
+                me->SummonCreature(99609, me->GetPositionX() + irand(-5, 5), me->GetPositionY() + irand(-5, 5), me->GetPositionZ(), 0);
+                if (generation != spectreGeneration || !spectreActive)
+                    return;
+                spectreSlot = 2;
+            }
+        }
+
+        void BeginSpectreRush()
+        {
+            if (spectreActive)
+                return;
+            CancelSpectreRush();
+            spectreActive = true;
+            uint32 generation = spectreGeneration;
+            me->StopAttack();
+            me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+            me->SetReactState(REACT_PASSIVE);
+            DoCast(195996);
+            if (generation != spectreGeneration || !spectreActive)
+                return;
+            UpdateSpectreRush(0);
+            if (generation == spectreGeneration)
+                events.RescheduleEvent(EVENT_3, 51000);
+        }
+
+        bool IsIntroTarget(Player* player, float distance) const
+        {
+            if (!player || !me->IsInWorld() || !me->IsAlive() || me->GetMapId() != 1511 || !player->IsInWorld() ||
+                !player->IsAlive() || !player->CanContact() || player->IsBeingTeleported() ||
+                player->getClass() != CLASS_WARRIOR || player->GetMap() != me->GetMap() || !player->InSamePhase(me) ||
+                me->GetExactDist2d(player) > distance || player->GetQuestRewardStatus(40043) ||
+                (player->GetQuestStatus(40043) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(40043) != QUEST_STATUS_COMPLETE))
+                return false;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            return scenario && scenario->GetScenarioId() == 944 && scenario->GetCurrentStep() == 5;
+        }
+
+        bool StartIntroConversation(Player* player, uint32 generation)
+        {
+            Conversation* conversation = new Conversation;
+            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 843, player, nullptr, *player))
+            {
+                delete conversation;
+                return false;
+            }
+            if (generation != introGeneration || !introPending || !IsIntroTarget(player, 40.0f))
+            {
+                conversation->Remove();
+                return false;
+            }
+            introConversation = conversation->GetGUID();
+            return true;
+        }
+
+        bool IsIntroHelya(Creature* helya) const
+        {
+            return helya && helya->GetEntry() == 99043 && helya->IsInWorld() && !helya->IsPreDelete() && helya->IsAlive() &&
+                helya->GetMap() == me->GetMap() && helya->InSamePhase(me) && me->GetExactDist2d(helya) <= 100.0f;
+        }
+
+        void CancelIntro(uint32 generation)
+        {
+            if (generation != introGeneration || !introPending)
+                return;
+            introDone = false;
+            introPending = false;
+            introVisualRetryTimer = 1000;
+            RemoveIntroConversation();
         }
 
         void MoveInLineOfSight(Unit* who) override
         {
-            if (who->GetTypeId() != TYPEID_PLAYER)
+            Player* player = who ? who->ToPlayer() : nullptr;
+            if (introDone || introVisualRetryTimer || !IsIntroTarget(player, 40.0f))
                 return;
-
-            if (me->GetExactDist2d(who) <= 40.0f)
-                if (!introDone)
+            introVisualRetryTimer = 1000;
+            Creature* helya = me->FindNearestCreature(99043, 100.0f, true);
+            if (!IsIntroHelya(helya))
+            {
+                if (!introVisualWarned)
+                    TC_LOG_WARN("scripts", "Warswords intro waiting for live same-phase Helya99043; dialogue and 31-second transition not started");
+                introVisualWarned = true;
+                return;
+            }
+            introDone = true;
+            introPending = true;
+            uint32 generation = introGeneration;
+            ObjectGuid playerGuid = player->GetGUID();
+            ObjectGuid helyaGuid = helya->GetGUID();
+            if (!StartIntroConversation(player, generation))
+            {
+                if (generation == introGeneration && introPending)
                 {
-                    who->CreateConversation(843);
-                    introDone = true;
-                    if (Creature* targ = me->FindNearestCreature(99043, 100.0f, true))
-                        targ->CastSpell(targ, 195062);
-                    me->AddDelayedEvent(8000, [this]() -> void
+                    introDone = false;
+                    introPending = false;
+                    if (!introVisualWarned)
+                        TC_LOG_WARN("scripts", "Warswords intro waiting for conversation843 creation; 31-second transition not started");
+                    introVisualWarned = true;
+                }
+                return;
+            }
+            if (generation != introGeneration || !introPending)
+                return;
+            me->AddDelayedEvent(24000, [this, generation, playerGuid, helyaGuid]() -> void
+            {
+                if (generation != introGeneration || !introPending)
+                    return;
+                Player* player = ObjectAccessor::GetPlayer(*me, playerGuid);
+                Creature* helya = ObjectAccessor::GetCreature(*me, helyaGuid);
+                if (!IsIntroTarget(player, 100.0f) || !IsIntroHelya(helya))
+                {
+                    if (!introVisualWarned)
+                        TC_LOG_WARN("scripts", "Warswords intro lost its player or Helya before the late blessing; canceling conversation843 for retry");
+                    introVisualWarned = true;
+                    CancelIntro(generation);
+                    return;
+                }
+                SpellCastResult result = helya->CastSpell(me, 195062);
+                if (generation != introGeneration || !introPending)
+                    return;
+                if (result != SPELL_CAST_OK || !IsIntroTarget(player, 100.0f) || !IsIntroHelya(helya) ||
+                    !me->HasAura(195062, helyaGuid))
+                {
+                    if (!introVisualWarned)
+                        TC_LOG_WARN("scripts", "Warswords intro waiting for native Helya195062 aura (cast result %u); late blessing failed, combat remains closed", uint32(result));
+                    introVisualWarned = true;
+                    CancelIntro(generation);
+                    return;
+                }
+                if (introVisualWarned)
+                    TC_LOG_INFO("scripts", "Warswords intro recovered native Helya195062 aura; waiting seven seconds after the acknowledged late blessing");
+                introVisualWarned = false;
+                me->AddDelayedEvent(7000, [this, generation, playerGuid, helyaGuid]() -> void
+                {
+                    if (generation != introGeneration || !introPending)
+                        return;
+                    Player* player = ObjectAccessor::GetPlayer(*me, playerGuid);
+                    if (!IsIntroTarget(player, 100.0f) || !IsIntroHelya(ObjectAccessor::GetCreature(*me, helyaGuid)))
                     {
-                        me->RemoveAura(205424);
-                        if (Player* pl = me->FindNearestPlayer(100.0f, true))
-                            AttackStart(pl);
-                    });
+                        CancelIntro(generation);
+                        return;
+                    }
+                    introPending = false;
+                    me->RemoveAura(205424);
+                    AttackStart(player);
+                });
+            });
+        }
+
+        void UpdateIntro(uint32 diff)
+        {
+            if (introDone)
+            {
+                if (!introPending && me->GetEntry() == 98602 && me->GetMapId() == 1511 && me->HasAura(205424))
+                    me->RemoveAura(205424);
+                return;
+            }
+            if (introRetryTimer > diff)
+            {
+                introRetryTimer -= diff;
+                return;
+            }
+            introRetryTimer = 1000;
+            if (!me->IsInWorld() || !me->IsAlive() || me->GetMapId() != 1511 || me->HasUnitState(UNIT_STATE_SIGHTLESS) ||
+                (!me->HasReactState(REACT_AGGRESSIVE) && !CanSeeEvenInPassiveMode()))
+                return;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 944 || scenario->GetCurrentStep() != 5)
+                return;
+            std::list<Player*> players;
+            me->GetPlayerListInGrid(players, 40.0f);
+            for (Player* player : players)
+                if (!player->isInFlight() && me->canSeeOrDetect(player, false, true) && IsIntroTarget(player, 40.0f))
+                {
+                    MoveInLineOfSight(player);
+                    break;
                 }
         }
 
         void JustDied(Unit* who) override
         {
+            CancelSpectreRush();
+            summons.DespawnAll();
+            RemoveIntroConversation();
+            if (me->GetEntry() == 98602 && me->GetMapId() == 1511)
+                me->RemoveAura(205424);
             Talk(2);
-            if (who->GetTypeId() == TYPEID_PLAYER)
+            if (Player* player = who ? who->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr)
             {
-                who->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46987);
-                who->CreateConversation(848);
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46987);
+                player->CreateConversation(848);
             }
         }
 
-        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType) override
         {
-            if (me->HealthBelowPct(15) && !phase1)
+            if (!IsEncounterReady())
             {
-                Talk(0);
-                phase1 = true;
+                damage = 0;
+                return;
             }
-
-            if (me->HealthBelowPct(7) && !phase2)
+            if (!attacker || !damage || !me->IsAlive() || me->GetEntry() != 98602 || me->GetMapId() != 1511)
+                return;
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 944 || scenario->GetCurrentStep() != 5)
+                return;
+            uint64 health = me->GetHealth(attacker);
+            uint64 remaining = damage >= health ? 0 : health - damage;
+            uint32 generation = introGeneration;
+            if (!phase1 && remaining < me->CountPctFromMaxHealth(15, attacker))
             {
-                Talk(1);
+                phase1 = true;
+                Talk(0);
+            }
+            if (generation != introGeneration || !me->IsAlive())
+                return;
+            if (!phase2 && remaining < me->CountPctFromMaxHealth(7, attacker))
+            {
                 phase2 = true;
+                Talk(1);
+                if (generation != introGeneration || !me->IsAlive())
+                    return;
                 me->StopAttack();
                 me->GetMotionMaster()->MovePoint(0, 3515.14f, 1800.60f, 0.54f);
             }
@@ -362,10 +829,13 @@ public:
 
         void UpdateAI(uint32 diff) override
         {
-            if (!UpdateVictim())
+            introVisualRetryTimer = introVisualRetryTimer > diff ? introVisualRetryTimer - diff : 0;
+            UpdateIntro(diff);
+            UpdateSpectreRush(diff);
+            if (!IsEncounterReady() || !UpdateVictim())
                 return;
 
-            if (me->HasAura(195996))
+            if (spectreActive || me->HasAura(195996))
                 return;
 
             events.Update(diff);
@@ -386,15 +856,7 @@ public:
                         events.RescheduleEvent(EVENT_2, 23000); // 195575 23 + after 195996
                         break;
                     case EVENT_3:
-                        DoCast(195996);
-                        me->StopAttack();
-                        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                        me->SetReactState(REACT_PASSIVE);
-                        for (uint8 i = 0; i < 2; ++i)
-                        {
-                            me->SummonCreature(99609, me->GetPositionX() + irand(-5, 5), me->GetPositionY() + irand(-5, 5), me->GetPositionZ(), 0);
-                        }
-                        events.RescheduleEvent(EVENT_3, 51000);
+                        BeginSpectreRush();
                         break;
                     case EVENT_4:
                         DoCast(196135);
@@ -408,15 +870,55 @@ public:
     };
 };
 
+namespace WarswordsAcquisition
+{
+    bool CanReturn(Player* player, uint32 instanceId)
+    {
+        if (!player || !player->IsInWorld() || !player->CanContact() || !player->IsAlive() ||
+            player->IsBeingTeleported() || player->getClass() != CLASS_WARRIOR || !player->GetMap() ||
+            player->GetMapId() != 1511 || player->GetInstanceId() != instanceId || player->GetQuestRewardStatus(40043) ||
+            (player->GetQuestStatus(40043) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(40043) != QUEST_STATUS_COMPLETE) ||
+            !player->HasItemCount(128908, 1, true))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(instanceId);
+        return scenario && scenario->GetScenarioId() == 944 && scenario->IsCompleted(false);
+    }
+
+    bool CanTake(Player* player, GameObject* weapon)
+    {
+        if (!player || !weapon || weapon->GetEntry() != 248832 || weapon->GetMapId() != 1511 ||
+            !player->IsAlive() || !player->CanContact() || player->getClass() != CLASS_WARRIOR ||
+            player->GetMap() != weapon->GetMap() || !player->InSamePhase(weapon) ||
+            !player->IsWithinDistInMap(weapon, weapon->GetInteractionDistance()) || player->GetQuestRewardStatus(40043) ||
+            (player->GetQuestStatus(40043) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(40043) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(weapon->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == 944 && scenario->GetCurrentStep() == 6;
+    }
+}
+
 // 248832
 class go_art_warswords : public GameObjectScript
 {
 public:
     go_art_warswords() : GameObjectScript("go_art_warswords") {}
 
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        if (!WarswordsAcquisition::CanTake(player, go))
+            return true;
+        if (player->HasItemCount(128908, 1, true))
+        {
+            go->SetLootState(GO_JUST_DEACTIVATED, player);
+            return true;
+        }
+        return false;
+    }
+
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (target && state == GO_ACTIVATED)
+        if (target && state == GO_JUST_DEACTIVATED && WarswordsAcquisition::CanTake(target->ToPlayer(), go) &&
+            go->getLootState() == GO_JUST_DEACTIVATED && target->ToPlayer()->HasItemCount(128908, 1, true))
         {
             if (target->GetTypeId() == TYPEID_PLAYER)
             {
@@ -425,21 +927,58 @@ public:
                 if (Creature* trigger = go->FindNearestCreature(98678, 10.0f))
                     trigger->DespawnOrUnsummon(1000);
 
-                if (!target->ToPlayer()->HasItemCount(128908, 1))
-                {
-                    target->ToPlayer()->AddItem(128908, 1);
-                    target->CastSpell(target, 205443, true);
-                }
+                target->CastSpell(target, 205443, true);
 
                 target->ToPlayer()->KilledMonsterCredit(98033);
                 target->CreateConversation(849);
-                target->AddDelayedEvent(12000, [target]() -> void
+                Player* player = target->ToPlayer();
+                uint32 instanceId = go->GetInstanceId();
+                target->AddDelayedEvent(12000, [player, instanceId]() -> void
                 {
-                    target->CastSpell(target, 192085);
-                    target->ToPlayer()->KilledMonsterCredit(103739);
+                    if (WarswordsAcquisition::CanReturn(player, instanceId))
+                        player->CastSpell(player, 192085);
                 });
             }
         }
+    }
+};
+
+namespace WarswordsPresentation
+{
+    bool Complete(Player* player, SpellScene const* scene, std::string const& trigger)
+    {
+        if (!scene || scene->MiscValue != 1218 || scene->SceneScriptPackageID != 1580)
+            return false;
+        if (trigger != "complete" || !player || !player->HasSceneStatus(1218, SCENE_COMPLETE) ||
+            !player->IsInWorld() || !player->CanContact() || !player->IsAlive() || player->IsBeingTeleported() ||
+            player->getClass() != CLASS_WARRIOR || player->GetMapId() != 1511 || player->GetQuestRewardStatus(40043) ||
+            (player->GetQuestStatus(40043) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(40043) != QUEST_STATUS_COMPLETE) ||
+            !player->GetItemByEntry(128908))
+            return true;
+        Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+        if (!scenario || scenario->GetScenarioId() != 944 || scenario->GetCurrentStep() < 6 || scenario->GetCurrentStep() > 7)
+            return true;
+        SpellCastResult result = player->CastSpell(player, 194201, true);
+        if (result != SPELL_CAST_OK)
+        {
+            TC_LOG_WARN("scripts", "Warswords pickup: native equip 194201 failed with result %u for player %u; existing items retained", uint32(result), player->GetGUIDLow());
+            return true;
+        }
+        Item* weapon = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
+        Item* child = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
+        if (!weapon || weapon->GetEntry() != 128908 || !child || child->GetEntry() != 134553 || weapon->GetChildItem() != child->GetGUID())
+            TC_LOG_WARN("scripts", "Warswords pickup: native equip 194201 accepted but parent/child is not equipped for player %u; retain native inventory errors", player->GetGUIDLow());
+        return true;
+    }
+}
+
+class scene_warswords_pickup : public SceneTriggerScript
+{
+public:
+    scene_warswords_pickup() : SceneTriggerScript("scene_warswords_pickup") { }
+    bool OnTrigger(Player* player, SpellScene const* scene, std::string trigger) override
+    {
+        return WarswordsPresentation::Complete(player, scene, trigger);
     }
 };
 
@@ -452,4 +991,5 @@ void AddSC_Warswords()
     new npc_vigfus_bladewind_last();
 
     new go_art_warswords();
+    new scene_warswords_pickup();
 };
