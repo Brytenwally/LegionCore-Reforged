@@ -4370,6 +4370,13 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
 
     summon->SetPhaseId(phaseIds, false);
 
+    // a summon of a quest-owned object belongs to the same quest attempt (QuestObjectScope)
+    if (!summon->InheritQuestObjectScope(summoner))
+    {
+        delete summon;
+        return nullptr;
+    }
+
     summon->SetUInt32Value(UNIT_FIELD_CREATED_BY_SPELL, spellId);
     if (summoner)
     {

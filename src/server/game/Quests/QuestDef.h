@@ -560,6 +560,10 @@ struct QuestStatusData
     QuestStatus Status;
     uint32 Timer;
     QuestStatusDatas ObjectiveData;
+    // Allocated only for scripts with delayed actions or quest-owned objects (LegionCore-7.3.5). Removing / restarting
+    // the quest expires their weak guards and cancels the objects, even if it is reaccepted in the same tick.
+    std::shared_ptr<uint8> ScriptLifetime;
+    std::shared_ptr<struct QuestObjectScope> ScriptObjects;
 };
 
 

@@ -355,6 +355,13 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   (`spell_area` end status 74 -> 1: the inviter now shows before the quest is taken). Compiled; untested in game.
 - **Phase 3.3 Druid** (2026-11-09, SQL only, details in the plan): Guardian, Feral and Restoration chests linked to
   their loot, Feral's scene equip, Malithar's transform and the Guardian trial waves. Untested in game.
+- **Phase 3.4 Hunter** (2026-11-09, details in the plan): **all of LegionCore-7.3.5's SmartAI changes merged** (credit
+  through pets, invoker-player target 130, farthest target 28, cast flags 0x80 / 0x100 / 0x200, summon-object flags,
+  gameobject flag actions, `GossipUse` firing GOSSIP_HELLO on use) and **quest object scopes** (`QuestObjectScope.h`,
+  `Player::BindQuestObject` / `AddQuestDelayedEvent`: script objects and delayed actions end with the quest attempt; loot
+  side not ported yet). Rule: LegionCore-7.3.5 SQL using SmartAI flags needs this merged SmartAI; check new flag values
+  against existing rows when merging (`action_param3` of summon-object rows is now flags). Titanstrike / Talonclaw /
+  Thas'dorah scripts and 64 SQL files; also the Dark Riders camp objects missed in 3.1. Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

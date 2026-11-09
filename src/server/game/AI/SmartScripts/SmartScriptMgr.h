@@ -593,6 +593,14 @@ enum SMART_ACTION
     SMART_ACTION_END                                = 225,
 };
 
+enum SmartSummonGameObjectFlags
+{
+    SMART_SUMMON_GAMEOBJECT_RETRY_ON_FAILURE = 0x2,
+    // Keep the native summoner/scope, but let map cleanup own the object so
+    // retiring the summoning actor does not also remove its persistent chest.
+    SMART_SUMMON_GAMEOBJECT_NO_CREATOR = 0x4
+};
+
 struct SmartAction
 {
     SMART_ACTION type;
@@ -868,6 +876,7 @@ struct SmartAction
         {
             uint32 entry;
             uint32 despawnTime;
+            uint32 flags;
         } summonGO;
 
         struct
@@ -1272,12 +1281,14 @@ enum SMARTAI_TARGETS
     SMART_TARGET_THREAT_LIST                    = 24,   // All units on creature's threat list
     SMART_TARGET_CLOSEST_ENEMY                  = 25,   // maxDist
     SMART_TARGET_CLOSEST_FRIENDLY               = 26,   // maxDist
+    SMART_TARGET_FARTHEST                       = 28,   // maxDist, playerOnly, isInLos
     SMART_TARGET_HOSTILE_RANDOM_PLAYER          = 125,   // Just any random target on our threat list player
     SMART_TARGET_HOSTILE_RANDOM_NOT_TOP_PLAYER  = 126,   // Any random target except top threat player
     SMART_TARGET_HOSTILE_RANDOM_AURA            = 127,   // Any random target except top threat player
     SMART_TARGET_RANDOM_POSITION                = 128,   // Any random position
     SMART_TARGET_TARGETUNIT                     = 129,   // Target unit by GetTargetUnit()
-    SMART_TARGET_END                            = 130
+    SMART_TARGET_ACTION_INVOKER_PLAYER          = 130,
+    SMART_TARGET_END                            = 131
 };
 
 struct SmartTarget
@@ -1364,6 +1375,13 @@ struct SmartTarget
         {
             uint32 maxDist;
         } closestFriendly;
+
+        struct
+        {
+            uint32 maxDist;
+            uint32 playerOnly;
+            uint32 isInLos;
+        } farthest;
 
         struct
         {
@@ -1564,7 +1582,7 @@ enum SmartEventFlags
     SMART_EVENT_FLAG_WHILE_CHARMED           = 0x200,                     //Event occurs even if AI owner is charmed
 
     SMART_EVENT_FLAGS_DEPRECATED             = (SMART_EVENT_FLAG_DIFFICULTY_0_DEPRECATED | SMART_EVENT_FLAG_DIFFICULTY_1_DEPRECATED | SMART_EVENT_FLAG_DIFFICULTY_2_DEPRECATED | SMART_EVENT_FLAG_DIFFICULTY_3_DEPRECATED),
-    SMART_EVENT_FLAGS_ALL                    = (SMART_EVENT_FLAG_NOT_REPEATABLE | SMART_EVENT_FLAGS_DEPRECATED | SMART_EVENT_FLAG_ALLOW_EVENT_IN_COMBAT | SMART_EVENT_FLAG_EVENT_NON_COMBAT | SMART_EVENT_FLAG_DEBUG_ONLY | SMART_EVENT_FLAG_DONT_RESET)
+    SMART_EVENT_FLAGS_ALL                    = (SMART_EVENT_FLAG_NOT_REPEATABLE | SMART_EVENT_FLAGS_DEPRECATED | SMART_EVENT_FLAG_ALLOW_EVENT_IN_COMBAT | SMART_EVENT_FLAG_EVENT_NON_COMBAT | SMART_EVENT_FLAG_DEBUG_ONLY | SMART_EVENT_FLAG_DONT_RESET | SMART_EVENT_FLAG_WHILE_CHARMED)
 };
 
 enum SmartCastFlags
@@ -1575,7 +1593,10 @@ enum SmartCastFlags
     //CAST_NO_MELEE_IF_OOM        = 0x08,                        //Prevents creature from entering melee if out of mana or out of range
     CAST_FORCE_TARGET_SELF           = 0x10,                     //Forces the target to cast this spell on itself
     SMARTCAST_AURA_NOT_PRESENT       = 0x20,                     //Only casts the spell if the target does not have an aura from the spell
-    SMARTCAST_COMBAT_MOVE            = 0x40                      // Prevents combat movement if cast successful. Allows movement on range, OOM, LOS
+    SMARTCAST_COMBAT_MOVE            = 0x40,                     // Prevents combat movement if cast successful. Allows movement on range, OOM, LOS
+    SMARTCAST_INVOKER_PLAYER         = 0x80,
+    SMARTCAST_RETRY_HEALTH_THRESHOLD = 0x100,                   // One-shot health/victim cast: retain on rejection or missing victim
+    SMARTCAST_RETRY_LINK             = 0x200                    // Bounded once-only linked self cast; never replay its root
 };
 
 // one line in DB is one event

@@ -379,6 +379,7 @@ bool SmartAIMgr::IsTargetValid(SmartScriptHolder const& e)
         }
         case SMART_TARGET_PLAYER_DISTANCE:
         case SMART_TARGET_CLOSEST_PLAYER:
+        case SMART_TARGET_ACTION_INVOKER_PLAYER:
         {
             if (e.target.playerDistance.dist == 0)
             {
@@ -408,6 +409,7 @@ bool SmartAIMgr::IsTargetValid(SmartScriptHolder const& e)
         case SMART_TARGET_CLOSEST_CREATURE:
         case SMART_TARGET_CLOSEST_ENEMY:
         case SMART_TARGET_CLOSEST_FRIENDLY:
+        case SMART_TARGET_FARTHEST:
         case SMART_TARGET_STORED:
         case SMART_TARGET_RANDOM_POSITION:
         case SMART_EVENT_QUEST_REWARDED:
@@ -905,6 +907,30 @@ bool SmartAIMgr::IsEventValid(SmartScriptHolder& e)
         case SMART_ACTION_CAST:
         case SMART_ACTION_INVOKER_CAST:
         case SMART_ACTION_CAST_CUSTOM:
+            if (e.GetActionType() != SMART_ACTION_ADD_AURA && (e.action.cast.flags & SMARTCAST_RETRY_LINK) &&
+                (e.GetActionType() != SMART_ACTION_CAST || e.GetEventType() != SMART_EVENT_LINK ||
+                 e.GetScriptType() != SMART_SCRIPT_TYPE_CREATURE || e.GetTargetType() != SMART_TARGET_SELF ||
+                 !(e.event.event_flags & SMART_EVENT_FLAG_NOT_REPEATABLE) ||
+                 e.action.cast.flags != SMARTCAST_RETRY_LINK))
+            {
+                TC_LOG_ERROR("sql.sql", "SmartAIMgr: Entry %ld Event %u linked-cast retry requires an ordinary one-shot creature LINK self cast, skipped.", e.entryOrGuid, e.event_id);
+                return false;
+            }
+            if (e.GetActionType() != SMART_ACTION_ADD_AURA && (e.action.cast.flags & SMARTCAST_RETRY_HEALTH_THRESHOLD) &&
+                (e.GetActionType() != SMART_ACTION_CAST || e.GetEventType() != SMART_EVENT_HEALTH_PCT ||
+                 e.GetScriptType() != SMART_SCRIPT_TYPE_CREATURE || e.GetTargetType() != SMART_TARGET_VICTIM ||
+                 !(e.event.event_flags & SMART_EVENT_FLAG_NOT_REPEATABLE) || e.link ||
+                 e.action.cast.flags != SMARTCAST_RETRY_HEALTH_THRESHOLD))
+            {
+                TC_LOG_ERROR("sql.sql", "SmartAIMgr: Entry %ld Event %u health-threshold retry requires an unlinked one-shot creature health event and ordinary victim cast, skipped.", e.entryOrGuid, e.event_id);
+                return false;
+            }
+            if (e.GetActionType() == SMART_ACTION_INVOKER_CAST && (e.action.cast.flags & SMARTCAST_INVOKER_PLAYER) &&
+                (e.GetTargetType() != SMART_TARGET_ACTION_INVOKER_PLAYER || !e.target.playerDistance.dist))
+            {
+                TC_LOG_ERROR("sql.sql", "SmartAIMgr: Entry %ld SourceType %u Event %u player invoker cast requires a bounded player-invoker target, skipped.", e.entryOrGuid, e.GetScriptType(), e.event_id);
+                return false;
+            }
             if (!IsSpellValid(e, e.action.cast.spell))
                 return false;
             break;
@@ -1015,6 +1041,13 @@ bool SmartAIMgr::IsEventValid(SmartScriptHolder& e)
         case SMART_ACTION_SUMMON_GO:
             if (!IsGameObjectValid(e, e.action.summonGO.entry))
                 return false;
+            if ((e.action.summonGO.flags & SMART_SUMMON_GAMEOBJECT_RETRY_ON_FAILURE) &&
+                (e.GetTargetType() != SMART_TARGET_POSITION || e.GetEventType() != SMART_EVENT_UPDATE ||
+                    !e.event.event_phase_mask || !(e.event.event_flags & SMART_EVENT_FLAG_NOT_REPEATABLE)))
+            {
+                TC_LOG_ERROR("sql.sql", "SmartAIMgr: Entry %ld SourceType %u Event %u summon retry requires a phased, non-repeatable UPDATE with a fixed position, skipped.", e.entryOrGuid, e.GetScriptType(), e.event_id);
+                return false;
+            }
             break;
         case SMART_ACTION_ADD_ITEM:
         case SMART_ACTION_REMOVE_ITEM:

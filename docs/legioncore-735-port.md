@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (`2026_10_29_24_artifact_boss_speakers`, `2026_10_30_20_artifact_combat_stories`, `_23_artifact_trash_voice`, `_24_artifact_owner_voice`...) are ported in one sweep after the last class | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (`2026_10_29_24_artifact_boss_speakers`, `2026_10_30_20_artifact_combat_stories`, `_23_artifact_trash_voice`, `_24_artifact_owner_voice`...) are ported in one sweep after the last class | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -172,3 +172,44 @@ SQL only (LegionCore-7.3.5 changed no druid C++); its audits mark the routes "pa
   equip spell 214715 (`spell_scene_event`, conditions: scenario 1108 step 6/7, quest, the Fangs in the bags) (`_31`).
 - **Restoration, G'Hanir** (41689, scenario 1061): chest 248499 linked, final-stage conditions (`_32`).
 - Applied on the database copy: the four loot / scene files verbatim (guards passed), the other three forced.
+
+## Phase 3.4: Hunter (2026-11-09), with shared SmartAI and quest object support
+
+LegionCore-7.3.5's developer recorded Titanstrike as confirmed in his client (acquisition and power upgrade); the other
+two routes are "partial / client traversal pending" in its audits.
+
+Shared engine support, needed by Hunter and by the classes after it:
+- **SmartAI, all of LegionCore-7.3.5's changes** (`SmartAI.*`, `SmartScript.*`, `SmartScriptMgr.*`, three-way merged
+  against `fed58f79`; 5 conflicts resolved by hand): progress and kill credit through pets and guardians go to their
+  player (`GetScriptCreditPlayer`), `SMART_TARGET_ACTION_INVOKER_PLAYER` (130) and `SMART_TARGET_FARTHEST` (28), cast flags
+  `SMARTCAST_INVOKER_PLAYER` (0x80), `SMARTCAST_RETRY_HEALTH_THRESHOLD` (0x100), `SMARTCAST_RETRY_LINK` (0x200, bounded
+  retries of a one-shot linked self cast, also serviced on a corpse: `CreatureAI::UpdateCorpseAI`, called from
+  `Creature::Update`), summon-object flags (`action_param3`: 0x2 retry on failure, 0x4 no creator), the gameobject flag
+  actions (104-106) implemented, `StartPath` reports failure so a waypoint start retries, random emote / phase / action
+  list off-by-one fixed, **`SmartGameObjectAI::GossipUse`: using a SmartAI gameobject fires its GOSSIP_HELLO event** (as on
+  TrinityCore; LegionCore-7.3.5's SQL relies on it), `IsTextPending` / `HasRunEvent` for scripts. Checked against our
+  data: no existing row uses the new flag values by accident (summon-object `action_param3` = 1 on 18 rows: no meaning).
+- **Quest object scopes** (`Entities/Object/QuestObjectScope.h`): objects a script binds to a quest attempt
+  (`Player::BindQuestObject`) and delayed actions tied to it (`AddQuestDelayedEvent`, `QuestStatusData::ScriptLifetime`)
+  end when the quest is abandoned, failed back to none or restarted (`CancelQuestObjects` in `AddQuest`,
+  `SetQuestStatus(NONE)`, `RemoveActiveQuest`); summons, summoned gameobjects and conversations inherit the scope; an
+  expired object despawns / deletes itself and runs no SmartAI; spell target searches skip another attempt's objects
+  (`WorldObjectSpellTargetCheck`). **Not ported yet**: the loot side (a scoped corpse / chest lootable only by its owner:
+  `LootMgr`, `LootHandler`, `Player::SendLoot`; phase 6), and the New Blood / Sheilun bindings in `Map::SummonCreature`
+  (with the warlock and monk). `Player::ScopedTeleportDelay`, `HasPendingTeleport`; gameobjects remember their summoner
+  (`GetSummonerGUID`); `SummonGameObject` cancels and cleans up when the map refuses the object.
+- **Missed in 3.1, added**: the Dark Riders camp objects (Ariden's camp, map 0: clue pages and journals usable only in
+  their investigation stage, `GameObject::Use` / `ActivateToQuest` / update flags; LegionCore-7.3.5 `e108a1a9`), and the
+  per-player refresh of quest objects when 40604 / 40835 / 40932 / 40606 (and Talonclaw's 40385) leave the log.
+- **Choice panels**: `SendDisplayPlayerChoice` now applies the choice and response conditions for the warlock (245) and
+  hunter (240) artifact panels and shows no empty hunter panel (before, only the answer was rechecked).
+- Hunter pets keep their active-pet auras across taming, Call Pet and reloads (`Pet.cpp`, LegionCore-7.3.5 `1210a359`).
+
+Hunter content: `titanstrike_runes.cpp`, `titanstrike_storms.cpp`, `titanstrike_workshop.cpp`, `titanstrike_rune_wave.h`
+(new), LegionCore-7.3.5's hunter sections of `ClassHalls/artifact_acquisition.cpp` (Titanstrike's final Prustaga,
+aftermath and combat conversations, world pickups retired by their summoner; Talonclaw's Dakarr gates, ambush,
+presentation, return, departure and `talonclaw_boarded_departure.h`; Thas'dorah's Qormaladon, presentation, return and
+claim, `go_marksmanship_pickup`), and 64 SQL files `2026_11_09_36..99_lc735_*` (LegionCore-7.3.5 2026_10_23_00 ..
+2026_10_30_37: the hunter Dalaran invitation and intro, the three routes). 62 passed their guards verbatim on the
+database copy; Talonclaw's linked-cast retry (only adds flag 0x200 to two rows of the expected shape) and boarded
+departure (only `quest_objectives` differed: our English descriptions) are forced.

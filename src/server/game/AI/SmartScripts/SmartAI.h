@@ -45,7 +45,7 @@ class TC_GAME_API SmartAI : public CreatureAI
         explicit SmartAI(Creature* c);
 
         // Start moving to the desired MovePoint
-        void StartPath(bool run = false, uint32 path = 0, bool repeat = false, Unit* invoker = nullptr);
+        bool StartPath(bool run = false, uint32 path = 0, bool repeat = false, Unit* invoker = nullptr);
         bool LoadPath(uint32 entry);
         void PausePath(uint32 delay, bool forced = false);
         void StopPath(uint32 DespawnTime = 0, uint32 quest = 0, bool fail = false);
@@ -59,6 +59,7 @@ class TC_GAME_API SmartAI : public CreatureAI
         void SetCombatMove(bool on);
         bool CanCombatMove();
         void SetFollow(Unit* target, float dist = 0.0f, float angle = 0.0f, uint32 credit = 0, uint32 end = 0, uint32 creditType = 0);
+        ObjectGuid GetFollowGuid() const { return mFollowGuid; }
 
         void OnQuestReward(Player* player, Quest const* quest) override;
         void OnStartQuest(Player* player, Quest const* quest) override;
@@ -131,6 +132,7 @@ class TC_GAME_API SmartAI : public CreatureAI
 
         // called when the corpse of this creature gets removed
         void CorpseRemoved(uint32& respawnDelay) override;
+        void UpdateCorpseAI(uint32 diff) override;
 
         // Called when a Player/Creature enters the creature (vehicle)
         void PassengerBoarded(Unit* who, int8 seatId, bool apply) override;
@@ -241,6 +243,7 @@ class SmartGameObjectAI : public GameObjectAI
         static int Permissible(const GameObject* g);
 
         bool GossipHello(Player* player, bool isUse) override;
+        bool GossipUse(Player* player) override;
         bool GossipSelect(Player* player, uint32 sender, uint32 action) override;
         bool GossipSelectCode(Player* /*player*/, uint32 /*sender*/, uint32 /*action*/, const char* /*code*/) override;
         bool QuestAccept(Player* player, Quest const* quest) override;

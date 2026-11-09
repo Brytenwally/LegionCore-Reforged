@@ -1493,6 +1493,21 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         bool TeleportTo(uint32 mapid, Position const* pos, uint32 options = 0, uint32 spellID = 0);
         bool TeleportTo(WorldLocation const& loc, uint32 options = 0);
         bool TeleportTo(uint32 locEntry, uint32 options = 0);
+        // keeps a teleport issued inside it delayed until the end of the current update (LegionCore-7.3.5)
+        class ScopedTeleportDelay
+        {
+            Player& player;
+            bool previous;
+        public:
+            explicit ScopedTeleportDelay(Player& target) : player(target), previous(target.IsCanDelayTeleport())
+            {
+                player.SetCanDelayTeleport(true);
+            }
+            ~ScopedTeleportDelay() { player.SetCanDelayTeleport(previous); }
+            ScopedTeleportDelay(ScopedTeleportDelay const&) = delete;
+            ScopedTeleportDelay& operator=(ScopedTeleportDelay const&) = delete;
+            bool IsPending() const { return player.IsHasDelayedTeleport(); }
+        };
         bool TeleportToBGEntryPoint();
         void TeleportToHomeBind();
         void TeleportToChallenge(uint32 mapid, float x, float y, float z, float orientation);
@@ -2002,6 +2017,10 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         QuestStatus GetDailyQuestStatus(uint32 quest_id) const;
         void SetQuestStatus(uint32 quest_id, QuestStatus status);
         void RemoveActiveQuest(uint32 quest_id);
+        void AddQuestDelayedEvent(uint32 questId, uint64 delay, std::function<void()>&& action);
+        void BindQuestObject(uint32 questId, WorldObject* object);
+        std::shared_ptr<std::atomic<bool> const> GetQuestCancellationReceipt(uint32 questId);
+        void CancelQuestObjects(uint32 questId);
         void RemoveRewardedQuest(uint32 quest_id);
         QuestGiverStatus GetQuestDialogStatus(Object* questGiver);
 
@@ -2666,6 +2685,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void ResetTeleMap() { m_teleport_target_map = nullptr; }
         WorldLocation& GetTeleportDest() { return m_teleport_dest; }
         uint32 GetTeleportOptions() { return m_teleport_options; }
+        bool HasPendingTeleport() const { return IsBeingTeleported() || m_bHasDelayedTeleport; }
         bool IsBeingTeleported() const { return mSemaphoreTeleport_Near || mSemaphoreTeleport_Far; }
         bool IsBeingTeleportedNear() const { return mSemaphoreTeleport_Near; }
         bool IsBeingTeleportedFar() const { return mSemaphoreTeleport_Far; }

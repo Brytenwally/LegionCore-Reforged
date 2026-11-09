@@ -40,6 +40,37 @@
 #include "SmartScript.h"
 #include "SpellMgr.h"
 #include "Vehicle.h"
+#include <set>
+
+namespace
+{
+// Progress belongs to the player controlling a pet/guardian, while combat
+// events and ordinary casts must retain the actual unit that caused them.
+Player* GetScriptCreditPlayer(WorldObject* object)
+{
+    Unit* unit = object ? object->ToUnit() : nullptr;
+    if (!unit)
+        return nullptr;
+    if (Player* player = unit->ToPlayer())
+        return player;
+    return unit->GetCharmerOrOwnerPlayerOrPlayerItself();
+}
+
+Unit* GetScriptCreditCaster(Unit* invoker, SpellInfo const* spell)
+{
+    if (spell && (spell->HasEffect(SPELL_EFFECT_KILL_CREDIT) || spell->HasEffect(SPELL_EFFECT_KILL_CREDIT2)))
+    {
+        // A mixed damage/aura/summon spell can depend on its real caster.
+        // Only dedicated credit spells may change who performs the cast.
+        for (SpellEffectInfo const* effect : spell->Effects)
+            if (effect && effect->IsEffect() && effect->Effect != SPELL_EFFECT_KILL_CREDIT && effect->Effect != SPELL_EFFECT_KILL_CREDIT2)
+                return invoker;
+        if (Player* player = GetScriptCreditPlayer(invoker))
+            return player;
+    }
+    return invoker;
+}
+}
 
 SmartScript::SmartScript()
 {
@@ -68,6 +99,7 @@ SmartScript::~SmartScript()
 
 void SmartScript::OnReset()
 {
+    ResetLinkedCastRetries();
     SetPhase(0);
     ResetBaseObject();
     for (auto& itr : mEvents)
@@ -130,6 +162,8 @@ void SmartScript::ProcessEventsFor(SMART_EVENT e, Unit* unit, uint32 var0, uint3
     if (!CheckOverriddenBaseObject())
         return;
 
+    if (GetBaseObject() && GetBaseObject()->IsQuestObjectExpired())
+        return;
     for (auto& mEvent : mEvents)
     {
         auto eventType = SMART_EVENT(mEvent.GetEventType());
@@ -144,6 +178,8 @@ void SmartScript::ProcessEventsFor(SMART_EVENT e, Unit* unit, uint32 var0, uint3
 
 void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, uint32 var1, bool bvar, const SpellInfo* spell, GameObject* gob)
 {
+    if (GetBaseObject() && GetBaseObject()->IsQuestObjectExpired())
+        return;
     //calc random
     if (e.GetEventType() != SMART_EVENT_LINK && e.event.event_chance < 100 && e.event.event_chance)
     {
@@ -529,6 +565,13 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                 }
             }
 
+            if (!count)
+            {
+                TC_LOG_ERROR("sql.sql", "SmartScript: Entry %ld SourceType %u Event %u Action %u has no nonzero emote entries. Please correct action parameters in database.", e.entryOrGuid, e.GetScriptType(), e.GetEventType(), e.GetActionType());
+                delete targets;
+                break;
+            }
+
             for (ObjectList::const_iterator itr = targets->begin(); itr != targets->end(); ++itr)
             {
                 if (count && IsUnit(*itr))
@@ -650,9 +693,18 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                 return;
             }
 
+            bool const retryThreshold = (e.action.cast.flags & SMARTCAST_RETRY_HEALTH_THRESHOLD) != 0;
+            bool const retryLink = (e.action.cast.flags & SMARTCAST_RETRY_LINK) != 0;
+            uint32 const linkedTicket = retryLink ? BeginLinkedCastAttempt(e) : 0;
+            if (retryLink && !linkedTicket)
+                return;
             ObjectList* targets = GetTargets(e, unit);
             if (!targets)
+            {
+                if (retryLink) { FinishLinkedCastAttempt(linkedTicket, false); return; }
+                if (retryThreshold) { e.runOnce = false; RecalcTimer(e, 500, 500); return; }
                 break;
+            }
 
             bool failedSpellCast = false, successfulSpellCast = false;
 
@@ -681,7 +733,7 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                 else if (go)
                     result = go->CastSpell(unit, e.action.cast.spell);
 
-                bool spellCastFailed = result != SPELL_CAST_OK && result != SPELL_FAILED_SPELL_IN_PROGRESS;
+                bool spellCastFailed = result != SPELL_CAST_OK && (retryThreshold || retryLink || result != SPELL_FAILED_SPELL_IN_PROGRESS);
                 if (me && e.action.cast.flags & SMARTCAST_COMBAT_MOVE)
                 {
                     ENSURE_AI(SmartAI, me->AI())->SetCombatMove(spellCastFailed);
@@ -699,11 +751,17 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             delete targets;
 
             // If there is at least 1 failed cast and no successful casts at all, retry again on next loop
-            if (failedSpellCast && !successfulSpellCast)
+            if (!successfulSpellCast && (failedSpellCast || retryThreshold))
             {
+                if (retryLink && FinishLinkedCastAttempt(linkedTicket, false))
+                    QueueLinkedCastRetry(e, unit, var0, var1, bvar, spell, gob);
+                if (retryThreshold) e.runOnce = false;
                 RecalcTimer(e, 500, 500);
                 return;
             }
+
+            if (retryLink && !FinishLinkedCastAttempt(linkedTicket, true))
+                return;
 
             break;
         }
@@ -753,23 +811,45 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             if (!tempLastInvoker)
                 break;
 
+            Unit* originalInvoker = tempLastInvoker;
+            ObjectGuid castSource{};
+            uint32 playerCastDistance = 0;
+            if (e.action.cast.flags & SMARTCAST_INVOKER_PLAYER)
+            {
+                if (e.GetTargetType() != SMART_TARGET_ACTION_INVOKER_PLAYER || !e.target.playerDistance.dist || !GetBaseObject())
+                    break;
+                tempLastInvoker = GetScriptCreditPlayer(tempLastInvoker);
+                if (!tempLastInvoker)
+                    break;
+                castSource = GetBaseObject()->GetGUID();
+                playerCastDistance = e.target.playerDistance.dist;
+            }
+            else
+                tempLastInvoker = GetScriptCreditCaster(tempLastInvoker, sSpellMgr->GetSpellInfo(e.action.cast.spell));
             ObjectList* targets = GetTargets(e, unit);
             if (!targets)
                 break;
 
+            std::set<Unit*> castTargets;
             for (ObjectList::const_iterator itr = targets->begin(); itr != targets->end(); ++itr)
             {
                 if (IsUnit(*itr))
                 {
+                    Unit* castTarget = (*itr)->ToUnit();
+                    if (tempLastInvoker != originalInvoker && castTarget == originalInvoker)
+                        castTarget = tempLastInvoker;
+                    if (tempLastInvoker != originalInvoker && !castTargets.insert(castTarget).second)
+                        continue;
+
                     if (e.action.cast.flags & SMARTCAST_INTERRUPT_PREVIOUS)
                         tempLastInvoker->InterruptNonMeleeSpells(false);
 
-                    ObjectGuid targetGUID = (*itr)->GetGUID();
+                    ObjectGuid targetGUID = castTarget->GetGUID();
                     uint32 spellID = e.action.cast.spell;
                     bool isTrigger = (e.action.cast.flags & SMARTCAST_TRIGGERED) != 0;
-                    if (!(e.action.cast.flags & SMARTCAST_AURA_NOT_PRESENT) || !(*itr)->ToUnit()->HasAura(e.action.cast.spell))
+                    if (!(e.action.cast.flags & SMARTCAST_AURA_NOT_PRESENT) || !castTarget->HasAura(e.action.cast.spell))
                     {
-                        tempLastInvoker->AddDelayedEvent(200, [tempLastInvoker, targetGUID, spellID, isTrigger]() -> void
+                        tempLastInvoker->AddDelayedEvent(200, [tempLastInvoker, targetGUID, spellID, isTrigger, castSource, playerCastDistance]() -> void
                         {
                             if (!tempLastInvoker)
                                 return;
@@ -777,6 +857,16 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                             Unit* target = ObjectAccessor::GetUnit(*tempLastInvoker, targetGUID);
                             if (!target)
                                 return;
+
+                            if (playerCastDistance)
+                            {
+                                WorldObject* source = ObjectAccessor::GetWorldObject(*tempLastInvoker, castSource);
+                                if (target != tempLastInvoker || !source || !tempLastInvoker->IsInWorld() || !source->IsInWorld() ||
+                                    tempLastInvoker->GetMap() != source->GetMap() || !tempLastInvoker->InSamePhase(source) ||
+                                    !tempLastInvoker->IsWithinDistInMap(source, float(playerCastDistance)) ||
+                                    (source->HasQuestObjectScope() && !source->CanTargetQuestObject(tempLastInvoker)))
+                                    return;
+                            }
 
                             tempLastInvoker->CastSpell(target, spellID, isTrigger);
                         });
@@ -864,6 +954,33 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                     (*itr)->ToUnit()->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, e.action.emote.emote);
                     TC_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction:: SMART_ACTION_SET_EMOTE_STATE. Unit %u set emotestate to %u",
                         (*itr)->GetGUIDLow(), e.action.emote.emote);
+                }
+            }
+
+            delete targets;
+            break;
+        }
+        case SMART_ACTION_SET_GO_FLAG:
+        case SMART_ACTION_ADD_GO_FLAG:
+        case SMART_ACTION_REMOVE_GO_FLAG:
+        {
+            ObjectList* targets = GetTargets(e, unit);
+            if (!targets)
+                break;
+
+            for (WorldObject* target : *targets)
+            {
+                if (GameObject* object = target->ToGameObject())
+                {
+                    if (e.GetActionType() == SMART_ACTION_SET_GO_FLAG)
+                        object->SetUInt32Value(GAMEOBJECT_FIELD_FLAGS, e.action.goFlag.flag);
+                    else if (e.GetActionType() == SMART_ACTION_ADD_GO_FLAG)
+                        object->SetFlag(GAMEOBJECT_FIELD_FLAGS, e.action.goFlag.flag);
+                    else
+                        object->RemoveFlag(GAMEOBJECT_FIELD_FLAGS, e.action.goFlag.flag);
+
+                    TC_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction: gameobject flags action %u, entry %u, mask %u",
+                        e.GetActionType(), object->GetEntry(), e.action.goFlag.flag);
                 }
             }
 
@@ -1110,7 +1227,10 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             }
 
             if (!count)
+            {
+                TC_LOG_ERROR("sql.sql", "SmartScript: Entry %ld SourceType %u Event %u Action %u has no nonzero event phase entries. Please correct action parameters in database.", e.entryOrGuid, e.GetScriptType(), e.GetEventType(), e.GetActionType());
                 break;
+            }
 
             uint32 phase = temp[urand(0, count - 1)];
             SetPhase(phase);
@@ -1143,6 +1263,7 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                 if (!targets)
                     break;
 
+                std::set<Player*> creditedPlayers;
                 for (ObjectList::const_iterator itr = targets->begin(); itr != targets->end(); ++itr)
                 {
                     // Special handling for vehicles
@@ -1150,23 +1271,28 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                         if (Vehicle* vehicle = (*itr)->ToUnit()->GetVehicleKit())
                             for (auto& Seat : vehicle->Seats)
                                 if (Player* player2 = ObjectAccessor::FindPlayer(Seat.second.Passenger.Guid))
-                                    player2->RewardPlayerAndGroupAtEvent(e.action.killedMonster.creature, player2);
+                                    if (creditedPlayers.insert(player2).second)
+                                        player2->RewardPlayerAndGroupAtEvent(e.action.killedMonster.creature, player2);
 
-                    if (!IsPlayer(*itr))
+                    Player* targetPlayer = GetScriptCreditPlayer(*itr);
+                    if (!targetPlayer || !creditedPlayers.insert(targetPlayer).second)
                         continue;
 
-                    (*itr)->ToPlayer()->RewardPlayerAndGroupAtEvent(e.action.killedMonster.creature, (*itr)->ToPlayer());
+                    targetPlayer->RewardPlayerAndGroupAtEvent(e.action.killedMonster.creature, targetPlayer);
                     TC_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction: SMART_ACTION_CALL_KILLEDMONSTER: Player %u, Killcredit: %u",
-                        (*itr)->GetGUIDLow(), e.action.killedMonster.creature);
+                        targetPlayer->GetGUIDLow(), e.action.killedMonster.creature);
                 }
 
                 delete targets;
             }
-            else if (trigger && IsPlayer(unit))
+            else if (trigger)
             {
-                unit->ToPlayer()->RewardPlayerAndGroupAtEvent(e.action.killedMonster.creature, unit);
-                TC_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction: SMART_ACTION_CALL_KILLEDMONSTER: (trigger == true) Player %u, Killcredit: %u",
-                    unit->GetGUIDLow(), e.action.killedMonster.creature);
+                if (Player* targetPlayer = GetScriptCreditPlayer(unit))
+                {
+                    targetPlayer->RewardPlayerAndGroupAtEvent(e.action.killedMonster.creature, unit);
+                    TC_LOG_DEBUG("scripts.ai", "SmartScript::ProcessAction: SMART_ACTION_CALL_KILLEDMONSTER: (trigger == true) Player %u, Killcredit: %u",
+                        targetPlayer->GetGUIDLow(), e.action.killedMonster.creature);
+                }
             }
             break;
         }
@@ -1458,6 +1584,17 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
         }
         case SMART_ACTION_SUMMON_GO:
         {
+            if ((e.action.summonGO.flags & SMART_SUMMON_GAMEOBJECT_RETRY_ON_FAILURE) && e.GetTargetType() == SMART_TARGET_POSITION)
+            {
+                if (!GetBaseObject() || !GetBaseObject()->SummonGameObject(e.action.summonGO.entry, e.target.x, e.target.y, e.target.z, e.target.o, 0, 0, 0, 0, e.action.summonGO.despawnTime,
+                    ObjectGuid::Empty, nullptr, !(e.action.summonGO.flags & SMART_SUMMON_GAMEOBJECT_NO_CREATOR)))
+                {
+                    e.runOnce = false;
+                    return;
+                }
+                break;
+            }
+
             if (!GetBaseObject())
                 break;
 
@@ -1475,7 +1612,8 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                     y += e.target.y;
                     z += e.target.z;
                     o += e.target.o;
-                    GetBaseObject()->SummonGameObject(e.action.summonGO.entry, x, y, z, o, 0, 0, 0, 0, e.action.summonGO.despawnTime);
+                    GetBaseObject()->SummonGameObject(e.action.summonGO.entry, x, y, z, o, 0, 0, 0, 0, e.action.summonGO.despawnTime,
+                        ObjectGuid::Empty, nullptr, !(e.action.summonGO.flags & SMART_SUMMON_GAMEOBJECT_NO_CREATOR));
                 }
 
                 delete targets;
@@ -1496,11 +1634,13 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
                 }
                 else
                     pos = base->GetFirstCollisionPosition(dist, angle);
-                base->SummonGameObject(e.action.summonGO.entry, pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), angle, 0, 0, 0, 0, e.action.summonGO.despawnTime);
+                base->SummonGameObject(e.action.summonGO.entry, pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), angle, 0, 0, 0, 0, e.action.summonGO.despawnTime,
+                    ObjectGuid::Empty, nullptr, !(e.action.summonGO.flags & SMART_SUMMON_GAMEOBJECT_NO_CREATOR));
             }
 
             if (e.GetTargetType() == SMART_TARGET_POSITION)
-                GetBaseObject()->SummonGameObject(e.action.summonGO.entry, e.target.x, e.target.y, e.target.z, e.target.o, 0, 0, 0, 0, e.action.summonGO.despawnTime);
+                GetBaseObject()->SummonGameObject(e.action.summonGO.entry, e.target.x, e.target.y, e.target.z, e.target.o, 0, 0, 0, 0, e.action.summonGO.despawnTime,
+                    ObjectGuid::Empty, nullptr, !(e.action.summonGO.flags & SMART_SUMMON_GAMEOBJECT_NO_CREATOR));
             break;
         }
         case SMART_ACTION_KILL_UNIT:
@@ -1631,7 +1771,11 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             ObjectList* targets = GetTargets(e, unit);
             StoreTargetList(targets, SMART_ESCORT_TARGETS);
             me->SetReactState(static_cast<ReactStates>(e.action.wpStart.reactState));
-            CAST_AI(SmartAI, me->AI())->StartPath(run, entry, repeat, unit);
+            if (!CAST_AI(SmartAI, me->AI())->StartPath(run, entry, repeat, unit))
+            {
+                e.runOnce = false;
+                return;
+            }
 
             uint32 quest = e.action.wpStart.quest;
             uint32 DespawnTime = e.action.wpStart.despawnTime;
@@ -2026,7 +2170,10 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             }
 
             if (!count)
+            {
+                TC_LOG_ERROR("sql.sql", "SmartScript: Entry %ld SourceType %u Event %u Action %u has no nonzero timed action list entries. Please correct action parameters in database.", e.entryOrGuid, e.GetScriptType(), e.GetEventType(), e.GetActionType());
                 break;
+            }
 
             uint32 id = temp[urand(0, count - 1)];
             if (e.GetTargetType() == SMART_TARGET_NONE)
@@ -2478,9 +2625,11 @@ void SmartScript::ProcessAction(SmartScriptHolder& e, Unit* unit, uint32 var0, u
             if (!targets)
                 break;
 
+            std::set<Player*> creditedPlayers;
             for (ObjectList::const_iterator itr = targets->begin(); itr != targets->end(); ++itr)
-                if (Player* player = (*itr)->ToPlayer())
-                    player->UpdateAchievementCriteria(static_cast<CriteriaTypes>(e.action.achievementCriteria.type), e.action.achievementCriteria.misc1, e.action.achievementCriteria.misc2, e.action.achievementCriteria.misc3, unit, true);
+                if (Player* player = GetScriptCreditPlayer(*itr))
+                    if (creditedPlayers.insert(player).second)
+                        player->UpdateAchievementCriteria(static_cast<CriteriaTypes>(e.action.achievementCriteria.type), e.action.achievementCriteria.misc1, e.action.achievementCriteria.misc2, e.action.achievementCriteria.misc3, unit, true);
 
             delete targets;
             break;
@@ -2986,6 +3135,19 @@ SmartScriptHolder SmartScript::CreateEvent(SMART_EVENT e, uint32 event_flags, ui
     return script;
 }
 
+namespace SmartInvokerPlayer
+{
+Player* Resolve(Unit* invoker, WorldObject* source, uint32 maxDistance)
+{
+    Player* player = GetScriptCreditPlayer(invoker);
+    if (!player || !source || !maxDistance || !player->IsInWorld() || !source->IsInWorld() ||
+        player->GetMap() != source->GetMap() || !player->InSamePhase(source) ||
+        !player->IsWithinDistInMap(source, float(maxDistance)))
+        return nullptr;
+    return player;
+}
+}
+
 ObjectList* SmartScript::GetTargets(SmartScriptHolder const& e, Unit* invoker /*= NULL*/)
 {
     Unit* trigger = nullptr;
@@ -3039,6 +3201,21 @@ ObjectList* SmartScript::GetTargets(SmartScriptHolder const& e, Unit* invoker /*
             if (me)
                 if (Unit* u = me->AI()->SelectTarget(SELECT_TARGET_RANDOM, e.target.spell.topornot, static_cast<float>(e.target.spell.dist), true, e.target.spell.entry))
                     l->push_back(u);
+            break;
+        case SMART_TARGET_FARTHEST:
+            if (me)
+            {
+                auto selector = [this, &e](Unit* target)
+                {
+                    return target
+                        && (!e.target.farthest.maxDist || me->IsWithinDistInMap(target, static_cast<float>(e.target.farthest.maxDist)))
+                        && (!e.target.farthest.playerOnly || target->GetTypeId() == TYPEID_PLAYER)
+                        && (!e.target.farthest.isInLos || me->IsWithinLOSInMap(target));
+                };
+
+                if (Unit* u = me->AI()->SelectTarget(SELECT_TARGET_FARTHEST, 0, selector))
+                    l->push_back(u);
+            }
             break;
         case SMART_TARGET_NONE:
         case SMART_TARGET_ACTION_INVOKER:
@@ -3214,7 +3391,27 @@ ObjectList* SmartScript::GetTargets(SmartScriptHolder const& e, Unit* invoker /*
         }
         case SMART_TARGET_CLOSEST_CREATURE:
         {
-            Creature* target = GetClosestCreatureWithEntry(GetBaseObject(), e.target.closest.entry, static_cast<float>(e.target.closest.dist ? e.target.closest.dist : 100), e.target.closest.dead ? false : true);
+            float range = static_cast<float>(e.target.closest.dist ? e.target.closest.dist : 100);
+            Creature* target = nullptr;
+            if (GetBaseObject() && GetBaseObject()->HasQuestObjectScope())
+            {
+                // Filter BEFORE choosing the nearest actor. Filtering only the
+                // result can lose our actor behind a closer static/other copy.
+                ObjectList* candidates = GetWorldObjectsInDist(range);
+                for (WorldObject* candidate : *candidates)
+                    if (Creature* creature = candidate->ToCreature())
+                        if (creature->GetEntry() == e.target.closest.entry &&
+                            creature->IsAlive() == !e.target.closest.dead &&
+                            GetBaseObject()->CanTargetQuestObject(creature) &&
+                            GetBaseObject()->IsWithinDistInMap(creature, range))
+                        {
+                            range = GetBaseObject()->GetDistance(creature);
+                            target = creature;
+                        }
+                delete candidates;
+            }
+            else
+                target = GetClosestCreatureWithEntry(GetBaseObject(), e.target.closest.entry, range, !e.target.closest.dead);
             if (target)
                 l->push_back(target);
             break;
@@ -3278,11 +3475,18 @@ ObjectList* SmartScript::GetTargets(SmartScriptHolder const& e, Unit* invoker /*
             
             break;
         }
+        case SMART_TARGET_ACTION_INVOKER_PLAYER:
+            if (Player* player = SmartInvokerPlayer::Resolve(trigger, GetBaseObject(), e.target.playerDistance.dist))
+                l->push_back(player);
+            break;
         case SMART_TARGET_POSITION:
         case SMART_TARGET_RANDOM_POSITION:
         default:
             break;
     }
+
+    if (GetBaseObject() && GetBaseObject()->HasQuestObjectScope())
+        l->remove_if([this](WorldObject* target) { return !GetBaseObject()->CanTargetQuestObject(target); });
 
     if (l->empty())
     {
@@ -4046,6 +4250,8 @@ void SmartScript::OnUpdate(uint32 const diff)
 
     InstallEvents();//before UpdateTimers
 
+    UpdateLinkedCastRetries(diff);
+
     for (auto& mEvent : mEvents)
         UpdateTimer(mEvent, diff);
 
@@ -4173,6 +4379,7 @@ void SmartScript::GetScript()
 
 void SmartScript::OnInitialize(WorldObject* obj, AreaTriggerEntry const* at)
 {
+    ResetLinkedCastRetries();
     if (obj)//handle object based scripts
     {
         switch (obj->GetTypeId())
@@ -4482,6 +4689,152 @@ void SmartScript::SetScript9(SmartScriptHolder& e, uint32 entry)
 Unit* SmartScript::GetLastInvoker()
 {
     return ObjectAccessor::FindUnit(mLastInvoker);
+}
+
+void SmartScript::OnCorpseUpdate(uint32 diff)
+{
+    // Only opted-in pending casts are serviced; spell attributes still decide
+    // whether a dead caster is allowed. Never run ordinary dead-AI timers.
+    UpdateLinkedCastRetries(diff);
+}
+
+void SmartScript::ResetLinkedCastRetries()
+{
+    mLinkedCastRetries.clear();
+    mLinkedCastAttempts.clear();
+    mCompletedLinkedCasts.clear();
+    ++mLinkedCastRetryEpoch;
+}
+
+uint32 SmartScript::BeginLinkedCastAttempt(SmartScriptHolder const& e)
+{
+    if (!me || mCompletedLinkedCasts.count(std::make_tuple(me->GetGUID(), e.entryOrGuid, e.event_id)))
+        return 0;
+    for (auto const& attempt : mLinkedCastAttempts)
+        if (attempt.epoch == mLinkedCastRetryEpoch && attempt.base == me->GetGUID() &&
+            attempt.entry == e.entryOrGuid && attempt.event == e.event_id)
+            return 0; // An ordinary cast can synchronously re-enter SmartAI.
+    if (mLinkedCastAttempts.size() >= 16)
+    {
+        TC_LOG_ERROR("scripts.ai", "SmartScript: Entry %ld Event %u exceeded linked-cast attempt capacity.", e.entryOrGuid, e.event_id);
+        return 0;
+    }
+    if (!++mNextLinkedCastTicket)
+        ++mNextLinkedCastTicket;
+    mLinkedCastAttempts.push_back({me->GetGUID(), e.entryOrGuid, e.event_id, mNextLinkedCastTicket, mLinkedCastRetryEpoch});
+    return mNextLinkedCastTicket;
+}
+
+bool SmartScript::FinishLinkedCastAttempt(uint32 ticket, bool accepted)
+{
+    auto found = std::find_if(mLinkedCastAttempts.begin(), mLinkedCastAttempts.end(), [=](LinkedCastAttempt const& attempt) { return attempt.ticket == ticket; });
+    if (found == mLinkedCastAttempts.end())
+        return false; // Reset/initialization during the cast cancelled its tail.
+    LinkedCastAttempt attempt = *found;
+    mLinkedCastAttempts.erase(found);
+    if (attempt.epoch != mLinkedCastRetryEpoch || !me || !me->IsInWorld() || me->IsQuestObjectExpired() || me->GetGUID() != attempt.base)
+        return false;
+    return !accepted || mCompletedLinkedCasts.insert(std::make_tuple(attempt.base, attempt.entry, attempt.event)).second;
+}
+
+void SmartScript::QueueLinkedCastRetry(SmartScriptHolder const& e, Unit* unit, uint32 var0, uint32 var1, bool bvar, SpellInfo const* spell, GameObject* gob)
+{
+    // Only explicitly opted-in LINK self casts may resume their own tail.
+    // Never replay the parent event (which may already have awarded credit).
+    if (!me || e.GetActionType() != SMART_ACTION_CAST || e.GetEventType() != SMART_EVENT_LINK ||
+        e.GetScriptType() != SMART_SCRIPT_TYPE_CREATURE || e.GetTargetType() != SMART_TARGET_SELF ||
+        !(e.event.event_flags & SMART_EVENT_FLAG_NOT_REPEATABLE) ||
+        e.action.cast.flags != SMARTCAST_RETRY_LINK)
+        return;
+    if (mCompletedLinkedCasts.count(std::make_tuple(me->GetGUID(), e.entryOrGuid, e.event_id)))
+        return;
+
+    auto same = [&](LinkedCastRetry const& pending)
+    {
+        return pending.epoch == mLinkedCastRetryEpoch && pending.base == me->GetGUID() &&
+            pending.action.entryOrGuid == e.entryOrGuid && pending.action.event_id == e.event_id;
+    };
+    if (mProcessingLinkedCastRetry && same(*mProcessingLinkedCastRetry))
+    {
+        mProcessingLinkedCastRetry->failed = true;
+        return;
+    }
+    if (std::any_of(mLinkedCastRetries.begin(), mLinkedCastRetries.end(), same))
+        return; // Repeated notifications do not extend the retry lifetime.
+    if (mLinkedCastRetries.size() >= 16)
+    {
+        TC_LOG_ERROR("scripts.ai", "SmartScript: Entry %ld Event %u exceeded linked-cast retry capacity.", e.entryOrGuid, e.event_id);
+        return;
+    }
+
+    LinkedCastRetry pending;
+    pending.action = e;
+    pending.base = me->GetGUID();
+    pending.invoker = unit ? unit->GetGUID() : ObjectGuid::Empty;
+    pending.gameObject = gob ? gob->GetGUID() : ObjectGuid::Empty;
+    pending.var0 = var0;
+    pending.var1 = var1;
+    pending.bvar = bvar;
+    pending.spell = spell ? spell->Id : 0;
+    pending.epoch = mLinkedCastRetryEpoch;
+    mLinkedCastRetries.push_back(std::move(pending));
+}
+
+void SmartScript::UpdateLinkedCastRetries(uint32 diff)
+{
+    // Casts may re-enter SmartAI, reset this script or queue a different action.
+    // Iterate detached values so those operations cannot invalidate references.
+    std::vector<LinkedCastRetry> active;
+    active.swap(mLinkedCastRetries);
+    for (auto& pending : active)
+    {
+        SpellInfo const* castInfo = sSpellMgr->GetSpellInfo(pending.action.action.cast.spell);
+        if (pending.epoch != mLinkedCastRetryEpoch || !me || !me->IsInWorld() || !castInfo ||
+            (!me->IsAlive() && !castInfo->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD)) ||
+            me->IsQuestObjectExpired() || me->GetGUID() != pending.base)
+            continue;
+        if (diff >= pending.lifetime)
+        {
+            TC_LOG_WARN("scripts.ai", "SmartScript: Entry %ld Event %u linked cast %u expired without success.", pending.action.entryOrGuid, pending.action.event_id, pending.action.action.cast.spell);
+            continue;
+        }
+        pending.lifetime -= diff;
+        if (diff < pending.delay)
+            pending.delay -= diff;
+        else
+        {
+            pending.failed = false;
+            pending.action.runOnce = false;
+            pending.action.active = true;
+            ++pending.attempts;
+            mProcessingLinkedCastRetry = &pending;
+            ProcessEvent(pending.action,
+                pending.invoker.IsEmpty() ? nullptr : ObjectAccessor::GetUnit(*me, pending.invoker),
+                pending.var0, pending.var1, pending.bvar,
+                pending.spell ? sSpellMgr->GetSpellInfo(pending.spell) : nullptr,
+                pending.gameObject.IsEmpty() ? nullptr : ObjectAccessor::GetGameObject(*me, pending.gameObject));
+            mProcessingLinkedCastRetry = nullptr;
+            if (!pending.failed || pending.epoch != mLinkedCastRetryEpoch)
+                continue;
+            if (pending.attempts >= 10)
+            {
+                TC_LOG_WARN("scripts.ai", "SmartScript: Entry %ld Event %u linked cast %u failed after ten retries.", pending.action.entryOrGuid, pending.action.event_id, pending.action.action.cast.spell);
+                continue;
+            }
+            pending.delay = 500;
+        }
+        auto duplicate = std::find_if(mLinkedCastRetries.begin(), mLinkedCastRetries.end(), [&](LinkedCastRetry const& other)
+        {
+            return other.epoch == pending.epoch && other.base == pending.base &&
+                other.action.entryOrGuid == pending.action.entryOrGuid && other.action.event_id == pending.action.event_id;
+        });
+        if (duplicate != mLinkedCastRetries.end())
+            *duplicate = std::move(pending); // Keep the original deadline during re-entry.
+        else if (mLinkedCastRetries.size() < 16)
+            mLinkedCastRetries.push_back(std::move(pending));
+        else
+            TC_LOG_ERROR("scripts.ai", "SmartScript: Entry %ld Event %u exceeded linked-cast retry capacity during update.", pending.action.entryOrGuid, pending.action.event_id);
+    }
 }
 
 void SmartScript::IncPhase(int32 p)

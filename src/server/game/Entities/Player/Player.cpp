@@ -19170,6 +19170,8 @@ void Player::AddQuest(Quest const* quest, Object* questGiver)
 
     // if not exist then created with set uState == NEW and rewarded=false
     QuestStatusData& status_q = m_QuestStatus[quest_id];
+    status_q.ScriptLifetime.reset();
+    CancelQuestObjects(quest_id);
     (*m_QuestStatusVector)[quest_id] = &status_q;
 
     // check for repeatable quests status reset
@@ -20508,6 +20510,11 @@ void Player::SetQuestStatus(uint32 quest_id, QuestStatus status)
     {
         QuestStatusData& q_status = (*m_QuestStatusVector)[quest_id] ? *(*m_QuestStatusVector)[quest_id] : m_QuestStatus[quest_id];
         q_status.Status = status;
+        if (status == QUEST_STATUS_NONE)
+        {
+            q_status.ScriptLifetime.reset();
+            CancelQuestObjects(quest_id);
+        }
         m_QuestStatusSave[quest_id] = QUEST_DEFAULT_SAVE_TYPE;
         (*m_QuestStatusVector)[quest_id] = &q_status;
     }
@@ -20523,6 +20530,81 @@ void Player::SetQuestStatus(uint32 quest_id, QuestStatus status)
     });
 }
 
+// Quest-owned delayed events and objects (LegionCore-7.3.5): a script's delayed action runs only while the quest
+// attempt that queued it lives, and objects bound to the attempt disappear when it is abandoned or restarted.
+void Player::AddQuestDelayedEvent(uint32 questId, uint64 delay, std::function<void()>&& action)
+{
+    QuestStatusData* status = getQuestStatus(questId);
+    if (!status || status->Status == QUEST_STATUS_NONE)
+        return;
+    if (!status->ScriptLifetime)
+        status->ScriptLifetime = std::make_shared<uint8>();
+    std::weak_ptr<uint8> lifetime = status->ScriptLifetime;
+    AddDelayedEvent(delay, [lifetime, action = std::move(action)]()
+    {
+        if (!lifetime.expired())
+            action();
+    });
+}
+
+void Player::BindQuestObject(uint32 questId, WorldObject* object)
+{
+    QuestStatusData* status = getQuestStatus(questId);
+    if (!object || !status || status->Status == QUEST_STATUS_NONE)
+        return;
+    if (!status->ScriptObjects)
+    {
+        status->ScriptObjects = std::make_shared<QuestObjectScope>();
+        status->ScriptObjects->Owner = GetGUID();
+    }
+    object->BindQuestObjectScope(status->ScriptObjects);
+}
+
+std::shared_ptr<std::atomic<bool> const> Player::GetQuestCancellationReceipt(uint32 questId)
+{
+    QuestStatusData* status = getQuestStatus(questId);
+    if (!status || status->Status == QUEST_STATUS_NONE)
+        return {};
+    if (!status->ScriptObjects)
+    {
+        status->ScriptObjects = std::make_shared<QuestObjectScope>();
+        status->ScriptObjects->Owner = GetGUID();
+    }
+    return status->ScriptObjects->CancellationReceipt();
+}
+
+void Player::CancelQuestObjects(uint32 questId)
+{
+    QuestStatusData* status = getQuestStatus(questId);
+    if (!status || !status->ScriptObjects)
+        return;
+    auto scope = std::move(status->ScriptObjects);
+    auto objects = scope->Cancel(); // before despawn callbacks can summon anything
+    // only the current map's objects, from its update thread; children left on another map see the expired scope
+    // before their next update
+    if (!IsInWorld())
+        return;
+    for (ObjectGuid const& guid : objects)
+    {
+        if (guid.IsCreature())
+        {
+            if (Creature* creature = GetMap()->GetCreature(guid))
+            {
+                creature->SetVisible(false);
+                creature->DespawnOrUnsummon();
+            }
+        }
+        else if (guid.IsGameObject())
+        {
+            if (GameObject* object = GetMap()->GetGameObject(guid))
+                object->Delete();
+        }
+        else if (guid.IsConversation())
+            if (Conversation* conversation = ObjectAccessor::GetConversation(*this, guid))
+                conversation->Remove();
+    }
+}
+
 void Player::RemoveActiveQuest(uint32 quest_id)
 {
     if (!sQuestDataStore->GetQuestTemplate(quest_id))
@@ -20532,6 +20614,7 @@ void Player::RemoveActiveQuest(uint32 quest_id)
     if (!status)
         return;
 
+    CancelQuestObjects(quest_id);
     (*m_QuestStatusVector)[quest_id] = NULL;
     m_QuestStatus.erase(quest_id);
     m_QuestStatusSave[quest_id] = QUEST_DELETE_SAVE_TYPE;
@@ -20543,6 +20626,10 @@ void Player::RemoveActiveQuest(uint32 quest_id)
         PhaseUpdateData phaseUdateData;
         phaseUdateData.AddQuestUpdate(quest_id);
         GetPhaseMgr().NotifyConditionChanged(phaseUdateData);
+        // Static camp props remain visible across the artifact handoff. Refresh
+        // their per-player interaction flags after reward/abandonment too.
+        if (quest_id == 40604 || quest_id == 40835 || quest_id == 40932 || quest_id == 40606 || quest_id == 40385)
+            UpdateForQuestWorldObjects();
     });
 }
 
@@ -38522,8 +38609,11 @@ void Player::SendDisplayPlayerChoice(ObjectGuid sender, int32 choiceId)
     if (!playerChoice)
         return;
 
-//    if (!sConditionMgr->IsObjectMeetToConditions(this, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE, choiceId)))
-//        return;
+    // Calydus and Emmarel offer only eligible, unfinished acquisition routes.
+    // Other choice-condition data has not received this content audit.
+    if ((choiceId == 245 || choiceId == 240) && !sConditionMgr->IsObjectMeetToConditions(this,
+        sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE, choiceId)))
+        return;
 
     auto locale = GetSession()->GetSessionDbLocaleIndex();
     auto playerChoiceLocale = locale != DEFAULT_LOCALE ? sObjectMgr->GetPlayerChoiceLocale(choiceId) : nullptr;
@@ -38543,9 +38633,10 @@ void Player::SendDisplayPlayerChoice(ObjectGuid sender, int32 choiceId)
     {
         auto const& playerChoiceResponseTemplate = playerChoice->Responses[i];
 
-//        if (!sConditionMgr->IsObjectMeetToConditions(this, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE_RESPONS, playerChoiceResponseTemplate.ResponseId)))
-//            continue;
-//
+        if ((choiceId == 245 || choiceId == 240) && !sConditionMgr->IsObjectMeetToConditions(this,
+            sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE_RESPONS, playerChoiceResponseTemplate.ResponseId)))
+            continue;
+
 //        if (playerChoiceResponseTemplate.Reward)
 //        {
 //            bool rewardNotNeed = false;
@@ -38624,6 +38715,10 @@ void Player::SendDisplayPlayerChoice(ObjectGuid sender, int32 choiceId)
         }
     }
 
+    // A low-level Hunter may retry an existing selection, but have no new
+    // eligible route yet. Never display an empty artifact selection frame.
+    if (choiceId == 240 && displayPlayerChoice.Responses.empty())
+        return;
     m_openPlayerChoiceId = uint32(choiceId);
     SendDirectMessage(displayPlayerChoice.Write());
 }

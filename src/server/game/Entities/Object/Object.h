@@ -19,6 +19,7 @@
 #include "ModelIgnoreFlags.h"
 #include "MovementInfo.h"
 #include "ObjectDefines.h"
+#include "QuestObjectScope.h"
 #include "UpdateData.h"
 #include "UpdateFields.h"
 
@@ -710,6 +711,15 @@ class TC_GAME_API WorldObject : public Object, public WorldLocation
         virtual uint16 GetMovementAnimKitId() const { return 0; }
         virtual uint16 GetMeleeAnimKitId() const { return 0; }
 
+        // Quest object scopes (LegionCore-7.3.5, QuestObjectScope.h): objects summoned for one quest attempt, cancelled
+        // with it. Only the queries and the inheritance by summons are ported so far; nothing binds a scope yet.
+        void BindQuestObjectScope(std::shared_ptr<QuestObjectScope> const& scope);
+        bool InheritQuestObjectScope(WorldObject const* source);
+        bool IsQuestObjectExpired() const;
+        bool HasQuestObjectScope() const { return _questObjectBound; }
+        std::weak_ptr<QuestObjectScope> GetQuestObjectScope() const { return _questObjectScope; }
+        bool CanTargetQuestObject(WorldObject const* target) const;
+
         // Personal visibility system
         bool MustBeVisibleOnlyForSomePlayers() const { return !_visibilityPlayerList.empty(); }
         void GetMustBeVisibleForPlayersList(GuidUnorderedSet& playerList) { playerList = _visibilityPlayerList; }
@@ -767,6 +777,8 @@ class TC_GAME_API WorldObject : public Object, public WorldLocation
         std::set<uint32> _worldMapAreaSwaps;
 
         GuidUnorderedSet _visibilityPlayerList;
+        std::weak_ptr<QuestObjectScope> _questObjectScope;
+        bool _questObjectBound = false;
         GuidUnorderedSet _hideForGuid;
 
         virtual bool _IsWithinDist(WorldObject const* obj, float dist2compare, bool is3D, bool ignoreObjectSize = false) const;

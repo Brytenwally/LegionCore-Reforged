@@ -37,6 +37,12 @@ Unit* TempSummon::GetSummoner() const
 
 void TempSummon::Update(uint32 diff)
 {
+    // a summon of a cancelled quest attempt (QuestObjectScope), before Creature::Update runs AI or delayed events
+    if (IsQuestObjectExpired())
+    {
+        UnSummon();
+        return;
+    }
     Creature::Update(diff);
 
     if (m_deathState == DEAD)
