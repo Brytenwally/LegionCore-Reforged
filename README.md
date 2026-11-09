@@ -60,6 +60,9 @@ The generated folders `dbc`, `maps`, `vmaps`, `mmaps`, `cameras` and `gt` are al
 ### Thank you
 - [TrinityCore Authors](https://github.com/TrinityCore/TrinityCore/blob/master/AUTHORS)
 - [LegionCore Contributors](https://github.com/Titans-Project/LegionCore-Reforged/graphs/contributors)
+- [ingussuveiks-dev](https://github.com/ingussuveiks-dev), for the work on LegionCore 7.3.5: the class halls, every
+  class's artifact acquisition questlines and scenarios, the SmartAI and scenario fixes behind them, and the careful
+  audits that documented each one. Much of that work has been ported into this core.
  
 > **License: GPL 3.0** read [COPYING](https://github.com/Titans-Project/LegionCore-Reforged/blob/main/LICENSE).
 
