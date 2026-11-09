@@ -212,6 +212,8 @@ class TC_GAME_API UnitAI
         // Note: it for recalculation damage or special reaction at damage
         // for attack reaction use AttackedBy called for not DOT damage in Unit::DealDamage also
         virtual void DamageTaken(Unit* /*attacker*/, uint32& /*damage*/, DamageEffectType dmgType) { }
+        // after level scaling, with the damage the death check uses (LegionCore-7.3.5)
+        virtual void DamageTakenAfterScaling(Unit* /*attacker*/, uint32& /*damage*/, DamageEffectType /*damageType*/) { }
 
         // Called when the creature receives heal
         virtual void HealReceived(Unit* /*done_by*/, uint32& /*addhealth*/) {}

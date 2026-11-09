@@ -2,6 +2,8 @@ void AddSC_azsuna();
 void AddSC_broken_shore();
 void AddSC_legion_class_hall_messengers();
 void AddSC_class_hall_artifact_onboarding();
+void AddSC_artifact_acquisition();
+void AddSC_dark_riders_artifact();
 void AddSC_highmountain();
 void AddSC_stormheim();
 void AddSC_suramar();
@@ -225,6 +227,8 @@ void AddLegionScripts()
     AddSC_broken_shore();
     AddSC_legion_class_hall_messengers();
     AddSC_class_hall_artifact_onboarding();
+    AddSC_artifact_acquisition();
+    AddSC_dark_riders_artifact();
     AddSC_highmountain();
     AddSC_stormheim();
     AddSC_suramar();

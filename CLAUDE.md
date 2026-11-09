@@ -333,6 +333,14 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   selection objective and starts that weapon's acquisition quest, and at login it starts the quest for a character
   whose hidden "<spec> Chosen" quest is rewarded. It complements the class hall messengers (they bring the first class
   hall quest; the choice comes later in that campaign). Compiled; untested in game.
+  **Phase 2 (shared artifact support) and 3.1 (Death Knight), 2026-11-09**, details in the plan: core
+  `Spell::EffectForceEquipItem` works (the leak returned before equipping; LegionCore-7.3.5 `c592d121`), new hooks
+  `InstanceScript::OnCreatureDamageTaken` and `UnitAI::DamageTakenAfterScaling` in `Unit::DealDamage` after level
+  scaling (finales kept alive through a scaled killing blow), scripts `Legion/ClassHalls/artifact_acquisition.cpp`
+  (the parts ported so far: artifact chests, Blood / Frost scene equips, Dark Riders completion) and
+  `dark_riders_artifact.cpp` (whole), SQL `2026_11_09_01..23_lc735_*`. **A full copy of this realm's world database
+  can be rebuilt in the container in ~3 minutes** (method in the plan): LegionCore-7.3.5's guarded SQL is run on it
+  first, then shipped with the guard forced to pass. Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

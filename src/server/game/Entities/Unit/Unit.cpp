@@ -1168,6 +1168,32 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
 
     damage /= victim->GetHealthMultiplierForTarget(this);
 
+    // LegionCore-7.3.5: encounter protection sees the final, level-scaled damage used by the death check below
+    // (artifact scenario finales keep their boss alive through a scaled killing blow)
+    if (Creature* creature = victim->ToCreature())
+    {
+        if (InstanceScript* instance = creature->GetInstanceScript())
+        {
+            instance->OnCreatureDamageTaken(creature, this, damage);
+            if (!damage)
+                return 0;
+        }
+
+        if (creature->AI())
+        {
+            creature->AI()->DamageTakenAfterScaling(this, damage, damagetype);
+            if (!damage)
+                return 0;
+        }
+        // the original AI is suspended, not removed, during a charm: its policy applies after the temporary AI's
+        if (creature->i_disabledAI && creature->i_disabledAI != creature->AI())
+        {
+            static_cast<CreatureAI*>(creature->i_disabledAI)->DamageTakenAfterScaling(this, damage, damagetype);
+            if (!damage)
+                return 0;
+        }
+    }
+
     // a player on a multi-seat mount is a vehicle too, but not a creature
     if (victim->IsCreature() && (!victim->IsControlledByPlayer() || victim->IsVehicle()))
     {

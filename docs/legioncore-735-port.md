@@ -54,8 +54,8 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | Phase | Content | Size |
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
-| 2 | B shared support: scene completion, artifact force-equip and purchase validation, scenario resume / checkpoints, SmartAI scenario conditions, the artifact chest fix | medium (core merges) |
-| 3.x | B per class, one class per step (its weapons' scripts and SQL), in the order the owner plays | 12 steps |
+| 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event). **Left**: scenario resume after logout (`PlayerScenario.cpp`, `ScenarioResume.h`), scene instance retirement (`Player`), artifact empowerment / Netherlight Crucible validation (`ArtifactHandler`, 7.3 content: check against `Game.Patch` first) | medium (core merges) |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight done 2026-11-09** (see below) | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -71,3 +71,36 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
   matching audit before porting a fix.
 - Its SQL updates often build on each other (restore / archive / re-apply files): port the final state of the rows,
   not every intermediate file.
+
+## Method that works (2026-11-09)
+
+- **A copy of this realm's world database** in the container: MariaDB (`apt-get install mariadb-server`, started
+  with a short `--socket`, `--pid-file` in /tmp and `--skip-grant-tables`), `sql/base/world/*.sql` imported (MySQL 8
+  collations `utf8mb4_0900_*` replaced), the hotfixes base as `hotfixes_legion` (cross-database updates), then every
+  `sql/old` / `sql/updates` world file the base's `updates` table does not list, by file name (~1 min + ~2 min). The
+  only errors are MariaDB charset conversions in upstream's Russian-text clean-ups.
+- **Run LegionCore-7.3.5's SQL files verbatim on it**: their newer files hash the rows they expect and `SIGNAL` on a
+  difference, so a pass proves our rows match. For a refusal, run only the hash `SET`s and compare each with its
+  expected value to see which table differs, then judge whether the difference matters.
+- **Ship with the guard forced to pass** (`docs/tools/port_lc735_sql.py`; its logic: insert
+  `SET @x_safe=1, @x_old=1;` before `SET @x_guard=IF(...)`, add a provenance header, name the file
+  `<date>_<nn>_lc735_<original name>.sql`): on the owner's server a failing guard would stop the updater at startup.
+
+## Phase 3.1: Death Knight (2026-11-09)
+
+LegionCore-7.3.5's own audit marks all three as "client traversal pending": its developer had not played them
+through either.
+- Maw of the Damned (Blood, quest 40740, scenario 940 step 9, map 1489): the pickup object 247566 gets its real loot
+  (`Data1`, conditions), and scene 1168's completion casts equip spell 200134 (`scene_blood_artifact_equipment`
+  refuses outside the scenario step); Fleshripper (101778) speaks his own lines.
+- Blades of the Fallen Prince (Frost, 38990, scenario 901 step 6, map 1480): pickup 247386 real loot, scene 1071 ->
+  equip spell 197092 (`scene_frost_artifact_equipment`); the scene start spells 190435 / 200152 recheck at cast.
+- Apocalypse (Unholy, 40930-40935 / 40986-40987, the Dark Riders scenario 988 on map 1533, shared with the warlock's
+  Ulthalesh): `dark_riders_artifact.cpp` (instance script: stage actors, Ariden's finale kept alive through a scaled
+  killing blow, ambient spirits), chest 246699 through `go_artifact_acquisition`, Laith Sha'ol's dialogue, the Dark
+  Riders SmartAI fixes (stage lifecycle, player arrival, Revil handoffs, scythe jump), and the Death Knight scenario
+  entrances (`lfg_entrances`).
+- SQL: `sql/updates/world/2026_11_09_01..23_lc735_*.sql` (LegionCore-7.3.5 files 2026_09_19_147, 2026_10_15_25..27,
+  2026_10_20_01..12, 2026_10_29_11, 2026_10_30_07..11, 2026_10_30_14). 19 applied verbatim on the database copy;
+  Laith, Fleshripper, Frost scene equip and scene start refused only because of unrelated columns (broadcast text ids
+  upstream added to `creature_text`, the English objective descriptions, and the Frost file the scene start depends on).

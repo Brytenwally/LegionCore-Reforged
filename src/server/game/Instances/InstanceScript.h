@@ -206,6 +206,8 @@ class TC_GAME_API InstanceScript : public ZoneScript
         virtual WorldLocation* GetClosestGraveYard(float /*x*/, float /*y*/, float /*z*/) { return nullptr; }
 
         virtual void onScenarionNextStep(uint32 /*newStep*/) {}
+        // a creature of this instance takes damage, after level scaling (LegionCore-7.3.5); set damage to 0 to cancel it
+        virtual void OnCreatureDamageTaken(Creature* /*creature*/, Unit* /*attacker*/, uint32& /*damage*/) {}
         void CreatureDies(Creature* /*creature*/, Unit* /*killer*/) override {}
         void OnCreatureCreate(Creature* creature) override;
         void OnCreatureRemove(Creature* creature) override;
