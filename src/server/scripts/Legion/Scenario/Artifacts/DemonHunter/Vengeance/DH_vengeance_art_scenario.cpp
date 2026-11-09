@@ -524,7 +524,7 @@ public:
             }
             if (me->GetDistance2d(-2748.06f, -328.11f) <= 5.0f && !introDone2)
             {
-                if ((me->GetDistance(who) < 53.0f) && !introDone)
+                if ((me->GetDistance(who) < 53.0f) && !introDone2)   // LegionCore-7.3.5: tested the first flag
                 {
                     introDone2 = true;
                     who->CastSpell(who, 208460); // convers

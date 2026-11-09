@@ -48,6 +48,7 @@
 #include "WildBattlePet.h"
 #include "WorldStateMgr.h"
 #include "GuildMgr.h"
+#include "BrokenShoreClassRoute.h"
 
 namespace {
 
@@ -3558,10 +3559,33 @@ bool InstanceMap::AddPlayerToMap(Player* player, bool initPlayer /*= true*/)
         {
             TC_LOG_DEBUG("maps", "InstanceMap::Add: creating Scenario map %d spawnmode %d instanceid %d", GetId(), GetSpawnMode(), GetInstanceId());
 
+            // map 1500 holds three class scenarios (BrokenShoreClassRoute.h): never join or build another class's
+            if (BrokenShoreClassRoute::Applies(GetId(), player->getClass()))
+                if (Scenario* live = sScenarioMgr->GetScenario(GetInstanceId()))
+                    if (live->GetScenarioId() != BrokenShoreClassRoute::ScenarioId(player->getClass()))
+                    {
+                        TC_LOG_ERROR("maps", "Broken Shore class route rejected live scenario %u for class %u", live->GetScenarioId(), player->getClass());
+                        return false;
+                    }
+
             if(!sScenarioMgr->GetScenario(GetInstanceId()))
             {
                 bool find = false;
-                if (player->GetScenarioId())
+                if (BrokenShoreClassRoute::Applies(GetId(), player->getClass()))
+                {
+                    lfg::LFGDungeonData const* data = BrokenShoreClassRoute::Dungeon(player, GetDifficultyID());
+                    if (!data)
+                    {
+                        TC_LOG_ERROR("maps", "Broken Shore class route missing for class %u difficulty %u; refusing another class's scenario", player->getClass(), uint32(GetDifficultyID()));
+                        return false;
+                    }
+                    if (player->GetScenarioId() && player->GetScenarioId() != BrokenShoreClassRoute::ScenarioId(player->getClass()))
+                        player->SetScenarioId(0);   // a stale selector of another class
+                    find = sScenarioMgr->AddScenario(this, data, player) != nullptr;
+                    if (!find)
+                        return false;
+                }
+                if (!find && player->GetScenarioId())
                 {
                     if (lfg::LFGDungeonData const* data = sLFGMgr->GetLFGDungeon(player->GetScenarioId(), static_cast<uint16>(GetId())))
                     {

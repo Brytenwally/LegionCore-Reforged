@@ -348,7 +348,11 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   checkpoints across logouts (`PlayerScenario.cpp`, `characters.scenarioResume`; the scenario login check now needs one),
   scene instance retirement, Netherlight Crucible checks and empowerment after a power purchase. **Rule: a login inside a
   scenario is admitted only with its checkpoint** (live instance of this boot, or a fresh run from the recorded entrance).
-  The map 1500 class route (warrior / paladin / demon hunter) waits for phase 3.2. Compiled; untested in game.
+  Compiled; untested in game.
+- **Phase 3.2 Demon Hunter** (2026-11-09, details in the plan): map 1500 class route (warrior 933 / paladin 775 /
+  demon hunter 961 were one map with classless `scenario_data` rows: a warrior got the demon hunter's scenario), the
+  Twinblades chest's loot link, Varedis' lines, a Vengeance intro flag, and the Dalaran class invitations for every class
+  (`spell_area` end status 74 -> 1: the inviter now shows before the quest is taken). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

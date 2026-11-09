@@ -6,8 +6,7 @@
  * instance's step zero cannot reach. Completed scenarios, battlegrounds, garrisons, the Proving Grounds hub and
  * challenge modes keep no checkpoint.
  *
- * LegionCore-7.3.5's per-quest exits (Dark Riders, Broken Shore, Sheilun) and the map 1500 class route
- * (BrokenShoreClassRoute.h) come with their class phases.
+ * LegionCore-7.3.5's per-quest exits (Dark Riders, Broken Shore, Sheilun) come with their class phases.
  */
 
 #include "Player.h"
@@ -18,6 +17,7 @@
 #include "ObjectMgr.h"
 #include "ScenarioMgr.h"
 #include "WorldSession.h"
+#include "BrokenShoreClassRoute.h"
 
 namespace
 {
@@ -32,6 +32,12 @@ namespace
     // the dungeon finder row a scenario of this map is built from for this player (team, class), as at its creation
     lfg::LFGDungeonData const* ResumeDungeon(Player const* player, uint32 scenarioId, uint32 mapId)
     {
+        // map 1500: only this class's own scenario, before the direct lookup that would accept another class's
+        if (BrokenShoreClassRoute::Applies(mapId, player->getClass()))
+        {
+            MapDifficultyEntry const* difficulty = sDB2Manager.GetDefaultMapDifficulty(mapId);
+            return difficulty ? BrokenShoreClassRoute::Dungeon(player, Difficulty(difficulty->DifficultyID), scenarioId) : nullptr;
+        }
         if (lfg::LFGDungeonData const* data = sLFGMgr->GetLFGDungeon(uint16(scenarioId), uint16(mapId)))
             return data;
 

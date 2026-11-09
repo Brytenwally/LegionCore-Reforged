@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight done 2026-11-09** (see below) | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter done 2026-11-09** (see below) | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -119,8 +119,7 @@ through either.
   scenario before this update have no checkpoint: they leave it once (go-back trigger, dungeon finder entry point or
   home), as before when the instance was gone. Not ported yet, with their class phases: the per-quest exits (Dark
   Riders for the warlock, Broken Shore warrior finale, Sheilun), the New Blood / Scepter warlock login restores, and
-  the map 1500 class route (`BrokenShoreClassRoute.h` + `2026_10_27_16_broken_shore_class_routes.sql`: map 1500 holds
-  warrior 933, paladin 775 and demon hunter 961, and our `scenario_data` rows have no class yet), first needed in 3.2.
+  the map 1500 class route (ported in 3.2).
 - **Scene instances** (`c49051e2`): cancelling a scene retires every instance of it, not only the last; a completion or
   trigger of an instance replaced by a newer one of the same scene does nothing; a completed scene is not completed twice
   and its status no longer drops back to "triggered".
@@ -130,3 +129,30 @@ through either.
   second's branch (3 after 1, 5 after 2, 4 after either); `UnLockThirdSocketIfNeed` right after a power purchase, so
   empowerment comes at once instead of at the next login. LegionCore-7.3.5's `AddOrRemoveSocketTalent` returning a
   result is not ported (ours returns nothing).
+
+## Phase 3.2: Demon Hunter (2026-11-09)
+
+LegionCore-7.3.5's audits mark both routes "client traversal pending" (its developer had not played them through).
+- **Map 1500 class route** (`Scenarios/BrokenShoreClassRoute.h`, `InstanceMap::AddPlayerToMap`, `PlayerScenario.cpp`;
+  SQL `2026_11_09_26_lc735_broken_shore_class_routes.sql`): map 1500 holds warrior 933 (dungeon finder entry 1176, whose
+  ScenarioID is 0), paladin 775 (906) and Vengeance 961 (1166), difficulty 12. Our `scenario_data` rows had no class,
+  difficulty or dungeon, so `GetScenarioOnMap` returned the last row (961) for anyone and the first dungeon of the map
+  (906) was taken: a warrior got the demon hunter's scenario (LegionCore-7.3.5's report). Now each of the three classes
+  gets its own scenario and dungeon, an instance already running another class's scenario refuses the player, a stale
+  scenario selector of another class is dropped, and a checkpoint resumes only the class's own scenario.
+- **Havoc, Twinblades of the Deceiver** (quests 39247 / 41119 "The Hunt", scenario 900 on map 1498):
+  `2026_11_09_27_lc735_twinblades_real_loot.sql`: chest 251878 (summoned by Varedis' death) had its loot row but
+  `Data1` 0, so it gave nothing; `Data1` = 251878, with LegionCore-7.3.5's 140 conditions (demon hunter, map 1498,
+  scenario 900 step 4/5, either "The Hunt", no Twinblades yet). Scene 1063 then equips them (201012 -> 201010, effect 249:
+  phase 2's force-equip). Varedis (94836) and Allaris (110556) speak their own combat lines instead of a pet victim
+  (`2026_11_09_28_lc735_acquisition_combat_speakers.sql`, written by hand: LegionCore-7.3.5's guard also hashes
+  warlock rows not ported yet).
+- **Vengeance, Aldrachi Warblades** (41863 / 40249, scenario 961): Caria Felsoul's second intro line tested the first
+  flag (`DH_vengeance_art_scenario.cpp`); the pickup script (`go_bs_the_aldrachi_warblades`) is unchanged in both forks.
+- **Dalaran class invitations, every class** (`2026_11_09_25_lc735_dalaran_class_invitations.sql`): the 22 Dalaran /
+  class campaign invitation auras (`spell_area`, areas 7502 / 7581) applied only once their quest was taken (end status
+  mask 74); now while it is not taken (1), so the inviting NPC shows before the quest. Quests 40714 (DK) and 41035
+  (mage) limited to their class; Eitrigg's (93775) accept event listened for the warlock's quest 40716 instead of 41052,
+  so the summoned Horde warrior messenger never left when the quest was accepted. Complements the class hall messengers.
+- All four SQL files applied (and re-applied) on the database copy; the three LegionCore-7.3.5 guards passed verbatim
+  (route, Twinblades) or were replaced (speakers). Compiled; untested in game.
