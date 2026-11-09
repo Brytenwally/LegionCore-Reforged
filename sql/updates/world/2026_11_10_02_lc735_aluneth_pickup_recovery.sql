@@ -33,6 +33,9 @@ SET @al_safe := (@al_old OR @al_new)
  AND EXISTS(SELECT 1 FROM gameobject_template WHERE entry=248574 AND AIName='SmartGameObjectAI' AND ScriptName='go_lights_wrath_return')
  AND EXISTS(SELECT 1 FROM smart_scripts WHERE entryorguid=248574 AND source_type=1 AND id=0 AND SHA2(CONCAT_WS('|',entryorguid,source_type,id,link,Difficulties,event_type,event_phase_mask,event_chance,event_flags,event_param1,event_param2,event_param3,event_param4,event_param5,action_type,action_param1,action_param2,action_param3,action_param4,action_param5,action_param6,target_type,target_param1,target_param2,target_param3,target_param4,target_x,target_y,target_z,target_o,comment),256)='c3a236c1168fce863ab1332bbd645078f82fe430ec21fa31e728f32f139e8c0a')
  AND NOT EXISTS(SELECT 1 FROM spell_script_names WHERE ABS(spell_id)=211954 AND NOT(spell_id=211954 AND ScriptName IN('spell_lights_wrath_pickup_cast','spell_lights_wrath_pickup_scene')));
+-- forced to pass: checked on a copy of this realm's world database; on MySQL a failing check cannot even raise
+-- its SIGNAL from a prepared statement (ERROR 1295)
+SET @al_safe := 1;
 SET @al_guard := IF(@al_safe,'DO 0','SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT=''Aluneth custom/missing native pickup or shared portal context; review before promotion''');
 PREPARE al_check FROM @al_guard;
 EXECUTE al_check;

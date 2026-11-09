@@ -1,5 +1,5 @@
 -- Ported from Brytenwally/LegionCore-7.3.5 sql/updates/world/2026_10_23_09_titanstrike_weapon_visuals.sql (2026-11-09).
---42428 is the Infernal placeholder. Native display69591 is an invisible
+-- 42428 is the Infernal placeholder. Native display69591 is an invisible
 -- anchor whose state kit67322 attaches the actual artifact rifle1346250.
 UPDATE creature_template_wdb SET DisplayId1=69591,DisplayId2=0
 WHERE Entry IN(106428,106745) AND DisplayId1=42428 AND DisplayId2=69591

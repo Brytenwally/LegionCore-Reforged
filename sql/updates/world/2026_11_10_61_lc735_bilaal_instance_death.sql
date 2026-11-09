@@ -6,7 +6,7 @@
 -- Native combat0..4, quest kill rewards and earlier Azuregos creators remain unchanged.
 -- The complete graph exceeds the MySQL default 1024-byte aggregation limit.
 SET @bilaal_death_previous_group_concat := @@SESSION.group_concat_max_len;
-SET SESSION group_concat_max_len=GREATEST(@@SESSION.group_concat_max_len,1048576);
+SET SESSION group_concat_max_len=GREATEST(CAST(@@SESSION.group_concat_max_len AS UNSIGNED),CAST(1048576 AS UNSIGNED));
 START TRANSACTION;
 SET @bilaal_death_graph := (SELECT SHA2(GROUP_CONCAT(CONCAT_WS('|',entryorguid,source_type,id,link,Difficulties,event_type,event_phase_mask,event_chance,event_flags,event_param1,event_param2,event_param3,event_param4,event_param5,action_type,action_param1,action_param2,action_param3,action_param4,action_param5,action_param6,target_type,target_param1,target_param2,target_param3,target_param4,target_x,target_y,target_z,target_o,comment) ORDER BY entryorguid,id SEPARATOR '\n'),256)
  FROM smart_scripts WHERE entryorguid IN(104502,106708) AND source_type=0);

@@ -49,9 +49,9 @@ WHERE @orestes_credit_retry;
 
 INSERT INTO conditions (SourceTypeOrReferenceId,SourceGroup,SourceEntry,SourceId,ElseGroup,ConditionTypeOrReference,
     ConditionTarget,ConditionValue1,ConditionValue2,Comment)
-SELECT 22,6,100398,0,groups.else_group,rules.kind,rules.target,rules.value1,rules.value2,
+SELECT 22,6,100398,0,grp.else_group,rules.kind,rules.target,rules.value1,rules.value2,
     'Marksmanship: Orestes farewell credit requires the present quest player at the Torvis stage'
-FROM (SELECT 0 AS else_group UNION ALL SELECT 1) groups
+FROM (SELECT 0 AS else_group UNION ALL SELECT 1) grp
 CROSS JOIN (SELECT 32 AS kind,0 AS target,16 AS value1,0 AS value2
             UNION ALL SELECT 44,1,972,3 UNION ALL SELECT 36,0,0,0) rules WHERE @orestes_credit_retry;
 

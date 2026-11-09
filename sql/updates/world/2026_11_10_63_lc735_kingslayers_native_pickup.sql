@@ -3,7 +3,7 @@
 -- copy of this realm's world database: only unrelated columns differed.
 -- CODE-COUPLED: promote matching Kingslayers loot/equip handlers first.
 SET @kingslayers_previous_concat := @@SESSION.group_concat_max_len;
-SET SESSION group_concat_max_len=GREATEST(@@SESSION.group_concat_max_len,1048576);
+SET SESSION group_concat_max_len=GREATEST(CAST(@@SESSION.group_concat_max_len AS UNSIGNED),CAST(1048576 AS UNSIGNED));
 START TRANSACTION;
 SET @kingslayers_conditions := (SELECT SHA2(GROUP_CONCAT(CONCAT_WS('|',SourceTypeOrReferenceId,SourceGroup,SourceEntry,SourceId,ElseGroup,ConditionTypeOrReference,ConditionTarget,ConditionValue1,ConditionValue2,ConditionValue3,NegativeCondition,ErrorTextId,ScriptName,Comment) ORDER BY SourceTypeOrReferenceId,SourceGroup,SourceEntry,SourceId,ElseGroup,ConditionTypeOrReference,ConditionTarget,ConditionValue1,ConditionValue2,ConditionValue3,NegativeCondition,ErrorTextId,ScriptName,Comment SEPARATOR '\n'),256) FROM conditions WHERE (SourceTypeOrReferenceId=4 AND SourceGroup=251107) OR(SourceTypeOrReferenceId=17 AND SourceEntry IN(215112,215113,215114)));
 SET @kingslayers_count := (SELECT COUNT(*) FROM conditions WHERE (SourceTypeOrReferenceId=4 AND SourceGroup=251107) OR(SourceTypeOrReferenceId=17 AND SourceEntry IN(215112,215113,215114)));

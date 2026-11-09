@@ -74,6 +74,9 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 
 ## Method that works (2026-11-09)
 
+- **The owner's server runs MySQL 8.0.44: test the ported SQL on MySQL 8, not only MariaDB** (build #36 stopped on a
+  MariaDB-only construct; method and the differences found in the core's `CLAUDE.md`).
+
 - **A copy of this realm's world database** in the container: MariaDB (`apt-get install mariadb-server`, started
   with a short `--socket`, `--pid-file` in /tmp and `--skip-grant-tables`), `sql/base/world/*.sql` imported (MySQL 8
   collations `utf8mb4_0900_*` replaced), the hotfixes base as `hotfixes_legion` (cross-database updates), then every

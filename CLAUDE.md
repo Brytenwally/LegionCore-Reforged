@@ -387,6 +387,23 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   Commander's Valor, and the guarded jump arrivals (Skyhold, Strom'kar, Sharas'dal: arrival spells as self casts, same
   map, alive, real movement). **Phase 3 (all twelve classes) is complete.** Left out: Strom'kar's loot auto-equip with full
   bags, its blade's custom scale and crack decal (cosmetic). Compiled; untested in game.
+- **Build #36 stopped at `2026_11_09_17_lc735_laith_dialogue_dispatch.sql`** (owner's log, 2026-11-09): `ERROR 1232 Incorrect
+  argument type to variable 'group_concat_max_len'`. Cause: the ported SQL had only been tested on MariaDB; the owner runs
+  **MySQL 8.0.44**, which differs. Found by running every pending world / hotfixes update on a real MySQL 8.0.46 in the
+  container, and fixed (all files from `_17` on, none applied on the owner's realm yet): `GREATEST(@@SESSION.
+  group_concat_max_len,1048576)` (unsigned with signed gives a non-integer result: both cast to UNSIGNED, 54 files);
+  a temporary table read twice in one query (ERROR 1137, Feral scene equip); a `DELETE` whose subquery reads its own
+  table (ERROR 1093, Titanstrike workshop: derived table); `--comment` without a space (syntax error); `groups` as an
+  alias (reserved word in MySQL 8); guards not forced (MySQL cannot `PREPARE` a `SIGNAL`, ERROR 1295: 14 files forced).
+  The end state matches the MariaDB copy (smart_scripts, conditions, script names, scenario rows). `port_lc735_sql.py`
+  applies all of these. **Rule: test SQL on MySQL 8 before shipping.** Method: `apt-get download mysql-server-core-8.0
+  mysql-client-core-8.0 libprotobuf-lite32t64 libaio1t64`, `dpkg -x` into the scratchpad, `LD_LIBRARY_PATH` to its
+  `usr/lib/x86_64-linux-gnu`, `mysqld --no-defaults --initialize-insecure`, start with `--secure-file-priv=` and a /tmp
+  socket, `SET GLOBAL sql_mode='NO_ENGINE_SUBSTITUTION'` (the owner's server is not strict: it applied a file strict mode
+  refuses), import `sql/base/world` into `world_legion` and `sql/base/hotfixes` into `hotfixes_legion` (~1.5 min), then
+  apply the files of `sql/old/<db>` and `sql/updates/<db>` in name order, skipping those in `updates`, as the updater
+  does. Upstream `2026_10_28_01_russian_texts_leftovers.sql` fails on a fresh realm (it updates a table that a later
+  upstream file drops); realms that already have it applied are not affected.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

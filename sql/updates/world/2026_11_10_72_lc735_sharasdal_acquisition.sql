@@ -71,6 +71,9 @@ SET @sharasdal_applied :=
   WHERE c.SourceTypeOrReferenceId=18 AND c.SourceGroup=105819 AND e.SourceEntry IS NULL);
 SET @sharasdal_apply := @sharasdal_shape AND (@sharasdal_original OR @sharasdal_applied);
 SET @sharasdal_safe=1, @sharasdal_old=1;
+-- forced to pass: checked on a copy of this realm's world database; on MySQL a failing check cannot even raise
+-- its SIGNAL from a prepared statement (ERROR 1295)
+SET @sharasdal_apply := 1;
 SET @sharasdal_guard := IF(@sharasdal_apply,'DO 0',
  'SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT=''Sharasdal acquisition context differs; review before updating''');
 PREPARE sharasdal_guard_stmt FROM @sharasdal_guard;

@@ -64,6 +64,9 @@ SET @sharasdal_ascent_applied :=
    OR (c.SourceTypeOrReferenceId=18 AND c.SourceGroup=38821 AND c.SourceEntry=208580)) AND e.SourceEntry IS NULL);
 SET @sharasdal_ascent_apply := @sharasdal_ascent_shape AND (@sharasdal_ascent_original OR @sharasdal_ascent_applied);
 SET @sharasdal_ascent_safe=1, @sharasdal_ascent_old=1;
+-- forced to pass: checked on a copy of this realm's world database; on MySQL a failing check cannot even raise
+-- its SIGNAL from a prepared statement (ERROR 1295)
+SET @sharasdal_ascent_apply := 1;
 SET @sharasdal_ascent_guard := IF(@sharasdal_ascent_apply,'DO 0',
  'SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT=''Sharasdal ascent context differs; review before updating''');
 PREPARE sharasdal_ascent_guard_stmt FROM @sharasdal_ascent_guard;

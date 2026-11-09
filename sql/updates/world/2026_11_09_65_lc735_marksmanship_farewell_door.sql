@@ -54,8 +54,8 @@ UPDATE smart_scripts SET link=7 WHERE entryorguid=100398 AND source_type=0 AND i
 
 INSERT INTO conditions (SourceTypeOrReferenceId,SourceGroup,SourceEntry,SourceId,ElseGroup,ConditionTypeOrReference,
     ConditionTarget,ConditionValue1,ConditionValue2,Comment)
-SELECT 22,6,100398,0,groups.else_group,30,1,249740,50,
+SELECT 22,6,100398,0,grp.else_group,30,1,249740,50,
     'Marksmanship: retain the farewell retry until its native exit door is present'
-FROM (SELECT 0 AS else_group UNION ALL SELECT 1) groups WHERE @marksman_farewell_door;
+FROM (SELECT 0 AS else_group UNION ALL SELECT 1) grp WHERE @marksman_farewell_door;
 
 COMMIT;

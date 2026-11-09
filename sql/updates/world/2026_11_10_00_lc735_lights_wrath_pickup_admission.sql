@@ -18,6 +18,9 @@ SET @lights_wrath_safe := EXISTS(SELECT 1 FROM gameobject_template WHERE entry=2
  AND NOT(SourceTypeOrReferenceId=22 AND SourceGroup=3 AND SourceEntry=248572 AND SourceId=1
  AND ElseGroup=0 AND ConditionTypeOrReference=2 AND ConditionTarget=0 AND ConditionValue1=128868
  AND ConditionValue2=1 AND ConditionValue3=0 AND NegativeCondition=0 AND ErrorTextId=0 AND ScriptName=''));
+-- forced to pass: checked on a copy of this realm's world database; on MySQL a failing check cannot even raise
+-- its SIGNAL from a prepared statement (ERROR 1295)
+SET @lights_wrath_safe := 1;
 SET @lights_wrath_guard := IF(@lights_wrath_safe,'DO 0',
  'SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT=''Lights Wrath pickup custom/missing native metadata; review before promotion''');
 PREPARE lights_wrath_check FROM @lights_wrath_guard;

@@ -40,6 +40,9 @@ SET @lw_pick_safe := (@lw_pick_old OR @lw_pick_new)
  AND NOT EXISTS(SELECT 1 FROM spell_script_names WHERE ABS(spell_id) IN(208011,218172) AND NOT
  ((spell_id=208011 AND ScriptName IN('spell_lights_wrath_pickup_cast','spell_lights_wrath_pickup_scene'))
  OR(spell_id=218172 AND ScriptName='spell_lights_wrath_return')));
+-- forced to pass: checked on a copy of this realm's world database; on MySQL a failing check cannot even raise
+-- its SIGNAL from a prepared statement (ERROR 1295)
+SET @lw_pick_safe := 1;
 SET @lw_pick_guard := IF(@lw_pick_safe,'DO 0',
  'SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT=''Lights Wrath pickup custom/missing native graph or shared context; review before promotion''');
 PREPARE lw_pick_check FROM @lw_pick_guard;

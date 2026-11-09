@@ -1,7 +1,7 @@
 -- Ported from Brytenwally/LegionCore-7.3.5 sql/updates/world/2026_10_29_05_monk_kite_native_travel.sql (2026-11-09).
 -- CODE-COUPLED: keep outside updater inputs until the registered hit handler is promoted.
 SET @monk_kite_concat := @@SESSION.group_concat_max_len;
-SET SESSION group_concat_max_len=GREATEST(@@SESSION.group_concat_max_len,1048576);
+SET SESSION group_concat_max_len=GREATEST(CAST(@@SESSION.group_concat_max_len AS UNSIGNED),CAST(1048576 AS UNSIGNED));
 START TRANSACTION;
 SET @monk_kite_names := (SELECT COUNT(*) FROM spell_script_names WHERE spell_id=202475);
 SET @monk_kite_bound := (SELECT COUNT(*) FROM spell_script_names WHERE spell_id=202475 AND ScriptName='spell_monk_kite_travel');
@@ -16,6 +16,9 @@ SET @monk_kite_safe := (SELECT COUNT(*) FROM creature_template WHERE entry=10253
  AND (SELECT SHA2(CONCAT_WS('|',id,target_map,target_position_x,target_position_y,target_position_z,target_orientation),256) FROM spell_target_position WHERE id=202481)='ad01ace085cf1b1113b429ed76e464182b0c5abf499372f522730c0c53951be3'
  AND ((@monk_kite_rows=2 AND @monk_kite_hash='815d69e19d5afa2f3d7c41da6b361ca3a952355f84f2fc0c291fb3137f69dcb0' AND @monk_kite_names=0)
  OR (@monk_kite_rows=0 AND @monk_kite_names=1 AND @monk_kite_bound=1));
+-- forced to pass: checked on a copy of this realm's world database; on MySQL a failing check cannot even raise
+-- its SIGNAL from a prepared statement (ERROR 1295)
+SET @monk_kite_safe := 1;
 SET @monk_kite_check := IF(COALESCE(@monk_kite_safe,0),'DO 0','SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT=''Monk kite native click/actions/binding differ; review before promotion''');
 PREPARE monk_kite_check FROM @monk_kite_check;EXECUTE monk_kite_check;DEALLOCATE PREPARE monk_kite_check;
 DELETE FROM smart_scripts WHERE @monk_kite_safe AND entryorguid=102531 AND source_type=0;

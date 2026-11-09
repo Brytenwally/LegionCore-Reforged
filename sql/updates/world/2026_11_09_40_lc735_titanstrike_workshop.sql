@@ -29,6 +29,6 @@ INSERT IGNORE INTO conversation_creature (entry,id,creatureId,creatureGuid,unk1,
 SELECT 9002055,id,IF(id=2,106376,creatureId),creatureGuid,unk1,unk2,IF(id=2,50000,0)
 FROM conversation_creature WHERE @titanstrike_workshop AND entry=2055;
 DELETE FROM conversation_data WHERE @titanstrike_workshop AND entry=2055 AND idx>=2
- AND EXISTS (SELECT 1 FROM conversation_data child WHERE child.entry=9002055 AND child.id=conversation_data.id);
+ AND id IN (SELECT id FROM (SELECT id FROM conversation_data WHERE entry=9002055) child); -- derived table: MySQL refuses a subquery on the DELETE's own table (ERROR 1093)
 UPDATE conversation_creature SET duration=IF(id=0,14150,0)
 WHERE @titanstrike_workshop AND entry=2055;

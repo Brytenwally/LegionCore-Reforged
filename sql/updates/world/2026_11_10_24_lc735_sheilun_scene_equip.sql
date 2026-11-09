@@ -5,7 +5,7 @@
 -- Its terminal completion requests202438 for an already owned128937.
 -- Physical pickup, original grants and return are separate unresolved work.
 SET @sheilun_scene_concat=@@SESSION.group_concat_max_len;
-SET SESSION group_concat_max_len=GREATEST(@sheilun_scene_concat,1048576);
+SET SESSION group_concat_max_len=GREATEST(CAST(@sheilun_scene_concat AS UNSIGNED),CAST(1048576 AS UNSIGNED));
 START TRANSACTION;
 SET @sheilun_scene_spell_scene=(SELECT SHA2(COALESCE(GROUP_CONCAT(CONCAT_WS('|',COALESCE(CAST(`SceneScriptPackageID` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`MiscValue` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`PlaybackFlags` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`CustomDuration` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`ScriptName` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`comment` AS CHAR CHARACTER SET utf8mb4),'NULL')) ORDER BY `SceneScriptPackageID`,`MiscValue`,`PlaybackFlags`,`CustomDuration`,`ScriptName`,`comment` SEPARATOR '\n'),''),256) FROM spell_scene WHERE MiscValue=1192);
 SET @sheilun_scene_spell_scene_event=(SELECT SHA2(COALESCE(GROUP_CONCAT(CONCAT_WS('|',COALESCE(CAST(`MiscValue` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`Event` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`trigerSpell` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`MonsterCredit` AS CHAR CHARACTER SET utf8mb4),'NULL'),COALESCE(CAST(`comment` AS CHAR CHARACTER SET utf8mb4),'NULL')) ORDER BY `MiscValue`,`Event`,`trigerSpell`,`MonsterCredit`,`comment` SEPARATOR '\n'),''),256) FROM spell_scene_event WHERE MiscValue=1192);
