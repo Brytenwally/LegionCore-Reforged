@@ -305,6 +305,17 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   - C++: Recruit-a-Friend messages (`ReferAFriendHandler.cpp`, `.account raf` in `cs_account.cpp`), the rename log
     command (`cs_character.cpp`), Icecrown jousting trainers' gossip (`zone_icecrown.cpp`, garbled French defines).
   Checked: all five SQL files run (twice) on MariaDB against the affected base tables; the C++ compiles. Untested in game.
+  **Build #35 (owner, 2026-11-09): class messengers work; "plenty of quests" still blank.** They are not Russian:
+  no Russian is left in any quest text column (`[ÐÑ]` mojibake / Cyrillic: 0 quest rows), the fields are simply
+  empty. Follow-up `2026_11_09_00_quest_texts_english_tdb12.sql`: (1) fields TDB 735 could not fill, from
+  **TDB 1210.26091** (12.1, asset `TDB_full_1210.26091_2026_09_09.7z`; tag names from `git ls-remote --tags`, the
+  releases pages are blocked here but asset downloads work): 229 quests, 71 reward, 55 progress, 98 objective texts;
+  (2) **upstream's frFR rows often held the English text** (no translation made), so the frFR clean-up had dropped
+  English that existed nowhere else: those rows' English goes into fields still empty (525 quest fields, 281
+  objectives; mangled breaks "...nnWhen" -> `$B$B`; 5 real French lines translated by hand). Blank titles: 9,820 ->
+  90. ~8,900 quests keep no description: hidden trackers, bonus objectives, turn-in-only quests (Lunar Festival
+  elders, Candy Buckets, champions) whose only text is the reward text; no source has more.
+  **The client caches quest texts** (`Cache/WDB/enUS`): quests it saw blank stay blank until that folder is deleted.
   Tools for next time: the base dumps are one `INSERT` per table per line; a small parser of those lines (values in
   parentheses, MySQL escapes) answers most data questions without a database.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
