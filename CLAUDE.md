@@ -12,7 +12,8 @@ Full features take months; the owner wants baby steps, one working milestone at 
 
 ## Owner's decisions so far
 
-- **Reforged is the base.** No commits from LegionCore-7.3.5 are brought in for now.
+- **Reforged is the base.** LegionCore-7.3.5's work is ported into it phase by phase (rewritten / merged here, no
+  cherry-picks of its history), per the next point.
 - **Started 2026-11-09** (owner: "map all the features they implemented that our core hasn't and implement as
   many as possible", in steps): bringing over LegionCore-7.3.5's work since the leak. The map, the phases and the
   method are in `docs/legioncore-735-port.md`; `docs/legioncore-735-files.tsv` lists every changed C++ file with its
