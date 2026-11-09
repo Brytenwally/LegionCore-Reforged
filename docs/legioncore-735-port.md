@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -291,7 +291,8 @@ All three routes "client traversal pending" in LegionCore-7.3.5's audits. SQL `2
 - **Holy, T'uure**: `Tuure.cpp` merged three-way (3 conflicts, all where Reforged had made the same compile fixes:
   LegionCore-7.3.5's side taken), `instance_tuure.cpp` (CLEAN), new `Tuure.h`; core: Opening (3365) on T'uure's cage
   goober dispatches its gossip script after the lock check (`Spell::EffectOpenLock`), `WaypointMovementGenerator::
-  GetPathId`; SQL the Devourer's native pickup, scene equip, native pickup, contact credit (`_50`-`_53`).
+  GetPathId`; SQL scene equip, native pickup, contact credit (`_51`-`_53`); `_50` (the Devourer's native pickup) is the rogue's
+  Fangs of the Devourer, shipped here by mistake of grouping: harmless, it is listed again under 3.9.
 - **Discipline, Light's Wrath** (Nexus Vault, shared pickup ported with the mage): the takeover
   (`lights_wrath_takeover.h`, `npc_lights_wrath_takeover` replaces actor 104985's SmartAI) and its chest lifetime (`_54`,
   `_55`); Azuregos' Scion guards anchored on him and the priest healing phase after the real Scion clear (`_57`, `_58`).
@@ -300,3 +301,18 @@ All three routes "client traversal pending" in LegionCore-7.3.5's audits. SQL `2
   LegionCore-7.3.5's.
 - **Death Knight Blood leftover**: Sliver's departure callback (map 1489, scenario 940; `_56`).
 - `port_lc735_sql.py` now also recognises `SET @x_guard := IF(` guards.
+
+## Phase 3.9: Rogue (2026-11-09)
+
+SQL `2026_11_10_59..68_lc735_*` (and `_50`, the Devourer pickup, shipped with 3.8).
+- **Outlaw, Dreadblades** and the **Nexus** instance (map 1583, mage / priest / rogue): `Dreadblades.cpp`,
+  `instance_class_art_scenarios.cpp` (CLEAN: taken), new `bilaal_death.h`, `bilaal_portal.h`: Nexus-Prince Bilaal's true
+  death handed to the instance (`CreatureDies`), his portal arrival; SQL the Dreadblades pickup, Bilaal's three health
+  thresholds with the retry flag (`_60`, forced: rows of the expected shape), his death rows moved to the instance (`_61`,
+  forced: the two death rows it deletes exist as expected), the portal arrival (`_62`).
+- **Assassination, Kingslayers**: `Kingslayers.cpp` merged three-way (2 conflicts, the same `MoveJump` fixes: LegionCore-
+  7.3.5's side), new `kingslayers_return.h`; SQL native pickup and accepted return (`_63`, `_64`).
+- **Subtlety, Fangs of the Devourer**: `Devourer.cpp` (CLEAN); the rogue campaign's Dalaran intel: Valzuun
+  (`valzuun_intel.h`, `npc_valzuun_intel` in `artifact_acquisition.cpp`; password dispatch and full intel `_66`, `_68`),
+  Desmond's native search (`_67`), Modera's facing messages (`_65`). Forced where only `creature_text` /
+  `quest_objectives` differed.

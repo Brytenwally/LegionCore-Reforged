@@ -16,6 +16,7 @@
  *  - Monk (phase 3.6): the monk scene equips (MonkArtifactScene) and the kite travel (monk_kite_travel.h).
  *  - Priest (phase 3.8): Xal'atath (Farthing, soul attacks, presentation, pickup) and the Light's Wrath takeover
  *    (lights_wrath_takeover.h).
+ *  - Rogue (phase 3.9): Valzuun's intel (valzuun_intel.h).
  * The other classes' pieces come with their phases (docs/legioncore-735-port.md).
  */
 
@@ -1891,6 +1892,7 @@ public:
 #include "monk_kite_travel.h"
 #include "lights_wrath_takeover.h"
 #include "lights_wrath_pickup.h"
+#include "valzuun_intel.h"
 
 void AddSC_artifact_acquisition()
 {
@@ -1934,6 +1936,7 @@ void AddSC_artifact_acquisition()
     RegisterCreatureAI(npc_xalatath_soul_attack);
     new scene_xalatath_pickup();
     new go_xalatath_pickup();
+    RegisterCreatureAI(npc_valzuun_intel);
     new scene_frost_artifact_equipment();
     new scene_blood_artifact_equipment();
 }

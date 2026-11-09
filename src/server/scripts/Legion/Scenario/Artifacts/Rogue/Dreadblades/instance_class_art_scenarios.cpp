@@ -4,6 +4,16 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "Player.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "TemporarySummon.h"
+#include "Group.h"
+#include "ObjectAccessor.h"
+#include "GameObject.h"
+#include "SmartScriptMgr.h"
+#include "bilaal_death.h"
+#include "bilaal_portal.h"
 
 //rogue dreadblades 1545
 struct instance_dreadblades : public InstanceScript
@@ -64,6 +74,19 @@ struct instance_violethold_mage : public InstanceScript
 struct instance_priest_mage_nexus_art : public InstanceScript
 {
     instance_priest_mage_nexus_art(InstanceMap* map) : InstanceScript(map) {}
+
+    BilaalDeath::State bilaal;
+    BilaalPortal::State portal;
+    void CreatureDies(Creature* creature, Unit* killer) override { bilaal.Death(instance, creature, killer); }
+    void SetGuidData(uint32 type, ObjectGuid guid) override
+    {
+        if (type == 104546) portal.Arrived(instance, bilaal, guid);
+    }
+    void Update(uint32 diff) override
+    {
+        bilaal.Update(instance, diff);
+        portal.Update(instance, bilaal, diff);
+    }
 
     WorldLocation loc_res_pla;
 
@@ -144,6 +167,12 @@ struct instance_ruins_of_falanaar_feral : public InstanceScript
     }
 };
 
+// Monk order hall introduction - map 1014, scenario 943
+struct instance_monk_intro : public InstanceScript
+{
+    instance_monk_intro(InstanceMap* map) : InstanceScript(map) { }
+};
+
 //116849
 struct npc_stormstout_brewer_q45404 : public ScriptedAI
 {
@@ -173,11 +202,12 @@ struct npc_stormstout_brewer_q45404 : public ScriptedAI
 
 void AddSC_instance_class_art_scenarios()
 {
-    RegisterInstanceScript(instance_dreadblades, 1583);
-    //RegisterInstanceScript(instance_violethold_mage, 1545);
+    RegisterInstanceScript(instance_dreadblades, 1545);
+    RegisterInstanceScript(instance_violethold_mage, 1494);
     RegisterInstanceScript(instance_priest_mage_nexus_art, 1583);
     RegisterInstanceScript(instance_nightborne_sunwell, 1840);
     RegisterInstanceScript(instance_faronaar_mage, 1616);
     RegisterInstanceScript(instance_ruins_of_falanaar_feral, 1612);
+    RegisterInstanceScript(instance_monk_intro, 1014);
     RegisterCreatureAI(npc_stormstout_brewer_q45404);
 }
