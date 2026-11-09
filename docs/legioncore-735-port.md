@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (`2026_10_29_24_artifact_boss_speakers`, `2026_10_30_20_artifact_combat_stories`, `_23_artifact_trash_voice`, `_24_artifact_owner_voice`...) are ported in one sweep after the last class | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (`2026_10_29_24_artifact_boss_speakers`, `2026_10_30_20_artifact_combat_stories`, `_23_artifact_trash_voice`, `_24_artifact_owner_voice`...) are ported in one sweep after the last class | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -213,3 +213,26 @@ claim, `go_marksmanship_pickup`), and 64 SQL files `2026_11_09_36..99_lc735_*` (
 2026_10_30_37: the hunter Dalaran invitation and intro, the three routes). 62 passed their guards verbatim on the
 database copy; Talonclaw's linked-cast retry (only adds flag 0x200 to two rows of the expected shape) and boarded
 departure (only `quest_objectives` differed: our English descriptions) are forced.
+
+## Phase 3.5: Mage (2026-11-09), plus Death Knight Frost leftovers
+
+All three routes are "client traversal pending" in LegionCore-7.3.5's audits. SQL `2026_11_10_00..14_lc735_*` (the
+`2026_11_09_` numbers ran out: `_100` would sort before `_11`).
+- **Arcane, Aluneth** (the Nexus Vault, scenario 1101 on map 1583, shared with the priest's Light's Wrath):
+  `ClassHalls/lights_wrath_pickup.h` (both routes' pickup: native presentation, accepted return, retry), registered in
+  `artifact_acquisition.cpp`; SQL: the shared Light's Wrath pickup admission and recovery (`_00`, `_01`), Aluneth's
+  pickup recovery and its first chest retried without replaying the introduction (`_02`, `_03`), Nexus artifact energy
+  to the killer's player when a pet or guardian kills (`_12`). The Light's Wrath **takeover** (`lights_wrath_takeover.h`,
+  LegionCore-7.3.5 `2026_10_27_04`) waits for the Priest step. Reforged has no `Aura::GetAllDuration` (elapsed time):
+  the header uses max minus remaining duration, the same for its never-refreshed 9 s aura.
+- **Fire, Felo'melorn** (11997 "The Frozen Flame", scenario 957 on map 1480): chest 247494 linked to its loot (`_05`);
+  scene 1125 equips the owned blade through 196020 (`_06`, `FireArtifactScene` in `artifact_acquisition.cpp`); Lyandra's
+  80 % / 20 % attacks were stored as combat timers, now health events with the threshold retry (`_07`); Aethas' battle
+  intro only in the boss step (`_08`); Aethas' return recovery (`fire_return_recovery.h`: `npc_fire_artifact_aethas`,
+  `player_fire_artifact_return`, `_09`); the Iceborn conjurer's death story for pet owners (`_13`).
+- **Frost, Ebonchill**: Meryl's sixth ambush choice gets its Legion Jailer wave (`_04`).
+- **Death Knight Frost (missed in 3.1, same map 1480)**: Halahk's and the three Frost souls' presentation for pet owners
+  (`_10`, `_11`) and Halahk's malformed combat link (`_14`).
+- On the database copy: `_00`-`_05`, `_08`, `_09` passed verbatim (after their predecessors); forced: `_06`, `_10`, `_11`,
+  `_12`, `_14` (only `creature_text` / `quest_objectives` / quest texts differed: broadcast ids and our English), `_07` and
+  `_13` (one or two rows changed, of exactly the expected event / action / target shape).
