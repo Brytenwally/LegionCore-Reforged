@@ -1936,6 +1936,21 @@ void Spell::EffectJumpDest(SpellEffIndex effIndex)
     uint32 triggered_spell_id = m_spellInfo->GetEffect(effIndex, m_diffMode)->TriggerSpell;
     std::unique_ptr<DelayCastEvent> delayCast(GetSpellTriggerDelay(effIndex, triggered_spell_id));
 
+    // The New Blood: the smash spells use a script-provided landing; without it TARGET_DEST_NEARBY_ENTRY resolves to
+    // the caster and the party jumps in place (LegionCore-7.3.5: the escape path's landing)
+    if (m_caster->GetMapId() == 1522)
+        switch (m_spellInfo->Id)
+        {
+            case 199166: // player
+            case 199162: // council / Calydus
+            case 199189:
+            case 199191:
+                destTarget->Relocate(3090.2f, 992.214f, 257.026f);
+                break;
+            default:
+                break;
+        }
+
     // Init dest coordinates
     float x, y, z, o = 0.0f;
     destTarget->GetPosition(x, y, z);
@@ -2148,6 +2163,10 @@ void Spell::EffectTeleportUnits(SpellEffIndex effIndex)
     {
         if (uint32 customLoadingScreenId = m_spellInfo->GetEffect(effIndex, m_diffMode)->MiscValue)
             player->SendDirectMessage(WorldPackets::Misc::CustomLoadScreen(m_spellInfo->Id, customLoadingScreenId).Write());
+
+        // The New Blood returns to the area of its personal ritual: expire that attempt's portal / council first
+        if (m_spellInfo->Id == 196340 && player->GetMapId() == 1522)
+            player->CancelQuestObjects(40729);
 
         player->TeleportTo(mapid, x, y, z, orientation, unitTarget == m_caster ? TELE_TO_SPELL | TELE_TO_NOT_LEAVE_COMBAT : 0, m_spellInfo->Id);
     }
@@ -7005,6 +7024,12 @@ void Spell::EffectKnockBack(SpellEffIndex effIndex)
 
     if (unitTarget->IsPlayer())
         unitTarget->ToPlayer()->SetKnockBackTime(getMSTime());
+
+    // Jagganoth's knockback carries a self-targeted stun follow-up, applied after the movement: a stun first can
+    // suppress the knockback (LegionCore-7.3.5, The New Blood)
+    if (m_spellInfo->Id == 200011 && (m_caster->GetMapId() == 1220 || m_caster->GetMapId() == 1502))
+        if (uint32 followup = m_spellInfo->GetEffect(effIndex, m_diffMode)->TriggerSpell)
+            unitTarget->CastSpell(unitTarget, followup, true);
 }
 
 void Spell::EffectLeapBack(SpellEffIndex effIndex)

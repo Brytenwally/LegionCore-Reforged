@@ -4377,6 +4377,19 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
         return nullptr;
     }
 
+    // The New Blood's personal council actors are summoned directly by the player: bind them before InitSummon (their AI
+    // creates children at once); the scope then follows their summons and summoned gameobjects (LegionCore-7.3.5)
+    if (summoner && summoner->IsPlayer() && (GetId() == 1220 || GetId() == 1502))
+        switch (entry)
+        {
+            case 101456: case 98797: case 101454: case 101455: case 101457:
+            case 101460: // the jailer's forcecast 200032 is cast by the player
+                summoner->ToPlayer()->BindQuestObject(40729, summon);
+                break;
+            default:
+                break;
+        }
+
     // Sheilun's two kites (202828) install Tak-Tak while being added to the world, before IsSummonedBy: bind them here
     // so the accessory inherits the quest attempt's scope before its first create
     if (entry == 102648 && (GetId() == 1541 || GetId() == 1514) && summoner && summoner->IsPlayer())
@@ -4409,7 +4422,23 @@ TempSummon* Map::SummonCreature(uint32 entry, Position const& pos, SummonPropert
     if (viewersList)
         summon->AddPlayersInPersonnalVisibilityList(*viewersList);
 
+    if (entry == 101433 && summon->HasQuestObjectScope())
+    {
+        // the model's 13 s Birth sequence assembles The New Blood's portal: in the create packet, before the client sees Stand
+        summon->SetAnimKitId(1254); // full-body ANIM_BIRTH
+        summon->SetDisableGravity(true);
+        summon->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, 0); // enabled when built
+    }
     AddToMap(summon->ToCreature());
+    if (entry == 101456 && summon->HasQuestObjectScope())
+    {
+        // the legacy 1220 ritual uses static fire markers: this attempt gets its own copies at the same positions
+        std::list<Creature*> markers;
+        summon->GetCreatureListWithEntryInGrid(markers, 35845, 50.0f);
+        for (Creature* marker : markers)
+            if (!marker->isSummon())
+                summon->SummonCreature(35845, marker->GetPosition(), TEMPSUMMON_MANUAL_DESPAWN);
+    }
     summon->InitSummon();
     //summon->CastPetAuras(true);
 

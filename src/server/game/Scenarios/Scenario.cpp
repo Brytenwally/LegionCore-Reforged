@@ -423,7 +423,9 @@ void Scenario::Reward(bool bonus, uint32 rewardStep)
     if (!pvpMap && !map)
         return;
 
-    Quest const* quest = sQuestDataStore->GetQuestTemplate(steps[rewardStep]->RewardQuestID);
+    // Scenario 962 ends at the gateway, but its quest is turned in to Calydus in Dalaran; Stormheim missions 824 / 826 keep
+    // their choice rewards (LegionCore-7.3.5): no automatic scenario reward for them
+    Quest const* quest = scenarioId == 962 || scenarioId == 824 || scenarioId == 826 ? nullptr : sQuestDataStore->GetQuestTemplate(steps[rewardStep]->RewardQuestID);
 
     if (pvpMap)
     {

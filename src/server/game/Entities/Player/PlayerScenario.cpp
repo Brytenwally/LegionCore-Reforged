@@ -207,3 +207,29 @@ bool Player::ExitCompletedSheilunLogin()
     TC_LOG_INFO("entities.player", "Sheilun: login returns artifact owner %u to the native Mistweaver exit", GetGUIDLow());
     return true;
 }
+
+// Dark Riders (warlock, 40623, scenario 988 on map 1533): a completed scenario keeps no checkpoint, but the final
+// chest's saved claim proves the run reached its end: a refused login returns the player to the outdoor quest ender
+// (Revil) instead of the homebind (LegionCore-7.3.5)
+bool Player::ExitCompletedDarkRidersLogin()
+{
+    if (GetMapId() != 1533 || getClass() != CLASS_WARLOCK ||
+        (m_scenarioLoginId && m_scenarioLoginId != 988) || IsQuestRewarded(40623) ||
+        (GetQuestStatus(40623) != QUEST_STATUS_INCOMPLETE && GetQuestStatus(40623) != QUEST_STATUS_COMPLETE) ||
+        GetQuestObjectiveData(40623, 103473) < 1)
+        return false;
+
+    CreatureData const* revil = sObjectMgr->GetCreatureData(373228);
+    if (!revil || revil->id != 100812 || revil->mapid != 0 || !revil->PhaseID.empty() ||
+        !MapManager::IsValidMapCoord(revil->mapid, revil->posX, revil->posY, revil->posZ, revil->orientation))
+        return false;
+
+    if (!TeleportTo(revil->mapid, revil->posX, revil->posY, revil->posZ, revil->orientation))
+        return false;
+
+    m_scenarioResume = {};
+    m_scenarioLoginId = m_scenarioLoginInstance = 0;
+    SetScenarioId(0);
+    TC_LOG_INFO("entities.player", "Dark Riders: completed scenario login returns player %u to outdoor Revil", GetGUIDLow());
+    return true;
+}

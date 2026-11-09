@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -328,3 +328,34 @@ SQL `2026_11_10_59..68_lc735_*` (and `_50`, the Devourer pickup, shipped with 3.
 - **Maelstrom** (scenario 1038): the wave producer is no longer called as a link from the interaction row
   (`2026_11_10_69`, forced: only `creature_text` differed).
 - Doomhammer and the Fist of Ra-den have no LegionCore-7.3.5 changes beyond the class spells (phase 4).
+
+## Phase 3.11: Warlock (2026-11-09)
+
+SQL `2026_11_10_75..99` and `2026_11_11_00..06` (`_lc735_*`); the port tool now refuses an index above 99.
+- **The New Blood** (the warlock class hall introduction, 40729, scenario 962 on map 1522; also maps 1220 / 1502):
+  `new_blood.cpp` (new), `spell_gen_new_blood_imprisoned` (the jailer is no longer chained with his captive); core: the
+  council actors, portal (101433, its Birth animation in the create packet) and ritual fire markers bound to the quest
+  attempt (`Map::SummonCreature`), abandoning the quest resets the run (`Player::ResetNewBloodQuest`: tome, auras, the
+  non-permanent bind, back to Dalaran), the return teleport (196340) cancels the attempt's objects, a login restores the
+  scenario selector before the map is made (quest status loaded early for this case) and a fresh instance restarts at
+  the prison, the smash spells' landing, Jagganoth's knockback stun after the movement, the rescue spellclick (195039)
+  ignores the council's immunity, the ritual objective shown before the escape (`QuestDef`, presentation order only),
+  no automatic scenario reward for 962 (and Stormheim missions 824 / 826) since the quest is turned in to Calydus; SQL
+  `_76`-`_89`.
+- **An Eye for a Scepter** (43153, scenario 1155 on map 1630): login restores the selector, a fresh instance starts at the
+  entry spell's destination; SQL scenario sequence (`_91`).
+- **Dark Whispers** (Demonology, Skull of the Man'ari): `ClassHalls/dark_whispers_artifact.cpp` (new); SQL `_94`-`_99`.
+- **Ritual Ruination** and its reagents: `ritual_ruination.cpp` (new); SQL `_90`, `_92`, `2026_11_11_00`.
+- **Dreadscar**: `ClassHalls/dreadscar_followup.cpp` (new); SQL claim and plans (`_77`, `_93`).
+- **Ulthalesh** (Dark Riders, shared with the death knight, ported in 3.1): the login exit deferred from phase 2 —
+  a refused login into the completed scenario returns the warlock to Revil outdoors (`ExitCompletedDarkRidersLogin`).
+- The warlock's Dalaran offer, artifact choice (Calydus' panel conditions, the filter ported in 3.4), Affliction choice,
+  artifact map and arsenal breadcrumb (`2026_11_11_01..05`); the Dalaran class introduction (`_75`, all classes);
+  Sothozz's emergence conversation to the controlling player (`2026_11_11_06`, forced: text only).
+- **Engine fixes found on the way**: gossip options requiring a secondary NPC flag (missions, work orders, recruiter,
+  class hall upgrades) are checked against `UNIT_FIELD_NPC_FLAGS2` (both words in one 64-bit value; Reforged had worked
+  around missions and work orders only), and `UNIT_NPC_FLAG2_CLASS_HALL_UPGRADE` is 0x200 (it had the recruiter's 0x100);
+  artifact items cannot be destroyed by the player even if an item override drops their no-destroy flag. Reforged had
+  already fixed the Enslave Demon crash and the vehicle join events itself.
+- Not here: the warlock legendary refund and pet healing files and the pet regeneration change (class mechanics, phase 4).
+- All 32 SQL files passed verbatim on the database copy except Sothozz (text only).

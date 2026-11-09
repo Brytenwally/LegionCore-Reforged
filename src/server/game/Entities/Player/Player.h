@@ -2021,6 +2021,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void BindQuestObject(uint32 questId, WorldObject* object);
         std::shared_ptr<std::atomic<bool> const> GetQuestCancellationReceipt(uint32 questId);
         void CancelQuestObjects(uint32 questId);
+        void ResetNewBloodQuest();
         void RemoveRewardedQuest(uint32 quest_id);
         QuestGiverStatus GetQuestDialogStatus(Object* questGiver);
 
@@ -3320,6 +3321,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         // protection); that system is not ported (phase 7), so no arrival is ever held here
         bool IsMapObjectArrivalProtected() const { return false; }
         bool ExitCompletedSheilunLogin();
+        bool ExitCompletedDarkRidersLogin();
 
         // Adventures.
         uint16 getAdventureQuestID();

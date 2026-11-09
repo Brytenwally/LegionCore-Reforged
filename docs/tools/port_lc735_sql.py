@@ -21,6 +21,7 @@ for name in sys.argv[3:]:
     hdr = ("-- Ported from Brytenwally/LegionCore-7.3.5 sql/updates/world/%s (2026-11-09).\n" % name +
            ("-- Its hash guard is forced to pass (a mismatch would SIGNAL and stop the updater); checked beforehand on a\n"
             "-- copy of this realm's world database: only unrelated columns differed.\n" if guards else ""))
+    assert idx <= 99, "index %d: the updater sorts by name (_100 before _11); use the next day's prefix" % idx
     out = "%s_%02d_lc735_%s" % (prefix, idx, re.sub(r'^\d{4}_\d{2}_\d{2}_\d+_', '', name))
     open(OUT + out, 'w', encoding='utf8', newline='\n').write(hdr + s)
     print(out, 'guards:', guards)

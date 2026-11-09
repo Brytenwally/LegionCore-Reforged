@@ -8410,8 +8410,32 @@ class spell_iron_demolisher_cannon_blast : public SpellScript
     }
 };
 
+// 200033 - The New Blood: the jailer channels, the captive is imprisoned.
+class spell_gen_new_blood_imprisoned : public SpellScript
+{
+    PrepareSpellScript(spell_gen_new_blood_imprisoned);
+
+    void FilterCaster(WorldObject*& target)
+    {
+        Unit* caster = GetCaster();
+        // Native effects 0/1 include both caster and selected target. Applying
+        // their stun/visual aura to the jailer wraps him in the captive's chains.
+        // Retain the explicit captive and the spell's native channel visual.
+        if (target == caster && caster->GetEntry() == 101460 &&
+            (caster->GetMapId() == 1220 || caster->GetMapId() == 1502))
+            target = nullptr;
+    }
+
+    void Register() override
+    {
+        OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_gen_new_blood_imprisoned::FilterCaster, EFFECT_0, TARGET_UNIT_CASTER);
+        OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_gen_new_blood_imprisoned::FilterCaster, EFFECT_1, TARGET_UNIT_CASTER);
+    }
+};
+
 void AddSC_generic_spell_scripts()
 {
+    RegisterSpellScript(spell_gen_new_blood_imprisoned);
 //    new spell_gen_protect();
     new spell_sha_cloud();
     new spell_endurance_of_niuzao();

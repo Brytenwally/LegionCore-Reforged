@@ -18094,10 +18094,12 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
     if (menuItemBounds.first == menuItemBounds.second && menuId == GetDefaultGossipMenuForSource(source))
         menuItemBounds = sGossipDataStore->GetGossipMenuItemsMapBounds(0);
 
-    uint32 npcflags = 0;
+    uint64 npcflags = 0;
     if (source->IsCreature())
     {
-        npcflags = source->GetUInt32Value(UNIT_FIELD_NPC_FLAGS);
+        // both flag words, kept distinct: a secondary service bit is never admitted by a primary flag of the same value
+        npcflags = uint64(source->GetUInt32Value(UNIT_FIELD_NPC_FLAGS)) |
+            (uint64(source->GetUInt32Value(UNIT_FIELD_NPC_FLAGS2)) << 32);
 
         if (npcflags & UNIT_NPC_FLAG_QUESTGIVER && showQuests)
             PrepareQuestMenu(source->GetGUID());
@@ -18117,8 +18119,7 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
         {
             GossipOptionNpc optionNpc = itr->second.OptionNpc;
 
-            // the mission and work order flags live in the second flag word, which npcflags does not hold
-            if (optionNpc != GossipOptionNpc::GarrisonMission && optionNpc != GossipOptionNpc::ShipmentCrafter && !(GossipMenu::GetRequiredNpcFlagForOption(optionNpc) & npcflags))
+            if (!(GossipMenu::GetRequiredNpcFlagForOption(optionNpc) & npcflags))
                 continue;
 
             // HACK: disable dual spec
@@ -20605,6 +20606,33 @@ void Player::CancelQuestObjects(uint32 questId)
     }
 }
 
+// abandoning The New Blood resets its introduction run (LegionCore-7.3.5)
+void Player::ResetNewBloodQuest()
+{
+    // this unique encounter item belongs to the abandoned run; left behind, the archive's next loot window is empty
+    if (uint32 tomeCount = GetItemCount(132512, true))
+        DestroyItemCount(132512, tomeCount, true);
+    if (GetScenarioId() == 962)
+        SetScenarioId(0);
+    InterruptNonMeleeSpells(true, 199966); // ritual channel only
+    for (uint32 spell : {199966u, 199967u, 200033u, 204833u, 196229u, 199362u, 199338u, 195045u, 195066u, 195068u, 199195u})
+        RemoveAurasDueToSpell(spell);
+
+    // do not reset a shared map or the later Heart of the Dreadscar scenario: release only this player's non-permanent
+    // binding to the introduction instance
+    bool inIntroduction = false;
+    if (GetMapId() == 1522)
+        if (Scenario* scenario = sScenarioMgr->GetScenario(GetInstanceId()))
+            inIntroduction = scenario->GetScenarioId() == 962;
+    if (InstancePlayerBind* bind = GetBoundInstance(1522, DIFFICULTY_NORMAL))
+        if (!bind->perm)
+            if (Scenario* scenario = sScenarioMgr->GetScenario(bind->save->GetInstanceId()))
+                if (scenario->GetScenarioId() == 962)
+                    UnbindInstance(1522, DIFFICULTY_NORMAL);
+    if (inIntroduction)
+        TeleportTo(1502, -851.0f, 4449.0f, 695.99f, 4.22f);
+}
+
 void Player::RemoveActiveQuest(uint32 quest_id)
 {
     if (!sQuestDataStore->GetQuestTemplate(quest_id))
@@ -22586,6 +22614,26 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
                     instanceId = 0;
     }
 
+    // The New Blood (40729, scenario 962 on map 1522) and An Eye for a Scepter (43153, scenario 1155 on map 1630) need
+    // their quest status before CreateMap picks the scenario (LegionCore-7.3.5); it is then not loaded a second time
+    bool scenarioQuestStatusLoaded = (mapId == 1522 || mapId == 1630) && getClass() == CLASS_WARLOCK;
+    if (scenarioQuestStatusLoaded)
+    {
+        _LoadQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADQUESTSTATUS));
+        if (!m_scenarioLoginId && mapId == 1522 && GetQuestStatus(40729) == QUEST_STATUS_INCOMPLETE)
+        {
+            Scenario* introduction = sScenarioMgr->GetScenario(instanceId);
+            if (!introduction || introduction->GetScenarioId() == 962)
+                SetScenarioId(962);
+        }
+        if (!m_scenarioLoginId && mapId == 1630 && GetQuestStatus(43153) == QUEST_STATUS_INCOMPLETE)
+        {
+            Scenario* scepter = sScenarioMgr->GetScenario(instanceId);
+            if (!scepter || scepter->GetScenarioId() == 1155)
+                SetScenarioId(1155);
+        }
+    }
+
     // NOW player must have valid map
     // load the player's map here if it's not already loaded
     Map* map = m_scenarioLoginInstance ? sMapMgr->FindMap(mapId, m_scenarioLoginInstance) : nullptr;
@@ -22778,10 +22826,44 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
     // after spell load, learn rewarded spell if need also - test on achievements
     _LoadSpellRewards();
     // after rewarded spell load various quest statuses
-    _LoadQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADQUESTSTATUS));
+    if (!scenarioQuestStatusLoaded)
+        _LoadQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADQUESTSTATUS));
     _LoadQuestStatusObjectives(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_OBJECTIVES));
     RemoveStrayAshranTasks();
     _LoadQuestStatusRewarded(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADQUESTSTATUSREW));
+    // The New Blood's scenario selector is transient: restore it before login adds the player to map 1522 (also used by
+    // the later order hall scenario). A new instance has no saved criteria or actors: restart at the prison arrival.
+    bool restartNewBloodAtPrison = false;
+    if ((!m_scenarioLoginId || m_scenarioLoginId == 962) && GetMapId() == 1522 && getClass() == CLASS_WARLOCK && GetQuestStatus(40729) == QUEST_STATUS_INCOMPLETE && !IsQuestRewarded(40729))
+    {
+        Scenario* introduction = sScenarioMgr->GetScenario(GetInstanceId());
+        if (!introduction || introduction->GetScenarioId() == 962)
+        {
+            SetScenarioId(962);
+            if (!introduction)
+            {
+                restartNewBloodAtPrison = true;
+                Relocate(2959.64f, 1126.32f, 212.0f, 6.27446f);
+                TC_LOG_INFO("entities.player", "The New Blood: restoring player %u at the prison in a fresh scenario instance", GetGUIDLow());
+            }
+        }
+    }
+    // a live Scepter instance keeps its actors, criteria and position; a fresh one starts at the entry spell's destination
+    if ((!m_scenarioLoginId || m_scenarioLoginId == 1155) && GetMapId() == 1630 && getClass() == CLASS_WARLOCK && GetQuestStatus(43153) == QUEST_STATUS_INCOMPLETE && !IsQuestRewarded(43153))
+    {
+        Scenario* scepter = sScenarioMgr->GetScenario(GetInstanceId());
+        if (!scepter || scepter->GetScenarioId() == 1155)
+        {
+            SetScenarioId(1155);
+            if (!scepter)
+                if (SpellTargetPosition const* entrance = sSpellMgr->GetSpellTargetPosition(218595))
+                    if (entrance->target_mapId == GetMapId())
+                    {
+                        Relocate(entrance->target_X, entrance->target_Y, entrance->target_Z, entrance->target_Orientation);
+                        TC_LOG_INFO("entities.player", "An Eye for a Scepter: restoring player %u at the entrance in a fresh scenario instance", GetGUIDLow());
+                    }
+        }
+    }
     _LoadDailyQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADDAILYQUESTSTATUS));
     _LoadWeeklyQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADWEEKLYQUESTSTATUS));
     _LoadSeasonalQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADSEASONALQUESTSTATUS));
@@ -22831,6 +22913,10 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
 
     _LoadInventory(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADINVENTORY), holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_ARTIFACTS), time_diff);
     _LoadNotInventory(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADNOTINVENTORY), time_diff);
+
+    // a fresh prison restart drops the run's stale encounter tome (by entry: bags hide items not yet in the world)
+    if (restartNewBloodAtPrison)
+        DestroyItemCount(132512, std::numeric_limits<uint32>::max(), false);
 
     if (IsVoidStorageUnlocked())
         _LoadVoidStorage(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADVOIDSTORAGE), holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_VOIDSTORAGE_ITEM));

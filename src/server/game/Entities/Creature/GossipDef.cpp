@@ -219,22 +219,30 @@ uint64 GossipMenu::GetRequiredNpcFlagForOption(GossipOptionNpc optionNpc)
         case GossipOptionNpc::ArtifactRespec:
             requiredNpcFlag = UNIT_NPC_FLAG_ARTIFACT_POWER_RESPEC;
             break;
+        // secondary (UNIT_FIELD_NPC_FLAGS2) service flags sit in the high 32 bits (LegionCore-7.3.5, "Fix class hall gossip
+        // service admission"): before, they were compared against the first flag word and matched unrelated flags
         case GossipOptionNpc::GarrisonArchitect:
-            requiredNpcFlag = UNIT_NPC_FLAG2_GARRISON_ARCHITECT;
+            requiredNpcFlag = uint64(UNIT_NPC_FLAG2_GARRISON_ARCHITECT) << 32;
             break;
         case GossipOptionNpc::GarrisonMission:
-            requiredNpcFlag = UNIT_NPC_FLAG2_GARRISON_MISSION_NPC;
+            requiredNpcFlag = uint64(UNIT_NPC_FLAG2_GARRISON_MISSION_NPC) << 32;
             break;
         case GossipOptionNpc::ShipmentCrafter:
-            requiredNpcFlag = UNIT_NPC_FLAG2_SHIPMENT_CRAFTER;
+            // as Garrison::canAddShipmentOrder and the shipment handlers
+            requiredNpcFlag = uint64(UNIT_NPC_FLAG2_AI_OBSTACLE | UNIT_NPC_FLAG2_RECRUITER) << 32;
             break;
         case GossipOptionNpc::GarrisonTradeskill:
-            requiredNpcFlag = UNIT_NPC_FLAG2_TRADESKILL_NPC;
+            requiredNpcFlag = uint64(UNIT_NPC_FLAG2_TRADESKILL_NPC) << 32;
             break;
         case GossipOptionNpc::GarrisonRecruitment:
-        case GossipOptionNpc::AdventureMap:
+            requiredNpcFlag = uint64(UNIT_NPC_FLAG2_RECRUITER) << 32;
+            break;
         case GossipOptionNpc::GarrisonTalent:
-            requiredNpcFlag = UNIT_NPC_FLAG2_CLASS_HALL_UPGRADE;
+            requiredNpcFlag = uint64(UNIT_NPC_FLAG2_CLASS_HALL_UPGRADE) << 32;
+            break;
+        case GossipOptionNpc::AdventureMap:
+            // scouting maps use ordinary gossip, also before followers unlock the board's secondary mission flag
+            requiredNpcFlag = UNIT_NPC_FLAG_GOSSIP;
             break;
 //        case GossipOptionNpc::ContributionCollector:
 //            requiredNpcFlag = UNIT_NPC_FLAG_2_CONTRIBUTION_COLLECTOR;

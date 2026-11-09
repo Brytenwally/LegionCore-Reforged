@@ -967,7 +967,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder const& holder)
 
         bool const addedToLoginMap = player->GetMap()->AddPlayerToMap(player);
         bool const validLoginMap = addedToLoginMap && (player->GetMap()->IsGarrison() || player->CheckInstanceLoginValid());
-        if (!validLoginMap && !player->ExitCompletedSheilunLogin())
+        if (!validLoginMap && !player->ExitCompletedDarkRidersLogin() && !player->ExitCompletedSheilunLogin())
         {
             WorldLocation const& entryPoint = player->GetBattlegroundEntryPoint();
             if (AreaTriggerStruct const* at = sAreaTriggerDataStore->GetGoBackTrigger(player->GetMapId()))

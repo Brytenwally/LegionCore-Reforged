@@ -183,10 +183,18 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player, bool loginCheck)
         bool const brokenShoreIntro = mapid == 1460 && player->GetQuestStatus(introQuest) == QUEST_STATUS_INCOMPLETE;
         Map* current = player->GetMap();
         Scenario* scenario = current && current->GetId() == mapid ? sScenarioMgr->GetScenario(current->GetInstanceId()) : nullptr;
+        // the warlock's The New Blood and An Eye for a Scepter resume while their quest is unfinished (LegionCore-7.3.5);
+        // the scenario may already have consumed the selector, so the instance's own scenario counts too
+        bool const newBloodIntro = mapid == 1522 &&
+            ((scenario && scenario->GetScenarioId() == 962) || (!scenario && player->GetScenarioId() == 962)) &&
+            player->GetQuestStatus(40729) == QUEST_STATUS_INCOMPLETE;
+        bool const scepterQuest = mapid == 1630 && player->getClass() == CLASS_WARLOCK &&
+            ((scenario && scenario->GetScenarioId() == 1155) || (!scenario && player->GetScenarioId() == 1155)) &&
+            player->GetQuestStatus(43153) == QUEST_STATUS_INCOMPLETE && !player->IsQuestRewarded(43153);
         bool const recorded = scenario && scenario->GetMap() == current &&
             (!scenario->IsCompleted(false) || (scenario->GetScenarioId() == 1007 && player->HasPendingSheilunReturn())) &&
             player->CanResumeScenarioLogin(scenario->GetScenarioId());
-        if (!brokenShoreIntro && !recorded)
+        if (!brokenShoreIntro && !newBloodIntro && !scepterQuest && !recorded)
             return false;
     }
 

@@ -217,7 +217,33 @@ void Quest::LoadQuestObjective(Field* fields)
     obj.TaskStep = fields[8].GetFloat();
     obj.Description = fields[9].GetString();
     obj.Bugged = fields[10].GetBool();
-    Objectives.push_back(obj);
+    // StorageIndex is a save slot, not presentation order (LegionCore-7.3.5): The New Blood's ritual (slot 2) precedes its
+    // sequenced escape objective; Rescue Mission (40419) and 41105 show their story order. The slots, and so the
+    // characters' saved progress, are unchanged.
+    if (obj.QuestID == 40729 && obj.ID == 281139)
+        Objectives.insert(Objectives.begin(), obj);
+    else if (obj.QuestID == 40419)
+    {
+        uint32 const order[] = { 281309, 281978, 281310, 281311, 281980, 281574 };
+        auto rank = std::find(order, order + 6, obj.ID);
+        auto position = std::find_if(Objectives.begin(), Objectives.end(), [&](QuestObjective const& existing)
+        {
+            return std::find(order, order + 6, existing.ID) > rank;
+        });
+        Objectives.insert(position, obj);
+    }
+    else if (obj.QuestID == 41105)
+    {
+        uint32 const order[] = { 281862, 286343, 286344, 281863, 282354 };
+        auto rank = std::find(order, order + 5, obj.ID);
+        auto position = std::find_if(Objectives.begin(), Objectives.end(), [&](QuestObjective const& existing)
+        {
+            return std::find(order, order + 5, existing.ID) > rank;
+        });
+        Objectives.insert(position, obj);
+    }
+    else
+        Objectives.push_back(obj);
 
     // dont enable this before test in game - this data seems mostly related to location quest ( kill / destruct etc smthng in zone to get 100 % bar )
     /*for (QuestObjectiveEntry const* entry : sQuestObjectiveStore)

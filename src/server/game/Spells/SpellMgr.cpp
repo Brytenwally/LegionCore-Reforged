@@ -3688,6 +3688,13 @@ void SpellMgr::LoadSpellCustomAttr()
                     effect->MiscValue = 127;
     }
 
+    // The New Blood: the rescue interaction targets protected council NPCs; 195039 is friendly-targeted but lacks the
+    // assist exception, so spellclick failed on IMMUNE_TO_PC before reaching the rescue AI (LegionCore-7.3.5)
+    ApplySpellFix({195039}, [](SpellInfo* spellInfo)
+    {
+        spellInfo->GetMisc()->MiscData.Attributes[6] |= SPELL_ATTR6_ASSIST_IGNORE_IMMUNE_FLAG;
+    });
+
     // Cheat Death
     ApplySpellFix({45182}, [](SpellInfo* spellInfo)
     {
