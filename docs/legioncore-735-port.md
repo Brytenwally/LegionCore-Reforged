@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter done 2026-11-09** (see below) | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (`2026_10_29_24_artifact_boss_speakers`, `2026_10_30_20_artifact_combat_stories`, `_23_artifact_trash_voice`, `_24_artifact_owner_voice`...) are ported in one sweep after the last class | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -156,3 +156,19 @@ LegionCore-7.3.5's audits mark both routes "client traversal pending" (its devel
   so the summoned Horde warrior messenger never left when the quest was accepted. Complements the class hall messengers.
 - All four SQL files applied (and re-applied) on the database copy; the three LegionCore-7.3.5 guards passed verbatim
   (route, Twinblades) or were replaced (speakers). Compiled; untested in game.
+
+## Phase 3.3: Druid (2026-11-09)
+
+SQL only (LegionCore-7.3.5 changed no druid C++); its audits mark the routes "partial / client traversal pending".
+- **Balance, Scythe of Elune**: shares the Dark Riders scenario (988, map 1533) ported in 3.1; its chest 246437 is in
+  `go_artifact_acquisition` already.
+- **Guardian, Claws of Ursoc** (40647, scenario 990): chest 248853 linked to its loot, final-stage conditions
+  (`2026_11_09_29`); Malithar waits for his real Bear Form before his dialogue and the claw clean-up (`_33`, guard forced:
+  only `creature_text` differed, the broadcast text ids again); the trials' waves: each death credit is its own root
+  (links broken), a wave ends only when no Shadowstalker of it is left, and the "nobody left" checks look around the
+  dying creature, not its killer, with a unit killer required (`_34`, `_35`; guards forced: the hashed rows differed
+  from both of LegionCore-7.3.5's states while the rows they change have the expected events, links and conditions).
+- **Feral, Fangs of Ashamane** (42430, scenario 1108): chest 250386 linked (`_30`); scene 1282's completion casts the
+  equip spell 214715 (`spell_scene_event`, conditions: scenario 1108 step 6/7, quest, the Fangs in the bags) (`_31`).
+- **Restoration, G'Hanir** (41689, scenario 1061): chest 248499 linked, final-stage conditions (`_32`).
+- Applied on the database copy: the four loot / scene files verbatim (guards passed), the other three forced.

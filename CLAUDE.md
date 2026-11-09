@@ -353,6 +353,8 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   demon hunter 961 were one map with classless `scenario_data` rows: a warrior got the demon hunter's scenario), the
   Twinblades chest's loot link, Varedis' lines, a Vengeance intro flag, and the Dalaran class invitations for every class
   (`spell_area` end status 74 -> 1: the inviter now shows before the quest is taken). Compiled; untested in game.
+- **Phase 3.3 Druid** (2026-11-09, SQL only, details in the plan): Guardian, Feral and Restoration chests linked to
+  their loot, Feral's scene equip, Malithar's transform and the Guardian trial waves. Untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
