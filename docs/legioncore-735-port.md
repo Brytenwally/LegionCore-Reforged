@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -316,3 +316,15 @@ SQL `2026_11_10_59..68_lc735_*` (and `_50`, the Devourer pickup, shipped with 3.
   (`valzuun_intel.h`, `npc_valzuun_intel` in `artifact_acquisition.cpp`; password dispatch and full intel `_66`, `_68`),
   Desmond's native search (`_67`), Modera's facing messages (`_65`). Forced where only `creature_text` /
   `quest_objectives` differed.
+
+## Phase 3.10: Shaman (2026-11-09)
+
+- **Restoration, Sharas'dal** (map 1600): `Sharasdal.cpp`, `instance_sharasdal.cpp` (CLEAN: taken) and the new
+  `sharasdal_acquisition.h`, `_erunak_entry.h`, `_erunak_upper.h`, `_gauntlet_arrival.h`, `_lower_ascent.h`,
+  `_upper_wall.h` (Erunak, the ascent, the gauntlet, the acquisition, companions protected after damage scaling);
+  SQL `2026_11_10_70..74` (all passed verbatim). **Not yet**: LegionCore-7.3.5 guards the acquisition jump's arrival
+  (209683 -> 209684: cast only after a real landing on the same map, `MotionMaster::MoveJump` / `Spell::EffectJumpDest`);
+  that mechanism also serves the warrior's Skyhold and Strom'kar and is ported with 3.12, Sharas'dal's case included.
+- **Maelstrom** (scenario 1038): the wave producer is no longer called as a link from the interaction row
+  (`2026_11_10_69`, forced: only `creature_text` differed).
+- Doomhammer and the Fist of Ra-den have no LegionCore-7.3.5 changes beyond the class spells (phase 4).

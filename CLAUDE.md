@@ -377,6 +377,8 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   takeover and Azuregos, Sliver (DK Blood leftover). Compiled; untested in game.
 - **Phase 3.9 Rogue** (2026-11-09, details in the plan): Dreadblades and the Nexus instance (Bilaal), Kingslayers
   (merged), Fangs of the Devourer, Valzuun / Desmond / Modera intel. Compiled; untested in game.
+- **Phase 3.10 Shaman** (2026-11-09, details in the plan): Sharas'dal's scripts and SQL, the Maelstrom wave; the guarded
+  jump arrival comes with the warrior (3.12). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
