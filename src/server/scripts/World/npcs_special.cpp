@@ -4594,6 +4594,11 @@ class npc_dire_beast : public CreatureScript
                         {
                             if (Unit* _target = ObjectAccessor::GetUnit(*me, itr.first))
                             {
+                                // Stomp (199530): every newly summoned Dire Beast deals its
+                                // 7.3.5 DB2 area-damage spell as it charges into combat.
+                                if (owner->HasAura(199530))
+                                    me->CastSpell(me, 201754, true);
+
                                 AttackStart(_target);
                                 break;
                             }
@@ -4634,6 +4639,15 @@ class npc_wild_imp : public CreatureScript
                 if (me->GetOwner())
                     if (me->GetOwner()->getVictim())
                         AttackStart(me->GetOwner()->getVictim());
+            }
+
+            void JustDied(Unit* /*killer*/) override
+            {
+                // The Expendables: a Wild Imp's death inspires the warlock's
+                // remaining demons. Natural expiry is handled by TempSummon.
+                if (Unit* owner = me->GetAnyOwner())
+                    if (owner->HasAura(211219))
+                        owner->CastSpell(owner, 211218, true);
             }
 
             void UpdateAI(uint32 diff) override
@@ -7126,19 +7140,24 @@ struct npc_chi_ji : public ScriptedAI
 {
     npc_chi_ji(Creature* creature) : ScriptedAI(creature) {}
 
-    int32 delay = 1500;
+    uint32 delay = 1500;
 
     void UpdateAI(uint32 diff) override
     {
-        delay -= diff;
-        if (delay <= 0)
+        if (delay > diff)
         {
-            if (me->HasUnitState(UNIT_STATE_CASTING) || me->isMoving())
-                return;
-
-            me->CastSpell(me, 198764, false);
-            delay += 1500;
+            delay -= diff;
+            return;
         }
+
+        delay = 1500;
+        if (me->HasUnitState(UNIT_STATE_CASTING))
+            return;
+
+        // 198764 is only an empty client-side dummy. Legion Chi-Ji heals a
+        // nearby injured ally with the actual Crane Heal spell (198756).
+        if (Unit* target = DoSelectLowestHpFriendly(40.0f, 1))
+            me->CastSpell(target, 198756, false);
     }
 };
 

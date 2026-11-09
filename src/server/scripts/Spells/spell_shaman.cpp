@@ -23,9 +23,54 @@
 
 #include "ScriptMgr.h"
 #include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CellImpl.h"
+#include "ObjectVisitors.hpp"
 #include "Unit.h"
 #include "SpellScript.h"
 #include "SpellAuraEffects.h"
+#include "ScriptedCreature.h"
+#include "Containers.h"
+
+#include <set>
+
+namespace
+{
+enum ShamanTier21Spells
+{
+    SPELL_SHAMAN_EARTH_SHOCK              = 8042,
+    SPELL_SHAMAN_FROST_SHOCK              = 196840,
+    SPELL_SHAMAN_T21_ELEMENTAL_4P         = 251758,
+    SPELL_SHAMAN_T21_RESTORATION_2P       = 251764,
+    SPELL_SHAMAN_T21_EARTH_SHOCK_OVERLOAD = 252143,
+    SPELL_SHAMAN_T21_RAINFALL             = 252154,
+    SPELL_SHAMAN_T21_FROST_SHOCK_OVERLOAD = 256561
+};
+
+constexpr float HealingRainRadius = 10.0f;
+
+void GetTier21HealingRainTargets(Unit* caster, std::list<Player*>& targets)
+{
+    if (!caster || !caster->m_SummonSlot[17])
+        return;
+
+    Creature* rain = caster->GetMap()->GetCreature(caster->m_SummonSlot[17]);
+    if (!rain)
+        return;
+
+    rain->GetPlayerListInGrid(targets, HealingRainRadius);
+    targets.remove_if([caster](Player* player)
+    {
+        return !player || !player->IsAlive() || !caster->IsFriendlyTo(player) ||
+            player->IsFullHealth();
+    });
+
+    targets.sort([](Player const* left, Player const* right)
+    {
+        return left->GetHealthPct() < right->GetHealthPct();
+    });
+}
+}
 
 // Spirit Link - 98020 : triggered by 98017
 // Spirit Link Totem
@@ -107,6 +152,19 @@ class spell_sha_healing_rain : public SpellScriptLoader
                                 tempsummon->DespawnOrUnsummon(500);
                         }
                         caster->m_SummonSlot[17] = summon->GetGUID();
+
+                        if (AuraEffect const* bonus = caster->GetAuraEffect(
+                            SPELL_SHAMAN_T21_RESTORATION_2P, EFFECT_0))
+                        {
+                            std::list<Player*> targets;
+                            GetTier21HealingRainTargets(caster, targets);
+                            targets.resize(std::min<size_t>(targets.size(),
+                                std::max<int32>(bonus->GetAmount(), 0)));
+
+                            for (Player* target : targets)
+                                caster->CastSpell(target, SPELL_SHAMAN_T21_RAINFALL,
+                                    true, nullptr, bonus);
+                        }
                     }
                 }
             }
@@ -314,43 +372,6 @@ class spell_sha_chain_heal : public SpellScript
     }
 };
 
-// Astral Recall - 556
-class spell_sha_astral_recall : public SpellScriptLoader
-{
-    public:
-        spell_sha_astral_recall() : SpellScriptLoader("spell_sha_astral_recall") { }
-
-        class spell_sha_astral_recall_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_sha_astral_recall_SpellScript);
-
-            void HandleAfterCast()
-            {
-                Unit* caster = GetCaster();
-                if(!caster)
-                    return;
-
-                if (caster->HasAura(147787)) //Glyph of Astral Fixation
-                {
-                    if (Player::TeamForRace(caster->getRace()) == HORDE)
-                        caster->CastSpell(caster, 147902, true);
-                    else
-                        caster->CastSpell(caster, 147901, true);
-                }
-            }
-
-            void Register() override
-            {
-                AfterCast += SpellCastFn(spell_sha_astral_recall_SpellScript::HandleAfterCast);
-            }
-        };
-
-        SpellScript* GetSpellScript() const override
-        {
-            return new spell_sha_astral_recall_SpellScript();
-        }
-};
-
 // Glyph of Elemental Familiars - 148118
 class spell_sha_elemental_familiars : public SpellScriptLoader
 {
@@ -402,6 +423,21 @@ class spell_sha_cloudburst_totem : public SpellScriptLoader
         {
             PrepareAuraScript(spell_sha_cloudburst_totem_AuraScript);
 
+            void OnProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+            {
+                PreventDefaultAction();
+
+                HealInfo* healInfo = eventInfo.GetHealInfo();
+                if (!healInfo || !healInfo->GetHeal())
+                    return;
+
+                // 157503 EFFECT_1 releases 25% of all healing accumulated
+                // while the totem is active. Store the full effective-heal
+                // total here; OnRemove applies that DBC percentage once.
+                if (AuraEffect* storage = GetEffect(aurEff->GetEffIndex()))
+                    storage->ChangeAmount(storage->GetAmount() + healInfo->GetHeal());
+            }
+
             void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
             {
                 if (Unit* caster = GetUnitOwner())
@@ -416,6 +452,7 @@ class spell_sha_cloudburst_totem : public SpellScriptLoader
 
             void Register() override
             {
+                OnEffectProc += AuraEffectProcFn(spell_sha_cloudburst_totem_AuraScript::OnProc, EFFECT_0, SPELL_AURA_DUMMY);
                 OnEffectRemove += AuraEffectRemoveFn(spell_sha_cloudburst_totem_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
             }
         };
@@ -424,6 +461,151 @@ class spell_sha_cloudburst_totem : public SpellScriptLoader
         {
             return new spell_sha_cloudburst_totem_AuraScript();
         }
+};
+
+// Cloudburst - 157503. The stored heal is divided evenly between every
+// injured ally selected by the spell, rather than duplicated for each one.
+class spell_sha_cloudburst_heal : public SpellScript
+{
+    PrepareSpellScript(spell_sha_cloudburst_heal);
+
+    uint32 targetCount = 0;
+
+    void CountTargets(std::list<WorldObject*>& targets)
+    {
+        targets.remove_if([](WorldObject* object)
+        {
+            Unit* unit = object ? object->ToUnit() : nullptr;
+            return !unit || unit->IsFullHealth();
+        });
+
+        targetCount = uint32(targets.size());
+    }
+
+    void HandleHeal(SpellEffIndex /*effIndex*/)
+    {
+        if (targetCount)
+            SetHitHeal(GetHitHeal() / targetCount);
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_sha_cloudburst_heal::CountTargets, EFFECT_0, TARGET_UNIT_DEST_AREA_ALLY);
+        OnEffectHitTarget += SpellEffectFn(spell_sha_cloudburst_heal::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
+    }
+};
+
+// Ancestral Guidance - 108281
+class spell_sha_ancestral_guidance : public AuraScript
+{
+    PrepareAuraScript(spell_sha_ancestral_guidance);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* procSpell = eventInfo.GetSpell();
+        if (procSpell && procSpell->GetSpellInfo()->Id == 114911)
+            return false;
+
+        if (HealInfo* healInfo = eventInfo.GetHealInfo())
+            return healInfo->GetHeal() > 0;
+
+        return eventInfo.GetDamageInfo() && eventInfo.GetDamageInfo()->GetDamage() > 0;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        uint32 amount = eventInfo.GetHealInfo() ? eventInfo.GetHealInfo()->GetHeal() : eventInfo.GetDamageInfo()->GetDamage();
+        float heal = CalculatePct(amount, aurEff->GetAmount());
+        if (heal > 0.0f)
+            eventInfo.GetActor()->CastCustomSpell(eventInfo.GetActor(), 114911, &heal, nullptr, nullptr, true);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_ancestral_guidance::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_ancestral_guidance::HandleProc, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
+    }
+};
+
+// Ancestral Guidance heal - 114911
+class spell_sha_ancestral_guidance_heal : public SpellScript
+{
+    PrepareSpellScript(spell_sha_ancestral_guidance_heal);
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        targets.remove_if([](WorldObject* object)
+        {
+            Unit* unit = object ? object->ToUnit() : nullptr;
+            return !unit || unit->IsFullHealth();
+        });
+
+        Trinity::Containers::RandomResizeList(targets, 3);
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_sha_ancestral_guidance_heal::FilterTargets, EFFECT_0, TARGET_UNIT_DEST_AREA_ALLY);
+    }
+};
+
+// Restoration Ascendance - 114052
+class spell_sha_ascendance_restoration : public AuraScript
+{
+    PrepareAuraScript(spell_sha_ascendance_restoration);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        HealInfo* healInfo = eventInfo.GetHealInfo();
+        if (!healInfo || !healInfo->GetHeal())
+            return false;
+
+        if (Spell* procSpell = eventInfo.GetSpell())
+            return procSpell->GetSpellInfo()->Id != 114083;
+
+        return true;
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        float heal = float(eventInfo.GetHealInfo()->GetHeal());
+        eventInfo.GetActor()->CastCustomSpell(eventInfo.GetActor(), 114083, &heal, nullptr, nullptr, true);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_ascendance_restoration::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_ascendance_restoration::HandleProc, EFFECT_1, SPELL_AURA_PERIODIC_DUMMY);
+    }
+};
+
+// Restorative Mists - 114083
+class spell_sha_restorative_mists : public SpellScript
+{
+    PrepareSpellScript(spell_sha_restorative_mists);
+
+    uint32 targetCount = 0;
+
+    void CountTargets(std::list<WorldObject*>& targets)
+    {
+        targetCount = uint32(targets.size());
+    }
+
+    void HandleHeal(SpellEffIndex /*effIndex*/)
+    {
+        if (targetCount)
+            SetHitHeal(GetHitHeal() / targetCount);
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_sha_restorative_mists::CountTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ALLY);
+        OnEffectHitTarget += SpellEffectFn(spell_sha_restorative_mists::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
+    }
 };
 
 // Earth Shock - 8042
@@ -626,7 +808,9 @@ public:
 	}
 };*/
 
-// 188196 - Lightning bolt, 188443 - Chain Lightning, 114074 - Lava Beam
+// Mastery: Elemental Overload - 168534
+// 188196 - Lightning Bolt, 188443 - Chain Lightning, 114074 - Lava Beam,
+// 51505 - Lava Burst, 117014 - Elemental Blast, 210714 - Icefury
 class spell_sha_elemental_overload : public SpellScriptLoader
 {
 public:
@@ -636,93 +820,53 @@ public:
 	{
 		PrepareSpellScript(spell_sha_elemental_overload_SpellScript)
 
-			void HandleDamage()
+		void HandleCast()
 		{
-			if (Unit * caster = GetCaster())
+			Unit* caster = GetCaster();
+			Unit* target = GetExplTargetUnit();
+			SpellInfo const* spellInfo = GetSpellInfo();
+			if (!caster || !target || !spellInfo)
+				return;
+
+			AuraEffect const* mastery = caster->GetAuraEffect(168534, EFFECT_0);
+			if (!mastery)
+				return;
+
+			uint32 overloadSpell = 0;
+			switch (spellInfo->Id)
 			{
-				if (Unit * hitTarget = GetHitUnit())
-				{
-					if (Player * plr = caster->ToPlayer())
-					{
-						if (Unit * selectedUnit = plr->GetSelectedUnit())
-						{
-							if (const SpellInfo * spellInfo = GetSpellInfo())
-							{
-								if (selectedUnit != hitTarget || spellInfo->Id == 188196)
-								{
-									if (Aura * aur = caster->GetAura(205495)) //Stormkeeper
-									{
-										switch (spellInfo->Id)
-										{
-										case 188196:
-										{
-											if (aur->GetCharges() >= 2)
-											{
-												std::list<Unit*> targets;
-												hitTarget->GetAttackableUnitListInRange(targets, 10);
-												for (auto target : targets)
-													if (target != hitTarget)
-														caster->CastSpellDelay(target, 45284, true, 500);
-											}
-											break;
-										}
-										case 188443:
-										{
-											if (aur->GetCharges() >= 2)
-												caster->CastSpellDelay(hitTarget, 45297, true, 500);
-											else
-											{
-												float additionalOverloadChance = (caster->GetFloatValue(PLAYER_FIELD_MASTERY) * 2.0f) / 3.0f;
-												if (roll_chance_f(additionalOverloadChance))
-													caster->CastSpellDelay(hitTarget, 45297, true, 500);
-											}
-											break;
-
-										}
-
-										case 114074:
-										{
-											if (aur->GetCharges() >= 2)
-												caster->CastSpellDelay(hitTarget, 114738, true, 500);
-											else
-											{
-												float additionalOverloadChance = (caster->GetFloatValue(PLAYER_FIELD_MASTERY) * 2.0f) / 3.0f;
-												if (roll_chance_f(additionalOverloadChance))
-													caster->CastSpellDelay(hitTarget, 114738, true, 500);
-											}
-											break;
-										}
-										}
-
-									}
-									else
-									{
-										float additionalOverloadChance = (caster->GetFloatValue(PLAYER_FIELD_MASTERY) * 2.0f) / 3.0f;
-
-										if (roll_chance_f(additionalOverloadChance))
-										{
-											switch (spellInfo->Id)
-											{
-											case 188443:
-												caster->CastSpellDelay(hitTarget, 45297, true, 500);
-												break;
-											case 114074:
-												caster->CastSpellDelay(hitTarget, 114738, true, 500);
-												break;
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
+				case 188196: overloadSpell = 45284;  break; // Lightning Bolt Overload
+				case 188443: overloadSpell = 45297;  break; // Chain Lightning Overload
+				case 114074: overloadSpell = 114738; break; // Lava Beam Overload
+				case 51505:  overloadSpell = 77451;  break; // Lava Burst Overload
+				case 117014: overloadSpell = 120588; break; // Elemental Blast Overload
+				case 210714: overloadSpell = 219271; break; // Icefury Overload
+				default: return;
 			}
+
+			// Static Overload supplies the guaranteed first Stormkeeper overload.
+			// Do not also roll the normal mastery proc for that same cast.
+			if (caster->HasAura(191634) &&
+				(spellInfo->Id == 188196 || spellInfo->Id == 188443 || spellInfo->Id == 114074))
+				return;
+
+			float chance = mastery->GetAmount();
+			if (spellInfo->Id == 188196 || spellInfo->Id == 188443 || spellInfo->Id == 114074)
+				if (AuraEffect const* stormTotem = caster->GetAuraEffect(210652, EFFECT_0))
+					chance += stormTotem->GetAmount();
+
+			// Chain Lightning and its Ascendance replacement use one third of the
+			// normal overload chance. The resulting overload spell performs its own chain.
+			if (spellInfo->Id == 188443 || spellInfo->Id == 114074)
+				chance /= 3.0f;
+
+			if (roll_chance_f(chance))
+				caster->CastSpellDelay(target, overloadSpell, true, 500);
 		}
 
 		void Register() override
 		{
-			AfterHit += SpellHitFn(spell_sha_elemental_overload_SpellScript::HandleDamage);
+			OnCast += SpellCastFn(spell_sha_elemental_overload_SpellScript::HandleCast);
 		}
 	};
 
@@ -744,35 +888,38 @@ public:
 
 		void HandleDamage()
 		{
-			if (Unit* caster = GetCaster())
-			{
-				if (caster->HasAura(210689))
-				{
-					if (Unit* exTarget = GetExplTargetUnit())
-					{
-						if (Unit* hitTarget = GetHitUnit())
-						{
-							if (exTarget->GetGUID() == hitTarget->GetGUID())
-							{
-								if (uint32 dmg = GetHitDamage())
-								{
-									std::list<Unit*> targets;
-									std::vector<uint32> aura = { 197209 };
+			Unit* caster = GetCaster();
+			Unit* hitTarget = GetHitUnit();
+			SpellInfo const* spellInfo = GetSpellInfo();
+			uint32 damage = GetHitDamage();
+			if (!caster || !hitTarget || !spellInfo || !damage)
+				return;
 
-									caster->TargetsWhoHasMyAuras(targets, aura);
+			AuraEffect const* rodDamage = caster->GetAuraEffect(210689, EFFECT_1);
+			if (!rodDamage)
+				return;
 
-									for (auto target : targets)
-										if (AuraEffect* aurEff = target->GetAuraEffect(197209, EFFECT_0))
-										{
-											float calculatedDmg = CalculatePct(dmg, aurEff->GetAmount() * 2);
-											caster->CastCustomSpell(target, 197568, &calculatedDmg, nullptr, nullptr, true);
-										}
-								}
-							}
-						}
-					}
-				}
-			}
+			bool isOriginalCast = spellInfo->Id == 188196 || spellInfo->Id == 188443 || spellInfo->Id == 114074;
+			bool isPrimaryTarget = spellInfo->Id == 188196;
+			if (Unit* explicitTarget = GetExplTargetUnit())
+				isPrimaryTarget = explicitTarget->GetGUID() == hitTarget->GetGUID();
+
+			// Lightning Bolt, Chain Lightning, and Lava Beam only create a rod on
+			// the primary target. Overload payloads can deal rod damage but cannot
+			// create another rod themselves.
+			if (isOriginalCast && isPrimaryTarget)
+				if (AuraEffect const* rodChance = caster->GetAuraEffect(210689, EFFECT_0))
+					if (roll_chance_f(rodChance->GetAmount()))
+						caster->CastSpell(hitTarget, 197209, true);
+
+			std::list<Unit*> targets;
+			std::vector<uint32> aura = { 197209 };
+			caster->TargetsWhoHasMyAuras(targets, aura);
+
+			float sharedDamage = CalculatePct(damage, rodDamage->GetAmount());
+			for (Unit* target : targets)
+				if (target && target->IsAlive())
+					caster->CastCustomSpell(target, 197568, &sharedDamage, nullptr, nullptr, true);
 		}
 
 		void Register() override
@@ -787,6 +934,164 @@ public:
 	}
 };
 
+// Flametongue Attack - 10444
+// Legion scales the 20% AP payload by the off-hand weapon's actual speed
+// relative to the 2.6 second reference speed.
+class spell_sha_flametongue_attack : public SpellScript
+{
+    PrepareSpellScript(spell_sha_flametongue_attack);
+
+    void ScaleDamage(SpellEffIndex /*effIndex*/)
+    {
+        if (Unit* caster = GetCaster())
+            SetHitDamage(int32(GetHitDamage() * caster->GetAttackTime(OFF_ATTACK) / 2600.0f));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_sha_flametongue_attack::ScaleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+    }
+};
+
+// Ascendance - 114051
+// Entering Enhancement Ascendance resets the shared Stormstrike/Windstrike cooldown.
+class spell_sha_ascendance_enhancement : public SpellScript
+{
+    PrepareSpellScript(spell_sha_ascendance_enhancement);
+
+    void HandleCast()
+    {
+        if (Player* player = GetCaster()->ToPlayer())
+        {
+            player->RemoveSpellCooldown(17364, true);
+            player->RemoveSpellCooldown(115356, true);
+        }
+    }
+
+    void Register() override
+    {
+        OnCast += SpellCastFn(spell_sha_ascendance_enhancement::HandleCast);
+    }
+};
+
+// Frostbrand - 196834 / Hailstorm - 210853
+// Frostbrand already applies its slow through effect 1. Hailstorm adds the
+// separate 210854 weapon strike to that same successful weapon proc.
+class spell_sha_hailstorm : public AuraScript
+{
+    PrepareAuraScript(spell_sha_hailstorm);
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        Unit* caster = GetTarget();
+        Unit* target = eventInfo.GetActionTarget();
+        if (caster && target && caster->HasAura(210853))
+            caster->CastSpell(target, 210854, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_sha_hailstorm::HandleProc, EFFECT_1, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
+// Fury of Air - 197211
+// SpellPower.db2 build 26972 stores a 3 Maelstrom upkeep cost.
+class spell_sha_fury_of_air : public AuraScript
+{
+    PrepareAuraScript(spell_sha_fury_of_air);
+
+    void HandlePeriodic(AuraEffect const* /*aurEff*/)
+    {
+        if (Unit* caster = GetCaster())
+        {
+            if (caster->GetPower(POWER_MAELSTROM) >= 3)
+                caster->ModifyPower(POWER_MAELSTROM, -3);
+            else
+                caster->RemoveAurasDueToSpell(197211);
+        }
+    }
+
+    void Register() override
+    {
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_sha_fury_of_air::HandlePeriodic, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
+    }
+};
+
+// Windfury - 33757
+// Doom Winds guarantees Windfury only for auto attacks. It also permits the
+// off-hand auto attack, while ordinary off-hand attacks remain ineligible.
+class spell_sha_windfury : public AuraScript
+{
+    PrepareAuraScript(spell_sha_windfury);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Unit* caster = GetTarget();
+        Unit* target = eventInfo.GetActionTarget();
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        if (!caster || !target || !target->IsAlive() || !damageInfo || !damageInfo->GetDamage())
+            return false;
+
+        bool autoAttack = eventInfo.GetSpell() == nullptr;
+        bool offHand = (eventInfo.GetTypeMask() & PROC_FLAG_DONE_OFFHAND_ATTACK) != 0;
+        bool doomWinds = caster->HasAura(204945);
+
+        if (offHand && (!doomWinds || !autoAttack))
+            return false;
+
+        if (doomWinds && autoAttack)
+            return true;
+
+        float chance = 20.0f;
+        if (AuraEffect const* mastery = caster->GetAuraEffect(77223, EFFECT_3))
+            chance += mastery->GetAmount();
+
+        return roll_chance_f(chance);
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        if (Unit* target = eventInfo.GetActionTarget())
+            if (Unit* caster = GetTarget())
+                for (uint8 i = 0; i < 2; ++i)
+                    caster->CastSpell(target, 25504, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_windfury::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_windfury::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Lava Surge - 77756
+// Flame Shock's periodic damage supplies the 10% proc chance through the
+// client proc data. Restore one Lava Burst charge and apply the instant-cast
+// buff after the same short delay used by the original data chain.
+class spell_sha_lava_surge : public AuraScript
+{
+    PrepareAuraScript(spell_sha_lava_surge);
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+
+        if (Player* player = GetTarget()->ToPlayer())
+        {
+            player->RemoveSpellCooldown(51505, true);
+            player->CastSpellDelay(player, 77762, true, 250);
+        }
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_sha_lava_surge::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
 // Healing Surge - 8004, Healing Wave - 77472, talent 200071 - Undulation
 class spell_sha_undulation : public SpellScriptLoader
 {
@@ -797,7 +1102,7 @@ class spell_sha_undulation : public SpellScriptLoader
         {
             PrepareSpellScript(spell_sha_undulation_SpellScript);
 
-            void HandleAfterCast()
+            void HandleBeforeCast()
             {
                 if(Unit* caster = GetCaster())
                     if(Aura* aura = caster->GetAura(200071)) // Undulation
@@ -814,7 +1119,7 @@ class spell_sha_undulation : public SpellScriptLoader
 
             void Register() override
             {
-                AfterCast += SpellCastFn(spell_sha_undulation_SpellScript::HandleAfterCast);
+                BeforeCast += SpellCastFn(spell_sha_undulation_SpellScript::HandleBeforeCast);
             }
         };
 
@@ -822,6 +1127,47 @@ class spell_sha_undulation : public SpellScriptLoader
         {
             return new spell_sha_undulation_SpellScript();
         }
+};
+
+// Tidal Waves - 51564. Riptide and Chain Heal grant one stack; Crashing
+// Waves (197464) grants Riptide one additional stack.
+class spell_sha_tidal_waves : public AuraScript
+{
+    PrepareAuraScript(spell_sha_tidal_waves);
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Unit* target = GetTarget();
+        target->CastSpell(target, 53390, true);
+
+        if (Spell* procSpell = eventInfo.GetSpell())
+            if (procSpell->GetSpellInfo()->Id == 61295 && target->HasAura(197464))
+                target->CastSpell(target, 53390, true);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_sha_tidal_waves::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Wellspring - 197995
+class spell_sha_wellspring : public SpellScript
+{
+    PrepareSpellScript(spell_sha_wellspring);
+
+    void HandleHit(SpellEffIndex /*effIndex*/)
+    {
+        if (Unit* target = GetHitUnit())
+            GetCaster()->CastSpell(target, 197997, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_sha_wellspring::HandleHit, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
 };
 
 // Ancestral Protection - 207498
@@ -970,6 +1316,165 @@ class spell_sha_earthen_shield : public SpellScriptLoader
         }
 };
 
+class npc_sha_restoration_zone_totem : public ScriptedAI
+{
+public:
+    npc_sha_restoration_zone_totem(Creature* creature, uint32 areaSpell, uint32 auraSpell, float radius)
+        : ScriptedAI(creature), _areaSpell(areaSpell), _auraSpell(auraSpell), _radius(radius) { }
+
+    void Reset() override
+    {
+        _scanTimer = 0;
+        me->CastSpell(me, _areaSpell, true);
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        if (_scanTimer > diff)
+        {
+            _scanTimer -= diff;
+            return;
+        }
+
+        _scanTimer = 1000;
+
+        Unit* owner = me->GetAnyOwner();
+        if (!owner)
+            return;
+
+        std::list<Unit*> targets;
+        Trinity::AnyGroupedUnitInObjectRangeCheck check(me, owner, _radius, true);
+        Trinity::UnitListSearcher<Trinity::AnyGroupedUnitInObjectRangeCheck> searcher(me, targets, check);
+        Trinity::VisitNearbyObject(me, _radius, searcher);
+
+        for (Unit* target : targets)
+        {
+            if (target->isTotem())
+                continue;
+
+            me->CastSpell(target, _auraSpell, true);
+            if (Aura* aura = target->GetAura(_auraSpell, me->GetGUID()))
+            {
+                aura->SetMaxDuration(1500);
+                aura->SetDuration(1500);
+            }
+        }
+    }
+
+private:
+    uint32 _areaSpell;
+    uint32 _auraSpell;
+    float _radius;
+    uint32 _scanTimer = 0;
+};
+
+// Earthen Shield Totem - 100943
+struct npc_sha_earthen_shield_totem : public npc_sha_restoration_zone_totem
+{
+    npc_sha_earthen_shield_totem(Creature* creature)
+        : npc_sha_restoration_zone_totem(creature, 198839, 201633, 10.0f) { }
+};
+
+// Ancestral Protection Totem - 104818
+struct npc_sha_ancestral_protection_totem : public npc_sha_restoration_zone_totem
+{
+    npc_sha_ancestral_protection_totem(Creature* creature)
+        : npc_sha_restoration_zone_totem(creature, 207495, 207498, 20.0f) { }
+};
+
+// Queen's Decree (207360), triggered by Healing Stream Totem's heal (52042).
+class spell_sha_queens_decree : public SpellScript
+{
+    PrepareSpellScript(spell_sha_queens_decree);
+
+    void HandleHeal(SpellEffIndex /*effIndex*/)
+    {
+        Unit* totem = GetCaster();
+        Unit* target = GetHitUnit();
+        Unit* owner = totem ? totem->GetAnyOwner() : nullptr;
+        if (owner && target && owner->HasAura(207360))
+            owner->CastSpell(target, 208899, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_sha_queens_decree::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
+    }
+};
+
+// Cumulative Upkeep (207362), triggered by Healing Tide's heal (114942).
+class spell_sha_cumulative_upkeep : public SpellScript
+{
+    PrepareSpellScript(spell_sha_cumulative_upkeep);
+
+    void HandleHeal(SpellEffIndex /*effIndex*/)
+    {
+        Unit* totem = GetCaster();
+        Unit* target = GetHitUnit();
+        Unit* owner = totem ? totem->GetAnyOwner() : nullptr;
+        if (!owner || !target || !owner->HasAura(207362))
+            return;
+
+        if (Aura* aura = target->GetAura(208205, owner->GetGUID()))
+        {
+            float heal = GetHitHeal();
+            AddPct(heal, aura->GetEffect(EFFECT_0)->GetAmount() * aura->GetStackAmount());
+            SetHitHeal(heal);
+        }
+
+        owner->CastSpell(target, 208205, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_sha_cumulative_upkeep::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
+    }
+};
+
+// Tidal Pools' summoned Tidal Totem - 105422. Its six-second summon performs
+// the seven heals encoded by 207358's tooltip: one immediately and six ticks.
+struct npc_sha_tidal_totem : public ScriptedAI
+{
+    npc_sha_tidal_totem(Creature* creature) : ScriptedAI(creature) { }
+
+    void Reset() override
+    {
+        _remainingTicks = 6;
+        _healTimer = 1000;
+        CastHeal();
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        if (!_remainingTicks)
+            return;
+
+        if (_healTimer > diff)
+        {
+            _healTimer -= diff;
+            return;
+        }
+
+        _healTimer = 1000;
+        --_remainingTicks;
+        CastHeal();
+    }
+
+private:
+    void CastHeal()
+    {
+        Unit* owner = me->GetAnyOwner();
+        if (!owner)
+            return;
+
+        float heal = owner->GetSpellPowerDamage(SPELL_SCHOOL_MASK_NATURE) * 0.25f;
+        me->CastCustomSpell(me, 209069, &heal, nullptr, nullptr, true);
+    }
+
+    uint32 _healTimer = 1000;
+    uint8 _remainingTicks = 0;
+};
+
 // Recall Cloudburst Totem - 201764
 class spell_sha_recall_cloudburst_totem : public SpellScriptLoader
 {
@@ -1049,32 +1554,27 @@ class spell_sha_sundering : public SpellScriptLoader
         {
             PrepareSpellScript(spell_sha_sundering_SpellScript);
 
+            bool Validate(SpellInfo const* /*spellInfo*/) override
+            {
+                return ValidateSpellInfo({ 197619 });
+            }
+
             void HandleDummy()
             {
                 Unit* caster = GetCaster();
                 Unit* target = GetHitUnit();
                 if (caster && target)
                 {
-                    float angle = caster->GetOrientation() - target->GetOrientation(); // Back from caster
-                    Position pos = caster->GetFirstCollisionPosition(15.0f, 0.0f); // Dist need research
-                    if (target->IsInBetweenShift(caster, &pos, 2.5f, 2.5f, 1.5f)) // Is right
-                    {
-                        pos = target->GetFirstCollisionPosition(10.0f, angle + 1.5f);
-                        TC_LOG_DEBUG("spells", "spell_sha_sundering IsInBetweenShift 2.5f");
-                    }
-                    else if (target->IsInBetweenShift(caster, &pos, 2.5f, -2.5f, -1.5f)) // Is left
-                    {
-                        pos = target->GetFirstCollisionPosition(10.0f, angle - 1.5f);
-                        TC_LOG_DEBUG("spells", "spell_sha_sundering IsInBetweenShift -2.5f");
-                    }
-                    else
-                    {
-                        pos = target->GetFirstCollisionPosition(10.0f, angle);
-                        TC_LOG_DEBUG("spells", "spell_sha_sundering not IsInBetweenShift");
-                    }
+                    // The 7.3.5 spell knocks each enemy perpendicular to the
+                    // line of effect. Keep enemies on their existing side of
+                    // the line so a pack is split instead of moved together.
+                    float relativeAngle = Position::NormalizeOrientation(caster->GetRelativeAngle(target));
+                    if (relativeAngle > float(M_PI))
+                        relativeAngle -= 2.0f * float(M_PI);
 
-                    TC_LOG_DEBUG("spells", "spell_sha_sundering x %f y %f z %f", pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ());
-
+                    float halfPi = 0.5f * float(M_PI);
+                    float sideAngle = caster->GetOrientation() + (relativeAngle >= 0.0f ? halfPi : -halfPi);
+                    Position pos = target->GetFirstCollisionPosition(10.0f, sideAngle - target->GetOrientation());
                     target->CastSpell(pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), 197619, true);
                 }
             }
@@ -1089,6 +1589,22 @@ class spell_sha_sundering : public SpellScriptLoader
         {
             return new spell_sha_sundering_SpellScript();
         }
+};
+
+// Hot Hand - 201900
+class spell_sha_hot_hand : public AuraScript
+{
+    PrepareAuraScript(spell_sha_hot_hand);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        return eventInfo.GetActor() && eventInfo.GetActor()->HasAura(194084);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_hot_hand::CheckProc);
+    }
 };
 
 // Forked Lightning (Honor Talent) - 204350
@@ -1332,13 +1848,10 @@ class spell_sha_stormflurry : public SpellScriptLoader
                         if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
                             bp0 = eff->GetAmount();
 
-                        for (uint8 i = 0; i < 2; i++)
-                        {
-                            if (!roll_chance_f(bp0))
-                                break;
-
-                            castCount++;
-                        }
+                        // Every repeat can itself repeat. Keep a generous safety cap for
+                        // the theoretically unbounded geometric chain.
+                        while (castCount < 100 && roll_chance_f(bp0))
+                            ++castCount;
 
                         if (!castCount)
                             return;
@@ -1377,6 +1890,100 @@ class spell_sha_stormflurry : public SpellScriptLoader
         {
             return new spell_sha_stormflurry_SpellScript();
         }
+};
+
+// Stormstrike/Windstrike weapon payloads repeated by Stormflurry.
+// Effect 1 of artifact aura 198367 stores the 40% repeat damage modifier.
+class spell_sha_stormflurry_damage : public SpellScript
+{
+    PrepareSpellScript(spell_sha_stormflurry_damage);
+
+    void ScaleDamage(SpellEffIndex /*effIndex*/)
+    {
+        if (AuraEffect const* trigger = GetTriggeredAuraEff())
+            if (trigger->GetId() == 198367)
+                SetHitDamage(CalculatePct(GetHitDamage(), trigger->GetAmount()));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_sha_stormflurry_damage::ScaleDamage, EFFECT_0, SPELL_EFFECT_WEAPON_PERCENT_DAMAGE);
+    }
+};
+
+// Stormlash - 195222 / damage - 213307
+// A Stormlash buff owns a fixed pool based on the granting shaman's AP. Each
+// eligible attack releases the fraction accumulated since the previous proc.
+class spell_sha_stormlash_buff : public AuraScript
+{
+    PrepareAuraScript(spell_sha_stormlash_buff);
+
+    void HandleApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        _lastProcTime = getMSTime();
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Unit* shaman = GetCaster();
+        Unit* actor = eventInfo.GetActor();
+        Unit* target = eventInfo.GetActionTarget();
+        if (!shaman || !actor || !target || !target->IsAlive())
+            return;
+
+        uint32 now = getMSTime();
+        uint32 elapsed = getMSTimeDiff(_lastProcTime, now);
+        if (elapsed <= 100)
+            return;
+
+        _lastProcTime = now;
+        uint32 duration = std::max(1, GetAura()->GetMaxDuration());
+        elapsed = std::min(elapsed, duration);
+
+        SpellInfo const* damageSpell = sSpellMgr->GetSpellInfo(213307);
+        if (!damageSpell)
+            return;
+
+        float damage = shaman->GetTotalAttackPowerValue(BASE_ATTACK)
+            * damageSpell->Effects[EFFECT_0]->BonusCoefficientFromAP
+            * elapsed / duration;
+
+        if (AuraEffect const* empowered = shaman->GetAuraEffect(210731, EFFECT_1))
+            AddPct(damage, empowered->GetAmount());
+
+        if (damage > 0.0f)
+            actor->CastCustomSpell(target, 213307, &damage, nullptr, nullptr, true, nullptr, aurEff, shaman->GetGUID());
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_sha_stormlash_buff::HandleApply, EFFECT_1, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
+        OnEffectProc += AuraEffectProcFn(spell_sha_stormlash_buff::HandleProc, EFFECT_1, SPELL_AURA_DUMMY);
+    }
+
+private:
+    uint32 _lastProcTime = 0;
+};
+
+// The custom base point passed by spell_sha_stormlash_buff already contains
+// the complete time-weighted pool share, so do not add the holder's AP again.
+class spell_sha_stormlash_damage : public SpellScript
+{
+    PrepareSpellScript(spell_sha_stormlash_damage);
+
+    void OverrideDamage(SpellEffIndex /*effIndex*/)
+    {
+        if (AuraEffect const* trigger = GetTriggeredAuraEff())
+            if (trigger->GetId() == 195222)
+                SetHitDamage(int32(GetSpellValue()->EffectBasePoints[EFFECT_0]));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_sha_stormlash_damage::OverrideDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+    }
 };
 
 // Alpha Wolf - 198486
@@ -1502,10 +2109,33 @@ class spell_monk_gift_of_queen : public SpellScriptLoader
         {
             PrepareSpellScript(spell_monk_gift_of_queen_SpellScript);
 
+            std::set<ObjectGuid> selectedTargets;
+
+            void SelectTargets(std::list<WorldObject*>& targets)
+            {
+                targets.remove_if([](WorldObject* object)
+                {
+                    Unit* unit = object ? object->ToUnit() : nullptr;
+                    return !unit || unit->IsFullHealth();
+                });
+
+                Trinity::Containers::RandomResizeList(targets, 6);
+                for (WorldObject* target : targets)
+                    selectedTargets.insert(target->GetGUID());
+            }
+
+            void CopyTargets(std::list<WorldObject*>& targets)
+            {
+                targets.remove_if([this](WorldObject* object)
+                {
+                    return !object || selectedTargets.find(object->GetGUID()) == selectedTargets.end();
+                });
+            }
+
             void HandleDummy()
             {
                 if (auto caster = GetCaster())
-                    if (caster->HasAura(238143))
+                    if (GetSpellInfo()->Id == 207778 && caster->HasAura(238143))
                         if (WorldLocation const* pos = GetExplTargetDest())
                         {
                             Position posit = pos->GetPosition();
@@ -1516,6 +2146,8 @@ class spell_monk_gift_of_queen : public SpellScriptLoader
             void Register() override
             {
                 OnCast += SpellCastFn(spell_monk_gift_of_queen_SpellScript::HandleDummy);
+                OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_monk_gift_of_queen_SpellScript::SelectTargets, EFFECT_0, TARGET_UNIT_DEST_AREA_ALLY);
+                OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_monk_gift_of_queen_SpellScript::CopyTargets, EFFECT_1, TARGET_UNIT_DEST_AREA_ALLY);
             }
         };
 
@@ -1559,9 +2191,34 @@ class spell_sha_feral_lunge : public SpellScript
         return SPELL_CAST_OK;
     }
 
+    void HandleDamage(SpellEffIndex /*effIndex*/)
+    {
+        if (Unit* target = GetHitUnit())
+            GetCaster()->CastSpell(target, 215802, true);
+    }
+
     void Register() override
     {
         OnCheckCast += SpellCheckCastFn(spell_sha_feral_lunge::CheckElevation);
+        OnEffectHitTarget += SpellEffectFn(spell_sha_feral_lunge::HandleDamage, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+// Feral Spirit - creature 29264
+// Rank 2 (231723) grants the owner 5 Maelstrom through 190185 for every
+// successful wolf melee swing, but not for Alpha Wolf spell damage.
+struct npc_sha_feral_spirit : public ScriptedAI
+{
+    explicit npc_sha_feral_spirit(Creature* creature) : ScriptedAI(creature) { }
+
+    void DamageDealt(Unit* /*victim*/, uint32& damage, DamageEffectType damageType) override
+    {
+        if (!damage || damageType != DIRECT_DAMAGE)
+            return;
+
+        if (Unit* owner = me->GetOwner())
+            if (owner->HasAura(231723))
+                me->CastSpell(owner, 190185, true);
     }
 };
 
@@ -1642,27 +2299,89 @@ class spell_sha_elem_blast : public SpellScript
     {
         if (Unit* caster = GetCaster())
         {
-            std::vector<uint32> auraList;
-            for (auto itr : {118522, 173183, 173184})
-            {
-                if (!caster->HasAura(itr))
-                    auraList.push_back(itr);
-            }
-
-            if (!auraList.empty())
-            {
-                if (auraList.size() > 1)
-                    Trinity::Containers::RandomResizeList(auraList, 1);
-
-                uint32 spellId = *auraList.begin();
-                caster->AddAura(spellId, caster, nullptr);
-            }
+            uint32 const buffs[] = { 118522, 173183, 173184 };
+            caster->CastSpell(caster, buffs[urand(0, 2)], true);
         }
     }
 
     void Register() override
     {
         OnEffectLaunch += SpellEffectFn(spell_sha_elem_blast::HandleLaunch, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+    }
+};
+
+// Item - Shaman T21 Elemental 4P Bonus - 251758
+class spell_sha_t21_elemental_4p : public AuraScript
+{
+    PrepareAuraScript(spell_sha_t21_elemental_4p);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_SHAMAN_T21_EARTH_SHOCK_OVERLOAD,
+            SPELL_SHAMAN_T21_FROST_SHOCK_OVERLOAD });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* procSpell = eventInfo.GetSpell();
+        if (!procSpell || !eventInfo.GetActionTarget())
+            return false;
+
+        uint32 spellId = procSpell->GetSpellInfo()->Id;
+        return spellId == SPELL_SHAMAN_EARTH_SHOCK || spellId == SPELL_SHAMAN_FROST_SHOCK;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+        if (!roll_chance_i(aurEff->GetAmount()))
+            return;
+
+        uint32 overload = eventInfo.GetSpell()->GetSpellInfo()->Id == SPELL_SHAMAN_EARTH_SHOCK ?
+            SPELL_SHAMAN_T21_EARTH_SHOCK_OVERLOAD : SPELL_SHAMAN_T21_FROST_SHOCK_OVERLOAD;
+        GetTarget()->CastSpell(eventInfo.GetActionTarget(), overload, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_t21_elemental_4p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_t21_elemental_4p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Item - Shaman T21 Restoration 4P Bonus - 251765
+class spell_sha_t21_restoration_4p : public AuraScript
+{
+    PrepareAuraScript(spell_sha_t21_restoration_4p);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_SHAMAN_T21_RAINFALL });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        return eventInfo.GetHealInfo() && eventInfo.GetHealInfo()->GetHeal() > 0;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        std::list<Player*> targets;
+        GetTier21HealingRainTargets(GetTarget(), targets);
+        if (targets.empty())
+            return;
+
+        float heal = CalculatePct(eventInfo.GetHealInfo()->GetHeal(), aurEff->GetAmount());
+        GetTarget()->CastCustomSpell(targets.front(), SPELL_SHAMAN_T21_RAINFALL,
+            &heal, nullptr, nullptr, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_t21_restoration_4p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_t21_restoration_4p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
     }
 };
 
@@ -1673,26 +2392,47 @@ void AddSC_shaman_spell_scripts()
     new spell_sha_bloodlust();
     new spell_sha_heroism();
     RegisterSpellScript(spell_sha_chain_heal);
-    new spell_sha_astral_recall();
     new spell_sha_elemental_familiars();
     new spell_sha_cloudburst_totem();
+    RegisterSpellScript(spell_sha_cloudburst_heal);
+    RegisterAuraScript(spell_sha_ancestral_guidance);
+    RegisterSpellScript(spell_sha_ancestral_guidance_heal);
+    RegisterAuraScript(spell_sha_ascendance_restoration);
+    RegisterSpellScript(spell_sha_restorative_mists);
     new spell_sha_earth_shock();
     new spell_sha_flame_shock();
     new spell_sha_frost_shock();
     new spell_sha_lightning_bolt();
+	RegisterSpellScript(spell_sha_flametongue_attack);
+	RegisterSpellScript(spell_sha_ascendance_enhancement);
+	RegisterAuraScript(spell_sha_hailstorm);
+	RegisterAuraScript(spell_sha_fury_of_air);
+	RegisterAuraScript(spell_sha_windfury);
 	//new spell_sha_static_overload();
 	new spell_sha_elemental_overload();
 	new spell_sha_lightning_rod();
+    RegisterAuraScript(spell_sha_lava_surge);
     new spell_sha_undulation();
+    RegisterAuraScript(spell_sha_tidal_waves);
+    RegisterSpellScript(spell_sha_wellspring);
     new spell_sha_earthen_shield();
+    RegisterCreatureAI(npc_sha_earthen_shield_totem);
+    RegisterCreatureAI(npc_sha_ancestral_protection_totem);
+    RegisterSpellScript(spell_sha_queens_decree);
+    RegisterSpellScript(spell_sha_cumulative_upkeep);
+    RegisterCreatureAI(npc_sha_tidal_totem);
     new spell_sha_recall_cloudburst_totem();
     new spell_sha_earth_shield();
     new spell_sha_sundering();
+    RegisterAuraScript(spell_sha_hot_hand);
     new spell_sha_spirit_link_pvp();
     new spell_sha_purge();
     new spell_sha_grounding_totem();
     new spell_sha_shamanism();
     new spell_sha_stormflurry();
+    RegisterSpellScript(spell_sha_stormflurry_damage);
+    RegisterAuraScript(spell_sha_stormlash_buff);
+    RegisterSpellScript(spell_sha_stormlash_damage);
     new spell_sha_alpha_wolf();
     new spell_sha_crash_lightning();
     new spell_sha_sense_of_urgency();
@@ -1701,7 +2441,10 @@ void AddSC_shaman_spell_scripts()
     RegisterAuraScript(spell_sha_ancestral_protection);
     RegisterAuraScript(spell_sha_earthen_rage);
     RegisterSpellScript(spell_sha_feral_lunge);
+    RegisterCreatureAI(npc_sha_feral_spirit);
     RegisterAuraScript(spell_sha_hex);
     //RegisterAuraScript(spell_sha_lightning_rod);
     RegisterSpellScript(spell_sha_elem_blast);
+    RegisterAuraScript(spell_sha_t21_elemental_4p);
+    RegisterAuraScript(spell_sha_t21_restoration_4p);
 }

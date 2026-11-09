@@ -620,6 +620,9 @@ class TC_GAME_API PlayerScript : public ScriptObject
         // Called after a valid response to a PlayerChoice has been received (its reward spell already cast)
         virtual void OnPlayerChoiceResponse(Player* /*player*/, uint32 /*choiceId*/, uint32 /*responseId*/) { }
 
+        // Called whenever a player dies, regardless of the killer.
+        virtual void OnDeath(Player* /*player*/) { }
+
         // Called when a player's level changes (right before the level is applied)
         virtual void OnLevelChanged(Player* /*player*/, uint8 /*oldLevel*/) { }
 
@@ -999,6 +1002,7 @@ class TC_GAME_API ScriptMgr
         void OnQuestAbandon(Player* player, Quest const* quest);
         void OnCreatureKill(Player* killer, Creature* killed);
         void OnPlayerKilledByCreature(Creature* killer, Player* killed);
+        void OnPlayerDeath(Player* player);
         void OnPlayerChoiceResponse(Player* player, uint32 choiceId, uint32 responseId);
         void OnPlayerLevelChanged(Player* player, uint8 oldLevel);
         void OnPlayerFreeTalentPointsChanged(Player* player, uint32 newPoints);

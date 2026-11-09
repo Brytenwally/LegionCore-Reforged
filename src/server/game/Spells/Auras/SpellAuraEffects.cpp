@@ -40,6 +40,29 @@
 #include "WorldPacket.h"
 
 class Aura;
+
+namespace
+{
+constexpr uint32 DRUID_RESTORATION_HOT_FAMILY_FLAG = 0x00400000;
+
+uint32 CountDruidRestorationHots(Unit const* target, ObjectGuid const& casterGuid, uint32 maxCount)
+{
+    uint32 count = 0;
+    for (AuraEffect const* effect : target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL))
+    {
+        SpellInfo const* spellInfo = effect->GetSpellInfo();
+        if (effect->GetCasterGUID() != casterGuid ||
+            spellInfo->ClassOptions.SpellClassSet != SPELLFAMILY_DRUID ||
+            !(spellInfo->ClassOptions.SpellClassMask[3] & DRUID_RESTORATION_HOT_FAMILY_FLAG))
+            continue;
+
+        if (++count >= maxCount)
+            break;
+    }
+
+    return count;
+}
+}
 //
 // EFFECT HANDLER NOTES
 //
@@ -2824,7 +2847,10 @@ void AuraEffect::HandleAuraModShapeshift(AuraApplication const* aurApp, uint8 mo
         case FORM_STEALTH:                                  // 0x1E
         case FORM_MOONKIN:                                  // 0x1F
         case FORM_SPIRITOFREDEMPTION:                       // 0x20
+        case FORM_SPIRIT_OWL_FORM:                           // 0x25
+        case FORM_SPIRIT_OWL_FORM_2:                         // 0x26
         case FORM_WISP_FORM:                                // 0x27
+        case FORM_WISP_FORM_2:                              // 0x28
             break;
         default:
             TC_LOG_ERROR("spells", "Auras: Unknown Shapeshift Type: %u", GetMiscValue());
@@ -7189,13 +7215,7 @@ void AuraEffect::HandlePeriodicDummyAuraTick(Unit* target, Unit* caster, SpellEf
                         uint32 modMaxCount = 9;
                         if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
                             modDif = eff->GetAmount();
-                        Unit::AuraEffectList const& mPeriodic = target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL);
-                        for (Unit::AuraEffectList::const_iterator i = mPeriodic.begin(); i != mPeriodic.end(); ++i)
-                            if ((*i)->GetCasterGUID() == caster->GetGUID())
-                                modCount++;
-
-                        if (modCount >= modMaxCount)
-                            modCount = modMaxCount;
+                        modCount = CountDruidRestorationHots(target, caster->GetGUID(), modMaxCount);
 
                         if (modCount && modDif)
                             AddPct(heal, modDif * modCount);
@@ -7960,8 +7980,9 @@ void AuraEffect::HandlePeriodicDamageAurasTick(Unit* target, Unit* caster, Spell
 
             if (target->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
             {
-                int32 bp = CalculatePct((100 - target->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                AddPct(damage, bp);
+                float threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                float bonusPct = deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - target->GetHealthPct()) / threshold;
+                AddPct(damage, bonusPct);
             }
         }
     }
@@ -8179,8 +8200,9 @@ void AuraEffect::HandlePeriodicHealthLeechAuraTick(Unit* target, Unit* caster, S
 
             if (target->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
             {
-                int32 bp = CalculatePct((100 - target->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                AddPct(damage, bp);
+                float threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                float bonusPct = deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - target->GetHealthPct()) / threshold;
+                AddPct(damage, bonusPct);
             }
         }
     }
@@ -8394,13 +8416,7 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster, SpellEf
                 uint32 modMaxCount = 9;
                 if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
                     modDif = eff->GetAmount();
-                Unit::AuraEffectList const& mPeriodic = target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL);
-                for (Unit::AuraEffectList::const_iterator i = mPeriodic.begin(); i != mPeriodic.end(); ++i)
-                    if ((*i)->GetCasterGUID() == caster->GetGUID())
-                        modCount++;
-
-                if (modCount >= modMaxCount)
-                    modCount = modMaxCount;
+                modCount = CountDruidRestorationHots(target, caster->GetGUID(), modMaxCount);
                 if (modCount && modDif)
                     damage += CalculatePct(damage, modDif * modCount);
             }
@@ -8664,22 +8680,19 @@ void AuraEffect::HandlePeriodicEnergizeAuraTick(Unit* target, Unit* caster, Spel
     TC_LOG_INFO("spells", "PeriodicTick: %s energize of %s for %f dmg inflicted by %u",
         GetCasterGUID().ToString().c_str(), target->GetGUID().ToString().c_str(), amount, GetId());
 
-    int32 gain = target->ModifyPower(powerType, amount, true);
-
-    if (caster)
-        target->getHostileRefManager().threatAssist(caster, float(gain) * 0.5f, GetSpellInfo());
-
+    int32 gain = 0;
     if (powerType == POWER_RUNES)
     {
         if(Player* _player = target->ToPlayer())
         {
-            float runesRestor = amount;
+            int32 runesRestor = amount;
             // First regene rune with full CD
             for (int i = 0; i < _player->GetMaxPower(POWER_RUNES) ; i++)
             {
                 if (_player->GetRuneCooldown(i) == _player->GetRuneBaseCooldown() && runesRestor)
                 {
                     runesRestor--;
+                    gain++;
                     _player->SetRuneCooldown(i, 0);
                     _player->AddRunePower(i);
                 }
@@ -8689,12 +8702,20 @@ void AuraEffect::HandlePeriodicEnergizeAuraTick(Unit* target, Unit* caster, Spel
                 if (_player->GetRuneCooldown(i) && runesRestor)
                 {
                     runesRestor--;
+                    gain++;
                     _player->SetRuneCooldown(i, 0);
                     _player->AddRunePower(i);
                 }
             }
         }
     }
+    else
+        gain = target->ModifyPower(powerType, amount, true);
+
+    // AddRunePower already updates POWER_RUNES; applying ModifyPower first
+    // would grant every periodically restored rune twice.
+    if (caster)
+        target->getHostileRefManager().threatAssist(caster, float(gain) * 0.5f, GetSpellInfo());
 }
 
 void AuraEffect::HandlePeriodicPowerBurnAuraTick(Unit* target, Unit* caster, SpellEffIndex effIndex) const

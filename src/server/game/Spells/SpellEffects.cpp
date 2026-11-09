@@ -77,6 +77,29 @@
 #include "SkyholdDeparture.h"
 #include <G3D/Quat.h>
 
+namespace
+{
+constexpr uint32 DRUID_RESTORATION_HOT_FAMILY_FLAG = 0x00400000;
+
+uint32 CountDruidRestorationHots(Unit const* target, ObjectGuid const& casterGuid, uint32 maxCount)
+{
+    uint32 count = 0;
+    for (AuraEffect const* effect : target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL))
+    {
+        SpellInfo const* spellInfo = effect->GetSpellInfo();
+        if (effect->GetCasterGUID() != casterGuid ||
+            spellInfo->ClassOptions.SpellClassSet != SPELLFAMILY_DRUID ||
+            !(spellInfo->ClassOptions.SpellClassMask[3] & DRUID_RESTORATION_HOT_FAMILY_FLAG))
+            continue;
+
+        if (++count >= maxCount)
+            break;
+    }
+
+    return count;
+}
+}
+
 pEffect SpellEffects[TOTAL_SPELL_EFFECTS] =
 {
     &Spell::EffectNULL,                                     //  0
@@ -691,8 +714,9 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                     SpellInfo const* deathsEmbrace = sSpellMgr->GetSpellInfo(234876);
                     if (unitTarget->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
                     {
-                        int32 bp = CalculatePct((100 - unitTarget->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                        AddPct(m_damage, bp);
+                        float threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                        float bonusPct = deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - unitTarget->GetHealthPct()) / threshold;
+                        AddPct(m_damage, bonusPct);
                     }
                 }
                 break;
@@ -2712,14 +2736,7 @@ void Spell::EffectHeal(SpellEffIndex effIndex)
                     modMaxCount = eff->GetAmount();
                 if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
                     modDif = eff->GetAmount();
-                Unit::AuraEffectList const& mPeriodic = unitTarget->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL);
-                for (Unit::AuraEffectList::const_iterator i = mPeriodic.begin(); i != mPeriodic.end(); ++i)
-                {
-                    if ((*i)->GetCasterGUID() == m_caster->GetGUID())
-                        modCount++;
-                    if (modCount >= modMaxCount)
-                        break;
-                }
+                modCount = CountDruidRestorationHots(unitTarget, m_caster->GetGUID(), modMaxCount);
                 if (modCount && modDif)
                     addhealth += CalculatePct(addhealth, modDif * modCount);
                 break;
@@ -2766,6 +2783,25 @@ void Spell::EffectHeal(SpellEffIndex effIndex)
             }
             default:
                 break;
+        }
+
+        // Efflorescence is cast by the summoned blossom while the Druid is
+        // retained as the original caster. Apply Harmony from that owner.
+        if (m_spellInfo->Id == 81269 && m_caster != caster && caster->getClass() == CLASS_DRUID)
+        {
+            if (Aura* aura = caster->GetAura(77495))
+            {
+                float masteryPerHot = 0.0f;
+                uint32 maxCount = 9;
+                if (AuraEffect* effect = aura->GetEffect(EFFECT_0))
+                    masteryPerHot = effect->GetAmount();
+                if (AuraEffect* effect = aura->GetEffect(EFFECT_1))
+                    maxCount = effect->GetAmount();
+
+                uint32 hotCount = CountDruidRestorationHots(unitTarget, caster->GetGUID(), maxCount);
+                if (hotCount && masteryPerHot)
+                    addhealth += CalculatePct(addhealth, masteryPerHot * hotCount);
+            }
         }
 
         m_damage -= addhealth;
@@ -2896,8 +2932,9 @@ void Spell::EffectHealthLeech(SpellEffIndex effIndex)
             SpellInfo const* deathsEmbrace = sSpellMgr->GetSpellInfo(234876);
             if (unitTarget->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
             {
-                int32 bp = CalculatePct((100 - unitTarget->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                AddPct(bonus, bp);
+                float threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                float bonusPct = deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - unitTarget->GetHealthPct()) / threshold;
+                AddPct(bonus, bonusPct);
             }
         }
     }
@@ -3344,19 +3381,20 @@ void Spell::EffectEnergize(SpellEffIndex effIndex)
 
     m_addptype = power;
     m_addpower = damage;
-    m_caster->EnergizeBySpell(unitTarget, m_spellInfo->Id, damage, power);
 
     if (m_addptype == POWER_RUNES)
     {
         if(Player* _player = m_caster->ToPlayer())
         {
             int32 runesRestor = damage;
+            int32 restored = 0;
             // First regene rune with full CD
             for (int i = 0; i < _player->GetMaxPower(POWER_RUNES) ; i++)
             {
                 if (_player->GetRuneCooldown(i) == _player->GetRuneBaseCooldown() && runesRestor)
                 {
                     runesRestor--;
+                    restored++;
                     _player->SetRuneCooldown(i, 0);
                     _player->AddRunePower(i);
                 }
@@ -3366,12 +3404,19 @@ void Spell::EffectEnergize(SpellEffIndex effIndex)
                 if (_player->GetRuneCooldown(i) && runesRestor)
                 {
                     runesRestor--;
+                    restored++;
                     _player->SetRuneCooldown(i, 0);
                     _player->AddRunePower(i);
                 }
             }
+
+            // AddRunePower updates the rune resource and sends the rune mask.
+            // EnergizeBySpell must not run as well, or the resource is counted twice.
+            m_caster->SendEnergizeSpellLog(unitTarget, m_spellInfo->Id, restored, damage - restored, power);
         }
     }
+    else
+        m_caster->EnergizeBySpell(unitTarget, m_spellInfo->Id, damage, power);
 
     // Mad Alchemist's Potion
     if (m_spellInfo->Id == 45051)

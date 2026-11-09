@@ -6052,12 +6052,6 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Misc.Duration.Duration = 604800 * IN_MILLISECONDS;
     });
 
-    // Shadow Techniques
-    ApplySpellFix({196911}, [](SpellInfo* spellInfo)
-    {
-        spellInfo->Effects[EFFECT_1]->BasePoints = 8;
-    });
-
     // Spider Sting (PvP Talent)
     ApplySpellFix({202933}, [](SpellInfo* spellInfo)
     {
@@ -6627,7 +6621,7 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Effects[EFFECT_1]->ApplyAuraPeriod = 10000;
     });
 
-    ApplySpellFix({152175, // Whirling Dragon Punch
+    ApplySpellFix({
         200050 // Apocalyptic Fire
     }, [](SpellInfo* spellInfo)
     {
@@ -7350,10 +7344,10 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->GetMisc()->MiscData.Attributes[5] |= SPELL_ATTR5_START_PERIODIC_AT_APPLY;
     });
 
-    // Castigation
-    ApplySpellFix({193134}, [](SpellInfo* spellInfo)
+    // Tyranny of Pain: the artifact heal cannot critically strike.
+    ApplySpellFix({242094}, [](SpellInfo* spellInfo)
     {
-        spellInfo->Effects[EFFECT_0]->BasePoints = -66;
+        spellInfo->GetMisc()->MiscData.Attributes[2] |= SPELL_ATTR2_CANT_CRIT;
     });
 
     // War Banner (Honor Talent)
@@ -7684,11 +7678,11 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->GetMisc()->MiscData.Attributes[0] |= SPELL_ATTR0_CANT_CANCEL;
     });
 
-    // Sphere of Insanity
-    ApplySpellFix({194200}, [](SpellInfo* spellInfo)
+    // Sphere of Insanity pulses around the summoned sphere. Its AuraScript
+    // supplies the accumulated damage and filters victims to the priest's DoT.
+    ApplySpellFix({194225}, [](SpellInfo* spellInfo)
     {
-        spellInfo->Effects[EFFECT_0]->TriggerSpell = 0;
-        spellInfo->Effects[EFFECT_0]->BasePoints = 0;
+        spellInfo->Effects[EFFECT_0]->TargetB = TARGET_UNIT_SRC_AREA_ENEMY;
     });
     
     ApplySpellFix({167614}, [](SpellInfo* spellInfo)
@@ -7903,8 +7897,7 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Misc.Duration.Duration = 10000;
     });
     
-    // hack
-    ApplySpellFix({227674, 197214}, [](SpellInfo* spellInfo)
+    ApplySpellFix({227674}, [](SpellInfo* spellInfo)
     {
         spellInfo->Effects[EFFECT_1]->Effect = SPELL_EFFECT_NONE;
         spellInfo->Effects[EFFECT_1]->ApplyAuraName = SPELL_AURA_NONE;

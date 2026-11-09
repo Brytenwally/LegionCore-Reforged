@@ -56,7 +56,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
 | 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
-| 4 | C: class spells, clean files first, then the merged ones | medium |
+| 4 | C: class spells, clean files first, then the merged ones. **Done 2026-11-09** (see "Phase 4") | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
 | 7 | J (contributions), then G item by item as the owner hits problems | small, ongoing |
@@ -401,3 +401,35 @@ spawn 369686, which exists as expected without an addon).
 - **Commander's Valor** (warrior class hall): `ClassHalls/commanders_valor.cpp` (new), restricted to active altar quest
   circles (`EventObjectDataStoreMgr::GetEventObjectDataContainer`); SQL `_20`, `_21`.
 - Odyn's gaze visual source and self target (`_33`, `_40`).
+
+## Phase 4: class spell mechanics (2026-11-09)
+
+All 90 LegionCore-7.3.5 commits that touch `src/server/scripts/Spells` (its per-spec "restore ... mechanics" audits,
+Tier 21 set bonuses, racials, Umbra-Weaver's Portent, warlock legendary refunds and pet healing, Heroic Leap on ships,
+removals of obsolete glyph scripts).
+- **Spell scripts**: `spell_dk`, `_hunter`, `_mage`, `_shaman`, `_warrior` were still the fork point's: taken as is.
+  `spell_dh`, `_druid`, `_generic`, `_item`, `_monk`, `_paladin`, `_priest`, `_quest`, `_rogue`, `_warlock` merged three
+  ways (`git merge-file`). Conflicts: Reforged's integer duration casts against LegionCore-7.3.5's float ones (theirs taken);
+  warlock registrations (both); Dancing Mists keeps Reforged's `ForEachMemberInMap` loop (thread safety) and gets
+  LegionCore-7.3.5's Gust of Mists mastery; `spell_generic` takes LegionCore-7.3.5's side and keeps Reforged's Iron Demolisher
+  Cannon Blast script; Touch of Elune reads the hour with `localtime_r` (this core has no `GameTime::GetDateAndTime`).
+  Other scripts the same commits touch: `npcs_special.cpp` (hunter, demonology and mistweaver
+  summons), aura effect indices in `boss_high_prophet_barim`, `antorus`, `boss_wing_leader_neronok`, and the Horde
+  funeral movie guard in `broken_islands.cpp`.
+- **Core** (patches applied in commit order): `Unit.cpp` / `Unit.h` (Fury, Retribution, Shadow, Blood, Frost, Fire,
+  Destruction, Mistweaver, Lightforged, Burning Rush, Norgannon shield bypass, Master Harvester paid once with the shards,
+  Soul Leech read live per contribution, `AddSoulLeechAbsorb` / `HealFromSoulLeech`), `SpellAuraEffects`, `SpellEffects`,
+  `SpellMgr`, `Spell.cpp` (Unholy, Charge on transports), `Player.cpp` (Holy: Cosmic Ripple as a timed aura; Streten;
+  Norgannon), `TemporarySummon`, `MiscHandler`, `MovementHandler`, `PathGenerator` + new `TransportGroundPath.h` /
+  `TransportJumpPath.h`, `PlayerScript::OnDeath` (`ScriptMgr::OnPlayerDeath`, called on every player death).
+  Already in from earlier phases: the pet health regeneration (Reforged had 1.5% per tick), the Netherlight Crucible
+  (phase 2), New Blood captors (3.11) and Heroic Leap's arrival only on a finished spline (3.12: Reforged's
+  `EffectMovementGenerator` already informs only then, and 94954 -> 52174 is a guarded jump).
+- SQL `2026_11_11_45..99`, `2026_11_12_00..25` (81 files: `2026_09_19_153..211`, `2026_09_20_212..217`, the T21 files
+  `249..265`, `277`, `280`, Argus `301..303` (their scripts came with `spell_generic`), the inscription class glyphs,
+  Norgannon, the warlock legendary refund and pet healing, Heroic Leap landing). All ran verbatim on the MySQL 8 copy
+  (only the Heroic Leap guard exists; it passed and is forced). Every script name they remove is gone from C++ too, and
+  every name they add exists.
+- Not here: the characters update that persists spell charges and the September proc / condition clean-ups that do
+  not touch class scripts (phase 7).
+

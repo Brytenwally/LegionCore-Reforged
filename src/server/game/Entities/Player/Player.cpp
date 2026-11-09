@@ -5839,7 +5839,6 @@ void Player::TakeSpellCharge(SpellInfo const* spellInfo)
     if (!spellInfo->Categories.ChargeCategory)
         return;
 
-    int32 _delay = 0;
     SpellChargeDataMap::iterator itr = m_spellChargeData.find(spellInfo->Categories.ChargeCategory);
     if (itr == m_spellChargeData.end())
     {
@@ -5862,7 +5861,6 @@ void Player::TakeSpellCharge(SpellInfo const* spellInfo)
         data.timer = 0;
         data.spellInfo = spellInfo;
 
-        _delay = chargeRegenTime;
         --data.charges;
     }
     else
@@ -5878,21 +5876,7 @@ void Player::TakeSpellCharge(SpellInfo const* spellInfo)
         data.chargeRegenTime = GetSpellCategoryChargesTimer(categoryEntry, spellInfo, true);
         data.maxCharges = GetMaxSpellCategoryCharges(categoryEntry);
 
-        _delay = data.chargeRegenTime;
         --data.charges;
-    }
-
-    switch (spellInfo->Id)
-    {
-        case 2050:
-            if (HasAura(238136)) // Cosmic Ripple
-            {
-                AddDelayedEvent(_delay, [this]() -> void
-                {
-                    CastSpell(this, 243241, true);
-                });
-            }
-            break;
     }
 }
 
@@ -5914,6 +5898,10 @@ void Player::UpdateSpellCharges(uint32 diff)
         {
             data.timer -= chargeRegenTime;
             ++data.charges;
+
+            if (data.spellInfo->Id == 2050 && HasAura(238136)) // Cosmic Ripple
+                CastSpell(this, 243241, true);
+
             if (data.charges == data.maxCharges)
                 data.timer = 0;
             chargeRegenTime = data.chargeRegenTime = GetSpellCategoryChargesTimer(data.categoryEntry, data.spellInfo);
@@ -6055,6 +6043,9 @@ void Player::ModSpellChargeCooldown(uint32 SpellID, int32 delta)
         {
             data.timer -= data.chargeRegenTime;
             ++data.charges;
+
+            if (SpellID == 2050 && HasAura(238136)) // Cosmic Ripple
+                CastSpell(this, 243241, true);
         }
 
         if (data.charges < 0)
@@ -8737,6 +8728,12 @@ void Player::SendCinematicStart(uint32 CinematicSequenceId)
 
 void Player::SendMovieStart(uint32 MovieId)
 {
+    if (MovieId == 474 && isWatchingMovie())
+    {
+        TC_LOG_INFO("entities.player", "Suppressed overlapping Horde funeral movie 474 for %s", GetName());
+        return;
+    }
+    TC_LOG_INFO("entities.player", "Movie %u started for %s", MovieId, GetName());
     WorldPackets::Misc::TriggerMovie packet;
     packet.MovieID = MovieId;
     SendDirectMessage(packet.Write());
@@ -29530,10 +29527,7 @@ void Player::AddSpellAndCategoryCooldowns(SpellInfo const* spellInfo, uint32 ite
                 if (HasAura(238136)) // Cosmic Ripple
                 {
                     int32 delay = static_cast<int32>((cooldownTime - curTime) * static_cast<int64>(IN_MILLISECONDS));
-                    AddDelayedEvent(delay, [this]() -> void
-                    {
-                        CastSpell(this, 243241, true);
-                    });
+                    CastSpellDuration(this, 243283, true, delay);
                 }
                 break;
             }
@@ -36781,6 +36775,23 @@ void Player::ModifySpellCooldown(uint32 spell_id, int32 delta)
     double result = cooldown * static_cast<double>(IN_MILLISECONDS) + delta;
     if (G3D::fuzzyLt(result, 0.0))
         result = 0.0;
+
+    if (spell_id == 34861)
+    {
+        if (Aura* marker = GetAura(243283))
+        {
+            if (result > 0.0)
+            {
+                marker->SetMaxDuration(int32(result));
+                marker->SetDuration(int32(result));
+            }
+            else
+                marker->Remove();
+        }
+
+        if (result <= 0.0 && HasAura(238136))
+            CastSpell(this, 243241, true);
+    }
 
     if (result <= 0.0)
     {

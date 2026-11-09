@@ -28,6 +28,7 @@
 #include "GridNotifiers.h"
 #include "AreaTriggerAI.h"
 #include "AreaTrigger.h"
+#include "Timer.h"
 
 enum PaladinSpells
 {
@@ -47,6 +48,8 @@ enum PaladinSpells
     DivineTempestAura                            = 186773,
     DivineTempest                                = 186775,
     DivineStormDamage                            = 224239,
+    TemplarsVerdictDamage                        = 224266,
+    EchoOfTheHighlord                            = 186788,
     BlessingOfTheAshbringer                      = 242981,
     GreaterBlessingOfKings                       = 203538,
     GreaterBlessingOfWisdom                      = 203539,
@@ -57,9 +60,79 @@ enum PaladinSpells
     TheLightSavesDebuff                          = 211426,
     DevotionAura                                 = 210320,
     AuraOfSacrifice                              = 210372,
+    Judgment                                     = 20271,
+    JudgmentOfLight                              = 183778,
+
+    AvengersShield                              = 31935,
+    ShieldOfTheRighteous                        = 53600,
+    ShieldOfTheRighteousArmor                   = 132403,
+    FinalStand                                  = 204077,
+    FinalStandTaunt                             = 204079,
+    RighteousProtector                         = 204074,
+    LightOfTheProtector                        = 184092,
+    HandOfTheProtector                         = 213652,
+    GrandCrusader                              = 85043,
+    GrandCrusaderProc                          = 85416,
+    CrusadersJudgment                          = 204023,
+    HammerOfTheRighteousAoe                    = 88263,
+    ConsecratedHammer                         = 203785,
+    ConsecrationProtectionAura                 = 188370,
+    ScatterTheShadows                         = 209223,
+    DefenderOfTruth                           = 238097,
+    DefenderOfTruthShield                     = 240059,
 
     HealingStormMaxTarget                        = 6,
     UpdateTimer                                  = 2000,
+};
+
+// Judgment of Light - 183778. The client proc flags cover harmful abilities;
+// only Judgment itself may apply the 196941 debuff described by the talent.
+class spell_pal_judgment_of_light : public AuraScript
+{
+    PrepareAuraScript(spell_pal_judgment_of_light);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* procSpell = eventInfo.GetSpell();
+        return procSpell && procSpell->GetSpellInfo()->Id == Judgment;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_pal_judgment_of_light::CheckProc);
+    }
+};
+
+// Judgment of Light - 196941. Its forty client-defined charges may trigger at
+// most once per interval stored in effect 1 of the owning 183778 talent aura.
+class spell_pal_judgment_of_light_debuff : public AuraScript
+{
+    PrepareAuraScript(spell_pal_judgment_of_light_debuff);
+
+    uint32 _lastProcTime = 0;
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        if (!eventInfo.GetActor())
+            return false;
+
+        uint32 interval = IN_MILLISECONDS;
+        if (Unit* caster = GetCaster())
+            if (AuraEffect const* talent = caster->GetAuraEffect(JudgmentOfLight, EFFECT_1))
+                interval = uint32(talent->GetAmount() * float(IN_MILLISECONDS));
+
+        uint32 now = getMSTime();
+        if (_lastProcTime && getMSTimeDiff(_lastProcTime, now) < interval)
+            return false;
+
+        _lastProcTime = now;
+        return true;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_pal_judgment_of_light_debuff::CheckProc);
+    }
 };
 
 // 6940 - Hand of Sacrifice
@@ -104,23 +177,31 @@ class spell_pal_shield_of_the_righteous : public SpellScriptLoader
         {
             PrepareSpellScript(spell_pal_shield_of_the_righteous_SpellScript);
 
-            void HandleOnHit()
+            void HandleAfterCast()
             {
                 if (Unit* caster = GetCaster())
                 {
-                    if (Aura* spellShield = caster->GetAura(132403))
+                    if (Aura* spellShield = caster->GetAura(ShieldOfTheRighteousArmor))
                     {
-                        spellShield->SetDuration(spellShield->GetDuration() + spellShield->GetMaxDuration());
+                        int32 const baseDuration = spellShield->GetMaxDuration();
+                        spellShield->SetDuration(std::min(spellShield->GetDuration() + baseDuration, baseDuration * 3));
                         spellShield->RecalculateAmountOfEffects(true);
                     }
                     else
-                        caster->CastSpell(caster, 132403, true);
+                        caster->CastSpell(caster, ShieldOfTheRighteousArmor, true);
+
+                    if (AuraEffect const* righteousProtector = caster->GetAuraEffect(RighteousProtector, EFFECT_0))
+                    {
+                        int32 cooldownReduction = -int32(righteousProtector->GetAmount() * float(IN_MILLISECONDS));
+                        if (Player* player = caster->ToPlayer())
+                            player->ModSpellChargeCooldown(player->HasSpell(HandOfTheProtector) ? HandOfTheProtector : LightOfTheProtector, cooldownReduction);
+                    }
                 }
             }
 
             void Register() override
             {
-                OnHit += SpellHitFn(spell_pal_shield_of_the_righteous_SpellScript::HandleOnHit);
+                AfterCast += SpellCastFn(spell_pal_shield_of_the_righteous_SpellScript::HandleAfterCast);
             }
         };
 
@@ -142,7 +223,7 @@ class areatrigger_at_divine_tempest : public AreaTriggerScript
         {
         }
 
-        bool hasHealingStorm;
+        bool hasHealingStorm = false;
         std::vector<uint64> targetGUID;
 
         void OnCreate() override
@@ -181,14 +262,14 @@ class areatrigger_at_divine_tempest : public AreaTriggerScript
                                 return;
                         }
 
-                        Unit* paladinCaster = caster;
-
-                        if (Unit* owner = caster->GetOwner())
-                            paladinCaster = owner;
+                        Unit* paladinCaster = caster->GetOwner() ? caster->GetOwner() : caster;
 
                         if (paladinCaster->IsInRaidWith(unit))
                         {
-                            paladinCaster->CastSpell(unit, HealingStormHeal, true);
+                            if (caster->GetOwner())
+                                caster->CastSpell(unit, HealingStormHeal, true, nullptr, nullptr, paladinCaster->GetGUID());
+                            else
+                                paladinCaster->CastSpell(unit, HealingStormHeal, true);
                             targetGUID.push_back(curGUID);
                         }
                     }
@@ -217,13 +298,11 @@ class spell_pal_divine_storm : public SpellScriptLoader
     {
         PrepareSpellScript(spell_pal_divine_storm_SpellScript);
 
-        bool hasDivineTempest;
-        bool hasHealingStorm;
+        bool hasDivineTempest = false;
+        bool hasHealingStorm = false;
 
         void HandleBeforeCast()
         {
-            hasDivineTempest = false;
-
             if (Unit* caster = GetCaster())
             {
                 if (Unit* owner = caster->GetOwner())
@@ -305,11 +384,13 @@ class spell_pal_divine_storm : public SpellScriptLoader
             {
                 if (Unit* target = GetHitUnit())
                 {
-                    if (Unit* owner = caster->GetOwner())
-                        caster = owner;
-
                     if (hasHealingStorm)
-                        caster->CastSpell(target, HealingStormHeal, true);
+                    {
+                        if (Unit* owner = caster->GetOwner())
+                            caster->CastSpell(target, HealingStormHeal, true, nullptr, nullptr, owner->GetGUID());
+                        else
+                            caster->CastSpell(target, HealingStormHeal, true);
+                    }
                 }
             }
         }
@@ -407,7 +488,12 @@ class spell_pal_divine_shield : public SpellScriptLoader
             {
                 if (Player* _player = GetCaster()->ToPlayer())
                     if (Unit* target = GetHitUnit())
+                    {
                         _player->CastSpell(target, PALADIN_SPELL_FORBEARANCE, true);
+
+                        if (_player->HasAura(FinalStand))
+                            _player->CastSpell(_player, FinalStandTaunt, true);
+                    }
             }
 
             //void HandleHeal(SpellEffIndex /*effIndex*/)
@@ -716,25 +802,47 @@ class spell_pal_ardent_defender : public SpellScriptLoader
             void Absorb(AuraEffect* aurEff, DamageInfo & dmgInfo, float & absorbAmount)
             {
                 Unit* victim = GetTarget();
-                int32 remainingHealth = victim->GetHealth() - dmgInfo.GetDamage();
-                // If damage kills us
-                if (remainingHealth <= 0 && !victim->ToPlayer()->HasSpellCooldown(PALADIN_SPELL_ARDENT_DEFENDER_HEAL))
-                {
-                    // Cast healing spell, completely avoid damage
-                    absorbAmount = dmgInfo.GetDamage();
+                float damage = dmgInfo.GetDamage();
+                float health = victim->GetHealth();
 
-                    float healAmount = int32(victim->CountPctFromMaxHealth(healPct));
-                    victim->CastCustomSpell(victim, PALADIN_SPELL_ARDENT_DEFENDER_HEAL, &healAmount, NULL, NULL, true, NULL, aurEff);
-                    victim->ToPlayer()->AddSpellCooldown(PALADIN_SPELL_ARDENT_DEFENDER_HEAL, 0, getPreciseTime() + 120.0);
+                // The 7.3.5 death prevention only works against a hit no larger
+                // than 200% of maximum health and leaves the paladin at exactly
+                // the percentage stored in effect 1.
+                if (damage >= health && damage <= victim->GetMaxHealth() * 2.0f)
+                {
+                    float targetHealth = victim->CountPctFromMaxHealth(healPct);
+                    if (health <= targetHealth)
+                    {
+                        absorbAmount = damage;
+                        float healAmount = targetHealth - health;
+                        if (healAmount > 0.0f)
+                            victim->CastCustomSpell(victim, PALADIN_SPELL_ARDENT_DEFENDER_HEAL, &healAmount, NULL, NULL, true, NULL, aurEff);
+                    }
+                    else
+                        absorbAmount = damage - (health - targetHealth);
+
+                    aurEff->GetBase()->Remove();
                 }
                 else
-                    absorbAmount = CalculatePct(dmgInfo.GetDamage(), absorbPct);
+                    absorbAmount = CalculatePct(damage, absorbPct);
+            }
+
+            void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+            {
+                Unit* target = GetTarget();
+                if (target->IsAlive())
+                    if (AuraEffect const* defenderOfTruth = target->GetAuraEffect(DefenderOfTruth, EFFECT_0))
+                    {
+                        float shieldAmount = target->CountPctFromMaxHealth(defenderOfTruth->GetAmount());
+                        target->CastCustomSpell(target, DefenderOfTruthShield, &shieldAmount, nullptr, nullptr, true);
+                    }
             }
 
             void Register() override
             {
                  DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_pal_ardent_defender_AuraScript::CalculateAmount, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB);
                  OnEffectAbsorb += AuraEffectAbsorbFn(spell_pal_ardent_defender_AuraScript::Absorb, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB);
+                 AfterEffectRemove += AuraEffectRemoveFn(spell_pal_ardent_defender_AuraScript::HandleRemove, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB, AURA_EFFECT_HANDLE_REAL);
             }
         };
 
@@ -863,6 +971,118 @@ class spell_pal_holy_shield : public SpellScriptLoader
         {
             return new spell_pal_holy_shield_AuraScript();
         }
+};
+
+// Healing Storm - 215257. Echo of the Highlord repeats Divine Storm at ten
+// percent effectiveness, including Healing Storm's independently rolled heal.
+class spell_pal_healing_storm : public SpellScript
+{
+    PrepareSpellScript(spell_pal_healing_storm);
+
+    void HandleHeal(SpellEffIndex /*effIndex*/)
+    {
+        if (Unit* owner = GetCaster()->GetOwner())
+            if (AuraEffect const* echo = owner->GetAuraEffect(EchoOfTheHighlord, EFFECT_0))
+                SetHitHeal(CalculatePct(GetHitHeal(), echo->GetAmount()));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pal_healing_storm::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
+    }
+};
+
+// Bastion of Light - 204035
+class spell_pal_bastion_of_light : public SpellScript
+{
+    PrepareSpellScript(spell_pal_bastion_of_light);
+
+    void HandleDummy(SpellEffIndex /*effIndex*/)
+    {
+        if (Player* player = GetCaster()->ToPlayer())
+            if (SpellInfo const* shieldOfTheRighteous = sSpellMgr->GetSpellInfo(ShieldOfTheRighteous))
+                player->RestoreSpellCategoryCharges(shieldOfTheRighteous->Categories.ChargeCategory);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pal_bastion_of_light::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+static void ApplyGrandCrusaderReset(Unit* caster, bool castProcAura)
+{
+    if (Player* player = caster->ToPlayer())
+    {
+        if (castProcAura)
+            player->CastSpell(player, GrandCrusaderProc, true);
+
+        player->RemoveSpellCooldown(AvengersShield, true);
+        if (player->HasAura(CrusadersJudgment))
+            player->ModSpellCharge(Judgment, 1);
+    }
+}
+
+// Grand Crusader - 85043. The client proc handles avoided attacks; its dummy
+// effect still needs to reset Avenger's Shield and restore Judgment's charge.
+class spell_pal_grand_crusader : public AuraScript
+{
+    PrepareAuraScript(spell_pal_grand_crusader);
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        ApplyGrandCrusaderReset(GetTarget(), false);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_pal_grand_crusader::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Grand Crusader's second trigger source is a successful use of Hammer of the
+// Righteous or Blessed Hammer. First Avenger adds its client-defined 10% chance.
+class spell_pal_grand_crusader_hammer : public SpellScript
+{
+    PrepareSpellScript(spell_pal_grand_crusader_hammer);
+
+    void HandleAfterCast()
+    {
+        Unit* caster = GetCaster();
+        Aura* grandCrusader = caster->GetAura(GrandCrusader);
+        if (!grandCrusader)
+            return;
+
+        SpellInfo::SpellAuraOptions const* auraOptions = grandCrusader->GetSpellInfo()->GetAuraOptions();
+        float chance = auraOptions ? auraOptions->ProcChance : 15.0f;
+        if (AuraEffect const* firstAvenger = caster->GetAuraEffect(203776, EFFECT_1))
+            chance += firstAvenger->GetAmount();
+
+        if (roll_chance_f(chance))
+            ApplyGrandCrusaderReset(caster, true);
+    }
+
+    void Register() override
+    {
+        AfterCast += SpellCastFn(spell_pal_grand_crusader_hammer::HandleAfterCast);
+    }
+};
+
+// Hammer of the Righteous - 53595
+class spell_pal_hammer_of_the_righteous : public SpellScript
+{
+    PrepareSpellScript(spell_pal_hammer_of_the_righteous);
+
+    void HandleHit(SpellEffIndex /*effIndex*/)
+    {
+        if (GetCaster()->HasAura(ConsecrationProtectionAura) || GetCaster()->HasAura(ConsecratedHammer))
+            GetCaster()->CastSpell(GetHitUnit(), HammerOfTheRighteousAoe, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pal_hammer_of_the_righteous::HandleHit, EFFECT_0, SPELL_EFFECT_WEAPON_PERCENT_DAMAGE);
+    }
 };
 
 // Divine Intervention - 213313
@@ -1058,21 +1278,18 @@ class spell_pal_zeal : public SpellScriptLoader
         {
             PrepareSpellScript(spell_pal_zeal_SpellScript);
 
+            uint8 targetIndex = 0;
+
             void HandleOnHit(SpellEffIndex /*effIndex*/)
             {
-                Unit* caster = GetCaster();
-                if (!caster)
-                    return;
+                int32 damage = GetHitDamage();
+                int32 jumpMultiplier = 100 - GetSpellInfo()->Effects[EFFECT_5]->CalcValue(GetCaster());
 
-                if (GetHitUnit() != GetExplTargetUnit())
-                {
-                    int32 perc = 100 - (GetSpellInfo()->Effects[EFFECT_5]->CalcValue(caster) * (GetSpell()->GetTargetCount() - 2));
-                    if (perc <= 0)
-                        SetHitDamage(CalculatePct(GetHitDamage(), 20));
-                    else
-                        SetHitDamage(CalculatePct(GetHitDamage(), perc));
-                }
+                for (uint8 jump = 0; jump < targetIndex; ++jump)
+                    damage = CalculatePct(damage, jumpMultiplier);
 
+                SetHitDamage(damage);
+                ++targetIndex;
             }
 
             void Register() override
@@ -1205,7 +1422,13 @@ class spell_pal_light_of_the_protector : public SpellScriptLoader
 
                 int32 bp = target->GetMaxHealth() - target->GetHealth();
                 if (bp > 0)
-                    SetEffectValue(CalculatePct(bp, GetSpellInfo()->Effects[EFFECT_0]->CalcValue(caster)));
+                {
+                    int32 heal = CalculatePct(bp, GetSpellInfo()->Effects[EFFECT_0]->CalcValue(caster));
+                    if (AuraEffect const* scatterTheShadows = caster->GetAuraEffect(ScatterTheShadows, EFFECT_0))
+                        AddPct(heal, scatterTheShadows->GetAmount());
+
+                    SetEffectValue(heal);
+                }
             }
 
             void Register() override
@@ -1554,40 +1777,50 @@ class spell_pal_seraphim : public SpellScriptLoader
     public:
         spell_pal_seraphim() : SpellScriptLoader("spell_pal_seraphim") { }
 
-        class spell_pal_seraphim_AuraScript : public AuraScript
+        class spell_pal_seraphim_SpellScript : public SpellScript
         {
-            PrepareAuraScript(spell_pal_seraphim_AuraScript);
+            PrepareSpellScript(spell_pal_seraphim_SpellScript);
 
-            void CalculateMaxDuration(int32& duration)
+            SpellCastResult CheckCast()
             {
-                duration = 2000; // Default
-                if (Player* _player = GetCaster()->ToPlayer())
+                Player* player = GetCaster()->ToPlayer();
+                SpellInfo const* shieldOfTheRighteous = sSpellMgr->GetSpellInfo(ShieldOfTheRighteous);
+                if (!player || !shieldOfTheRighteous || !player->GetChargesForSpell(shieldOfTheRighteous))
+                    return SPELL_FAILED_NO_POWER;
+
+                return SPELL_CAST_OK;
+            }
+
+            void HandleDummy(SpellEffIndex effIndex)
+            {
+                Player* player = GetCaster()->ToPlayer();
+                SpellInfo const* shieldOfTheRighteous = sSpellMgr->GetSpellInfo(ShieldOfTheRighteous);
+                if (!player || !shieldOfTheRighteous)
+                    return;
+
+                uint8 charges = std::min<uint8>(player->GetChargesForSpell(shieldOfTheRighteous), uint8(GetSpellInfo()->Effects[effIndex]->BasePoints));
+                if (!charges)
+                    return;
+
+                player->ModSpellCharge(ShieldOfTheRighteous, -int32(charges));
+                if (Aura* seraphim = player->GetAura(GetSpellInfo()->Id))
                 {
-                    int32 charges = 0;
-                    if(SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(53600)) // Shield of the Righteous
-                        charges = _player->GetChargesForSpell(spellInfo);
-                    if (charges >= 2)
-                    {
-                        duration += 8000 * 2;
-                        _player->ModSpellCharge(53600, -2);
-                    }
-                    else if (charges == 1)
-                    {
-                        duration += 8000;
-                        _player->ModSpellCharge(53600, -1);
-                    }
+                    int32 duration = GetSpellInfo()->GetDuration() * charges;
+                    seraphim->SetMaxDuration(duration);
+                    seraphim->SetDuration(duration);
                 }
             }
 
             void Register() override
             {
-                DoCalcMaxDuration += AuraCalcMaxDurationFn(spell_pal_seraphim_AuraScript::CalculateMaxDuration);
+                OnCheckCast += SpellCheckCastFn(spell_pal_seraphim_SpellScript::CheckCast);
+                OnEffectHitTarget += SpellEffectFn(spell_pal_seraphim_SpellScript::HandleDummy, EFFECT_1, SPELL_EFFECT_DUMMY);
             }
         };
 
-        AuraScript* GetAuraScript() const override
+        SpellScript* GetSpellScript() const override
         {
-            return new spell_pal_seraphim_AuraScript();
+            return new spell_pal_seraphim_SpellScript();
         }
 };
 
@@ -1729,7 +1962,7 @@ class spell_pal_judgment : public SpellScriptLoader
 
                 if (AuraEffect* aurEff = caster->GetAuraEffect(231657, EFFECT_0)) // Judgment (lvl 2 for Protection)
                 {
-                    int32 second = aurEff->GetAmount() * static_cast<int32>(IN_MILLISECONDS);
+                    int32 second = int32(aurEff->GetAmount() * float(IN_MILLISECONDS));
                     if (GetSpell()->IsCritForTarget(target))
                         second *= 2;
                     if (Player* _player = caster->ToPlayer())
@@ -1771,17 +2004,6 @@ class spell_pal_judgment : public SpellScriptLoader
                     if (AuraEffect const* aurEff = caster->GetAuraEffect(231661, EFFECT_0)) // Judgment
                         AddJumpTarget += aurEff->GetAmount();
 
-                    if (AuraEffect const* aurEff = caster->GetAuraEffect(238134, EFFECT_0)) // Judge Unworthy
-                    {
-                        if (Unit* unitTarget = GetExplTargetUnit())
-                        {
-                            if (unitTarget->HasAura(197277))
-                            {
-                                if (roll_chance_i(aurEff->GetAmount()))
-                                    AddJumpTarget += 1;
-                            }
-                        }
-                    }
                 }
             }
 
@@ -1809,19 +2031,11 @@ class spell_pal_blessing_of_the_ashbringer : public SpellScriptLoader
     {
         PrepareAuraScript(spell_pal_blessing_of_the_ashbringer_AuraScript);
 
-        int32 timer = UpdateTimer;
+        int32 timer = 0;
 
         void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
         {
             Remove(GetUnitOwner());
-        }
-
-        uint32 CallSpecialFunction(uint32 /*Num*/) override
-        {
-            if (!timer)
-                timer = UpdateTimer;
-
-            return 1;
         }
 
         void Apply(Unit* owner)
@@ -1837,55 +2051,36 @@ class spell_pal_blessing_of_the_ashbringer : public SpellScriptLoader
 
         void OnUpdate(uint32 diff)
         {
-            if (!timer)
-                return;
-
-            timer -= diff;
-
-            if (timer <= 0)
+            if (timer > int32(diff))
             {
-                timer = 0;
+                timer -= diff;
+                return;
+            }
 
-                if (Unit* owner = GetUnitOwner())
+            timer = UpdateTimer;
+
+            if (Unit* owner = GetUnitOwner())
+            {
+                ObjectGuid ownerGuid = owner->GetGUID();
+                bool hasWisdom = owner->HasAura(GreaterBlessingOfWisdom, ownerGuid);
+                bool hasKings = owner->HasAura(GreaterBlessingOfKings, ownerGuid);
+
+                for (auto const& targetAuras : owner->m_whoHasMyAuras)
                 {
-                    uint8 auraAmount = 0;
-
-                    for (auto itr : owner->m_whoHasMyAuras)
+                    for (uint32 spellId : targetAuras.second)
                     {
-                        if (auraAmount > 0)
-                            break;
-
-                        for (auto v : itr.second)
-                        {
-                            if (v == GreaterBlessingOfWisdom || v == GreaterBlessingOfKings)
-                                auraAmount++;
-                        }
+                        hasWisdom = hasWisdom || spellId == GreaterBlessingOfWisdom;
+                        hasKings = hasKings || spellId == GreaterBlessingOfKings;
                     }
 
-                    switch (auraAmount)
-                    {
-                        case 0:
-                        {
-                            ObjectGuid ownerGUID = owner->GetGUID();
-
-                            if (owner->HasAura(GreaterBlessingOfWisdom, ownerGUID) && owner->HasAura(GreaterBlessingOfKings, ownerGUID))
-                            {
-                                Apply(owner);
-                                return;
-                            }
-                        }
-                        case 1:
-                        {
-                            Remove(owner);
-                            return;
-                        }
-                        default:
-                        {
-                            Apply(owner);
-                            return;
-                        }
-                    }
+                    if (hasWisdom && hasKings)
+                        break;
                 }
+
+                if (hasWisdom && hasKings)
+                    Apply(owner);
+                else
+                    Remove(owner);
             }
         }
 
@@ -1899,6 +2094,71 @@ class spell_pal_blessing_of_the_ashbringer : public SpellScriptLoader
     AuraScript* GetAuraScript() const override
     {
         return new spell_pal_blessing_of_the_ashbringer_AuraScript();
+    }
+};
+
+// Templar's Verdict - 85256. The player-facing spell is a dummy wrapper; the
+// separate 224266 spell contains the Legion 7.3.5 damage coefficients.
+class spell_pal_templars_verdict : public SpellScript
+{
+    PrepareSpellScript(spell_pal_templars_verdict);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ TemplarsVerdictDamage });
+    }
+
+    void HandleDummy(SpellEffIndex /*effIndex*/)
+    {
+        if (Unit* target = GetHitUnit())
+            GetCaster()->CastSpell(target, TemplarsVerdictDamage, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pal_templars_verdict::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+// Divine Hammer - 198034. Effect 1 stores the two Holy Power generated when
+// the self-targeted dummy effect is executed.
+class spell_pal_divine_hammer : public SpellScript
+{
+    PrepareSpellScript(spell_pal_divine_hammer);
+
+    void HandleHolyPower(SpellEffIndex /*effIndex*/)
+    {
+        GetCaster()->ModifyPower(POWER_HOLY_POWER, GetEffectValue());
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pal_divine_hammer::HandleHolyPower, EFFECT_1, SPELL_EFFECT_DUMMY);
+    }
+};
+
+// Word of Glory - 210191. The client stores the number of additional allies
+// in dummy effect 1; the caster is always healed in addition to those targets.
+class spell_pal_word_of_glory : public SpellScript
+{
+    PrepareSpellScript(spell_pal_word_of_glory);
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        Unit* caster = GetCaster();
+        targets.remove(caster);
+        targets.sort(Trinity::UnitHealthState(true));
+
+        uint32 maxAdditionalTargets = uint32(GetSpellInfo()->Effects[EFFECT_1]->CalcValue(caster));
+        if (targets.size() > maxAdditionalTargets)
+            targets.resize(maxAdditionalTargets);
+
+        targets.push_back(caster);
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_pal_word_of_glory::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ALLY);
     }
 };
 
@@ -2414,6 +2674,16 @@ class spell_pal_the_light_saves : public SpellScriptLoader
             {
                 if (Unit* caster = GetCaster())
                 {
+                    Unit* target = GetHitUnit();
+                    if (!target)
+                        return;
+
+                    ObjectGuid casterGuid = caster->GetGUID();
+                    if (!target->HasAura(BeaconOfLight, casterGuid)
+                        && !target->HasAura(BeaconOfFaith, casterGuid)
+                        && !target->HasAura(BeaconOfVirtue, casterGuid))
+                        return;
+
                     if (AuraEffect const* aurEff = caster->GetAuraEffect(TheLightSavesBuff, EFFECT_0)) // The Light Saves
                     {
                         SetHitHeal(GetHitHeal() + CalculatePct(GetHitHeal(), aurEff->GetAmount()));
@@ -2447,15 +2717,15 @@ class spell_pal_forbearance : public SpellScriptLoader
             void OnApply(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
             {
                 if (Unit* caster = GetCaster())
-                    if (AuraEffect* aurEff = caster->GetAuraEffect(209376, EFFECT_0)) // Forbearant Faithful
-                        aurEff->ChangeAmount(-(aurEff->GetSpellInfo()->Effects[EFFECT_1]->BasePoints));
+                    if (AuraEffect* faithful = caster->GetAuraEffect(209376, EFFECT_0)) // Forbearant Faithful
+                        faithful->ChangeAmount(faithful->GetAmount() - faithful->GetSpellInfo()->Effects[EFFECT_1]->BasePoints);
             }
 
             void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
             {
                 if (Unit* caster = GetCaster())
-                    if (AuraEffect* aurEff = caster->GetAuraEffect(209376, EFFECT_0)) // Forbearant Faithful
-                        aurEff->ChangeAmount(0);
+                    if (AuraEffect* faithful = caster->GetAuraEffect(209376, EFFECT_0)) // Forbearant Faithful
+                        faithful->ChangeAmount(std::min(0.0f, faithful->GetAmount() + faithful->GetSpellInfo()->Effects[EFFECT_1]->BasePoints));
             }
 
             void Register() override
@@ -2591,17 +2861,18 @@ class spell_pal_archimondes_hatred_reborn : public SpellScriptLoader
                     caster->CastCustomSpell(caster, 235188, &absorb, nullptr, nullptr, true);
             }
 
-            void Absorb(AuraEffect* aurEff, DamageInfo & dmgInfo, float & absorbAmount)
+            void Absorb(AuraEffect* /*aurEff*/, DamageInfo& /*dmgInfo*/, float& absorbAmount)
             {
-                absorbAmount = dmgInfo.GetDamage();
-                absorb += CalculatePct(dmgInfo.GetDamage(), GetSpellInfo()->Effects[EFFECT_1]->BasePoints);
+                // The core has already limited this amount to the remaining
+                // shield and incoming damage. Reflect only damage absorbed.
+                absorb += CalculatePct(absorbAmount, GetSpellInfo()->Effects[EFFECT_1]->BasePoints);
             }
 
             void Register() override
             {
                 OnEffectRemove += AuraEffectRemoveFn(spell_pal_archimondes_hatred_reborn_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB, AURA_EFFECT_HANDLE_REAL);
                 DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_pal_archimondes_hatred_reborn_AuraScript::CalculateAmount, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB);
-                OnEffectAbsorb += AuraEffectAbsorbFn(spell_pal_archimondes_hatred_reborn_AuraScript::Absorb, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB);
+                AfterEffectAbsorb += AuraEffectAbsorbFn(spell_pal_archimondes_hatred_reborn_AuraScript::Absorb, EFFECT_0, SPELL_AURA_SCHOOL_ABSORB);
             }
         };
 
@@ -2650,7 +2921,7 @@ class spell_pal_greater_blessing_of_wisdom : public SpellScriptLoader
 
         void HandleTick(AuraEffect const* aurEff, float& amount, Unit* /*target*/)
         {
-            amount /= GetSpellInfo()->Effects[EFFECT_2]->BasePoints * static_cast<int32>(IN_MILLISECONDS) / float(aurEff->GetPeriod());
+            amount /= GetSpellInfo()->Effects[EFFECT_2]->BasePoints * float(IN_MILLISECONDS) / float(aurEff->GetPeriod());
         }
 
         void Register() override
@@ -2751,9 +3022,9 @@ class spell_pal_hammer_of_reckoning : public SpellScript
                 if (aur->GetStackAmount() == GetSpellInfo()->Effects[EFFECT_1]->BasePoints)
                 {
                     if (caster->HasSpell(231895))
-                        caster->CastSpellDuration(caster, 231895, true, GetSpellInfo()->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
+                        caster->CastSpellDuration(caster, 231895, true, int32(GetSpellInfo()->Effects[EFFECT_3]->BasePoints * float(IN_MILLISECONDS)));
                     else
-                        caster->CastSpellDuration(caster, 31884, true, GetSpellInfo()->Effects[EFFECT_2]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
+                        caster->CastSpellDuration(caster, 31884, true, int32(GetSpellInfo()->Effects[EFFECT_2]->BasePoints * float(IN_MILLISECONDS)));
                 }
             }
             caster->RemoveAurasDueToSpell(247677);
@@ -2915,6 +3186,8 @@ class spell_pal_wake_of_ashes_proc : public AuraScript
 
 void AddSC_paladin_spell_scripts()
 {
+    RegisterAuraScript(spell_pal_judgment_of_light);
+    RegisterAuraScript(spell_pal_judgment_of_light_debuff);
     RegisterAuraScript(spell_pal_hand_of_sacrifice);
     new spell_pal_shield_of_the_righteous();
     new spell_pal_hand_of_protection();
@@ -2928,6 +3201,10 @@ void AddSC_paladin_spell_scripts()
     new spell_pal_lay_on_hands();
     new spell_pal_holy_shock();
     new spell_pal_holy_shield();
+    RegisterSpellScript(spell_pal_bastion_of_light);
+    RegisterAuraScript(spell_pal_grand_crusader);
+    RegisterSpellScript(spell_pal_grand_crusader_hammer);
+    RegisterSpellScript(spell_pal_hammer_of_the_righteous);
     new spell_pal_divine_intervention();
     new spell_pal_greater_blessing_of_kings();
     new spell_pal_shield_of_vengeance();
@@ -2958,10 +3235,14 @@ void AddSC_paladin_spell_scripts()
     new spell_pal_power_of_the_silver_hand();
     new spell_pal_bulwark_of_order();
     new spell_pal_divine_storm();
+    RegisterSpellScript(spell_pal_healing_storm);
     new areatrigger_at_divine_tempest();
     new spell_pal_first_avenger();
     new spell_pal_greater_blessing_of_wisdom();
     new spell_pal_blessing_of_the_ashbringer();
+    RegisterSpellScript(spell_pal_templars_verdict);
+    RegisterSpellScript(spell_pal_divine_hammer);
+    RegisterSpellScript(spell_pal_word_of_glory);
     new spell_pal_guardian_of_the_forgotten_queen();
     new spell_pal_the_light_saves_aura();
     RegisterSpellScript(spell_pal_hammer_of_reckoning);

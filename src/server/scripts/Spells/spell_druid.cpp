@@ -28,10 +28,20 @@
 #include "BattlefieldMgr.h"
 #include "Group.h"
 #include "AreaTrigger.h"
+#include "ObjectVisitors.hpp"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "Cell.h"
+#include "CellImpl.h"
 
 enum DruidSpells
 {
-    GERMINATION  = 155777
+    GERMINATION                       = 155777,
+    DRUID_BARKSKIN                    = 22812,
+    DRUID_GORE                        = 93622,
+    DRUID_RIP                         = 1079,
+    DRUID_T21_GUARDIAN_2P            = 251791,
+    DRUID_T21_GUARDIAN_HEALING_BUFF  = 253575
 };
 
 // Binary predicate for sorting Units based on value of duration of an Aura
@@ -111,15 +121,11 @@ class spell_dru_incarnation : public SpellScriptLoader
 
             void Register() override
             {
-                AfterEffectApply += AuraEffectApplyFn(spell_dru_incarnation_AuraScript::OnApply, EFFECT_0, SPELL_AURA_OVERRIDE_ACTIONBAR_SPELLS, AURA_EFFECT_HANDLE_REAL);
-                AfterEffectApply += AuraEffectApplyFn(spell_dru_incarnation_AuraScript::OnApply, EFFECT_0, SPELL_AURA_ADD_PCT_MODIFIER, AURA_EFFECT_HANDLE_REAL);
-                AfterEffectApply += AuraEffectApplyFn(spell_dru_incarnation_AuraScript::OnApply, EFFECT_0, SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, AURA_EFFECT_HANDLE_REAL);
-                AfterEffectApply += AuraEffectApplyFn(spell_dru_incarnation_AuraScript::OnApply, EFFECT_0, SPELL_AURA_MOD_SHAPESHIFT, AURA_EFFECT_HANDLE_REAL);
-
-                AfterEffectRemove += AuraEffectRemoveFn(spell_dru_incarnation_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_OVERRIDE_ACTIONBAR_SPELLS, AURA_EFFECT_HANDLE_REAL);
-                AfterEffectRemove += AuraEffectRemoveFn(spell_dru_incarnation_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_ADD_PCT_MODIFIER, AURA_EFFECT_HANDLE_REAL);
-                AfterEffectRemove += AuraEffectRemoveFn(spell_dru_incarnation_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_MOD_DAMAGE_PERCENT_DONE, AURA_EFFECT_HANDLE_REAL);
-                AfterEffectRemove += AuraEffectRemoveFn(spell_dru_incarnation_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_MOD_SHAPESHIFT, AURA_EFFECT_HANDLE_REAL);
+                // Each specialization's Incarnation aura uses a different
+                // effect-0 aura type. The model/form handling is shared and
+                // only needs to run once for whichever aura effect is present.
+                AfterEffectApply += AuraEffectApplyFn(spell_dru_incarnation_AuraScript::OnApply, EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
+                AfterEffectRemove += AuraEffectRemoveFn(spell_dru_incarnation_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
             }
         };
 
@@ -338,6 +344,105 @@ class spell_dru_rip : public AuraScript
     }
 };
 
+// Item - Druid T21 Feral 2P Bonus - 251789
+class spell_dru_t21_feral_2p : public AuraScript
+{
+    PrepareAuraScript(spell_dru_t21_feral_2p);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        return damageInfo && damageInfo->GetDamage() > 0 &&
+            damageInfo->GetDamageType() == DOT && damageInfo->GetSpellInfo() &&
+            damageInfo->GetSpellInfo()->Id == DRUID_RIP && eventInfo.GetActionTarget();
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        Unit* druid = GetTarget();
+        Unit* target = eventInfo.GetActionTarget();
+        SpellInfo const* rip = damageInfo ? damageInfo->GetSpellInfo() : nullptr;
+        if (!damageInfo || !druid || !target || !rip)
+            return;
+
+        SpellNonMeleeDamage repeatedDamage(druid, target, DRUID_RIP,
+            rip->GetSpellXSpellVisualId(druid, target), rip->GetSchoolMask());
+        repeatedDamage.damage = damageInfo->GetDamage();
+        repeatedDamage.damageBeforeHit = repeatedDamage.damage;
+        druid->DealDamageMods(target, repeatedDamage.damage, &repeatedDamage.absorb, rip);
+        druid->SendSpellNonMeleeDamageLog(&repeatedDamage);
+        druid->DealSpellDamage(&repeatedDamage, false);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_dru_t21_feral_2p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_dru_t21_feral_2p::HandleProc,
+            EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Mangle - 33917; Item - Druid T21 Guardian 2P Bonus - 251791
+class spell_dru_t21_guardian_2p : public SpellScript
+{
+    PrepareSpellScript(spell_dru_t21_guardian_2p);
+
+    bool _consumedGore = false;
+
+    void HandleBeforeCast()
+    {
+        if (Unit* caster = GetCaster())
+            _consumedGore = caster->HasAura(DRUID_GORE);
+    }
+
+    void HandleAfterCast()
+    {
+        Unit* caster = GetCaster();
+        if (!_consumedGore || !caster)
+            return;
+
+        if (AuraEffect const* bonus = caster->GetAuraEffect(DRUID_T21_GUARDIAN_2P, EFFECT_0))
+            if (Player* player = caster->ToPlayer())
+                player->ModifySpellCooldown(DRUID_BARKSKIN, -bonus->GetAmount());
+    }
+
+    void Register() override
+    {
+        BeforeCast += SpellCastFn(spell_dru_t21_guardian_2p::HandleBeforeCast);
+        AfterCast += SpellCastFn(spell_dru_t21_guardian_2p::HandleAfterCast);
+    }
+};
+
+// Barkskin - 22812; Item - Druid T21 Guardian 4P Bonus - 251792
+class spell_dru_t21_guardian_4p : public AuraScript
+{
+    PrepareAuraScript(spell_dru_t21_guardian_4p);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ DRUID_T21_GUARDIAN_HEALING_BUFF });
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
+            return;
+
+        Unit* target = GetTarget();
+        if (target->HasAura(251792))
+            target->CastSpell(target, DRUID_T21_GUARDIAN_HEALING_BUFF, true);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(spell_dru_t21_guardian_4p::HandleRemove,
+            EFFECT_1, SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
 // Ashamane's Frenzy - 210722
 class spell_dru_ashamanes_frenzy : public SpellScriptLoader
 {
@@ -411,7 +516,7 @@ class spell_dru_lifebloom : public SpellScriptLoader
                     if (Unit* caster = GetCaster())
                     {
                         if (Aura* aur = target->GetAura(GetSpellInfo()->Id, caster->GetGUID()))
-                            if (aur->GetDuration() < 4000)
+                            if (aur->GetDuration() <= int32(aur->CalcMaxDuration(caster) * 0.3f))
                                 caster->CastSpell(target, 33778, true);
                     }
                 }
@@ -1404,10 +1509,15 @@ class spell_dru_rend_and_tear : public SpellScriptLoader
                 if (!caster || caster->GetShapeshiftForm() != FORM_BEAR)
                     return;
 
-                if(Unit* target = dmgInfo.GetAttacker())
+                if (Unit* target = dmgInfo.GetAttacker())
                 {
-                    if (Aura* aura = target->GetAura(192090))
-                        absorbAmount = CalculatePct(dmgInfo.GetDamage(), 2 * GetStackAmount());
+                    // Rend and Tear scales with this druid's Thrash stacks on
+                    // the attacker, not with the (single-stack) talent aura.
+                    if (Aura* thrash = target->GetAura(192090, caster->GetGUID()))
+                    {
+                        float reductionPerStack = GetSpellInfo()->Effects[EFFECT_1]->CalcValue(caster);
+                        absorbAmount = CalculatePct(dmgInfo.GetDamage(), reductionPerStack * thrash->GetStackAmount());
+                    }
                 }
             }
 
@@ -1806,7 +1916,7 @@ class spell_dru_ekowraith_creator_of_worlds : public SpellScriptLoader
                 DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_dru_ekowraith_creator_of_worlds_AuraScript::CalculateAmount1, EFFECT_1, SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN);
                 DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_dru_ekowraith_creator_of_worlds_AuraScript::CalculateAmount3, EFFECT_3, SPELL_AURA_MOD_SPEED_ALWAYS);
                 DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_dru_ekowraith_creator_of_worlds_AuraScript::CalculateAmount5, EFFECT_5, SPELL_AURA_MOD_AUTO_ATTACK_RANGE);
-                DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_dru_ekowraith_creator_of_worlds_AuraScript::CalculateAmount6, EFFECT_5, SPELL_AURA_ADD_FLAT_MODIFIER);
+                DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_dru_ekowraith_creator_of_worlds_AuraScript::CalculateAmount6, EFFECT_6, SPELL_AURA_ADD_FLAT_MODIFIER);
             }
         };
 
@@ -1821,25 +1931,51 @@ class spell_dru_nature_balance : public SpellScript
 {
     PrepareSpellScript(spell_dru_nature_balance);
 
+    static void ExtendPeriodicAura(Unit* target, Unit* caster, uint32 spellId, int32 tickCount)
+    {
+        if (Aura* aura = target->GetAura(spellId, caster->GetGUID()))
+        {
+            AuraEffect const* periodicEffect = aura->GetEffect(EFFECT_1);
+            if (!periodicEffect)
+                return;
+
+            // Nature's Balance follows the normal 130% pandemic cap. Without this
+            // cap repeated casts could grow Moonfire or Sunfire indefinitely.
+            int32 const maximumDuration = CalculatePct(aura->GetMaxDuration(), 130);
+            int32 const extendedDuration = aura->GetDuration() + periodicEffect->GetPeriod() * tickCount;
+            aura->SetDuration(std::min(extendedDuration, maximumDuration));
+        }
+    }
+
     void HandleOnHit(SpellEffIndex /*effIndex*/)
     {
         if (Unit* caster = GetCaster())
         {
-            if (Unit* target = GetHitUnit())
-            {
-                if (Aura* aur = caster->GetAura(202430))
-                {
-                    if (GetId() == 194153)
-                        if (Aura* aura = target->GetAura(164812, caster->GetGUID()))
-                            if (AuraEffect* eff = aura->GetEffect(EFFECT_1))
-                                aura->SetDuration(aura->GetDuration() + eff->GetPeriod() * aur->GetSpellInfo()->Effects[EFFECT_0]->BasePoints);
+            Aura const* natureBalance = caster->GetAura(202430);
+            if (!natureBalance)
+                return;
 
-                    if (GetId() == 190984)
-                        if (Aura* aura = target->GetAura(164815, caster->GetGUID()))
-                            if (AuraEffect* eff = aura->GetEffect(EFFECT_1))
-                                aura->SetDuration(aura->GetDuration() + eff->GetPeriod() * aur->GetSpellInfo()->Effects[EFFECT_1]->BasePoints);
-                }
+            if (GetId() == 194153)
+            {
+                if (Unit* target = GetHitUnit())
+                    ExtendPeriodicAura(target, caster, 164812, natureBalance->GetSpellInfo()->Effects[EFFECT_0]->BasePoints);
+                return;
             }
+
+            if (GetId() != 190984)
+                return;
+
+            // Solar Wrath extends every Sunfire applied by this druid, not only
+            // the Sunfire on Solar Wrath's current target.
+            UnitList targets;
+            float const range = caster->GetVisibilityRange();
+            Trinity::AnyUnitHavingBuffInObjectRangeCheck check(caster, caster, range, 164815, false);
+            Trinity::UnitListSearcher<Trinity::AnyUnitHavingBuffInObjectRangeCheck> searcher(caster, targets, check);
+            Trinity::VisitNearbyObject(caster, range, searcher);
+
+            int32 const tickCount = natureBalance->GetSpellInfo()->Effects[EFFECT_1]->BasePoints;
+            for (Unit* target : targets)
+                ExtendPeriodicAura(target, caster, 164815, tickCount);
         }
     }
 
@@ -2274,6 +2410,9 @@ void AddSC_druid_spell_scripts()
     RegisterAuraScript(spell_dru_travel_form_speed_increase);
     RegisterAuraScript(spell_dru_travel_form_speed_increase_dummy);
     RegisterAuraScript(spell_dru_rip);
+    RegisterAuraScript(spell_dru_t21_feral_2p);
+    RegisterSpellScript(spell_dru_t21_guardian_2p);
+    RegisterAuraScript(spell_dru_t21_guardian_4p);
     RegisterSpellScript(spell_dru_regrowth);
     RegisterAuraScript(spell_dru_ysera_gift);
     RegisterAuraScript(spell_dru_t21_4p_rest);

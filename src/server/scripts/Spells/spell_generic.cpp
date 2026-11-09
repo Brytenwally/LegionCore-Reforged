@@ -28,6 +28,7 @@
 #include "Cell.h"
 #include "CellImpl.h"
 #include "Garrison.h"
+#include "GameTime.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "Group.h"
@@ -566,6 +567,23 @@ class spell_gen_remove_flight_auras : public SpellScriptLoader
         {
             return new spell_gen_remove_flight_auras_SpellScript();
         }
+};
+
+// Escape Artist - 20589
+class spell_gen_escape_artist : public SpellScript
+{
+    PrepareSpellScript(spell_gen_escape_artist);
+
+    void HandleScriptEffect(SpellEffIndex /*effIndex*/)
+    {
+        if (Unit* target = GetHitUnit())
+            target->RemoveAurasWithMechanic((1u << MECHANIC_ROOT) | (1u << MECHANIC_SNARE), AURA_REMOVE_BY_DEFAULT);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_gen_escape_artist::HandleScriptEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+    }
 };
 
 enum EluneCandle
@@ -1222,8 +1240,10 @@ class spell_gen_clone_weapon_aura : public SpellScriptLoader
 
             void Register() override
             {
-                OnEffectApply += AuraEffectApplyFn(spell_gen_clone_weapon_auraScript::OnApply, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
-                OnEffectRemove += AuraEffectRemoveFn(spell_gen_clone_weapon_auraScript::OnRemove, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
+                // Clone-weapon spells use more than one effect-0 aura type in
+                // this client build; the equipment-copy lifecycle is shared.
+                OnEffectApply += AuraEffectApplyFn(spell_gen_clone_weapon_auraScript::OnApply, EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
+                OnEffectRemove += AuraEffectRemoveFn(spell_gen_clone_weapon_auraScript::OnRemove, EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
             }
 
         };
@@ -1231,54 +1251,6 @@ class spell_gen_clone_weapon_aura : public SpellScriptLoader
         AuraScript* GetAuraScript() const override
         {
             return new spell_gen_clone_weapon_auraScript();
-        }
-};
-
-enum SeaforiumSpells
-{
-    SPELL_PLANT_CHARGES_CREDIT_ACHIEVEMENT = 60937,
-};
-
-class spell_gen_seaforium_blast : public SpellScriptLoader
-{
-    public:
-        spell_gen_seaforium_blast() : SpellScriptLoader("spell_gen_seaforium_blast") {}
-
-        class spell_gen_seaforium_blast_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_gen_seaforium_blast_SpellScript);
-
-            bool Validate(SpellInfo const* /*spell*/) override
-            {
-                if (!sSpellMgr->GetSpellInfo(SPELL_PLANT_CHARGES_CREDIT_ACHIEVEMENT))
-                    return false;
-                return true;
-            }
-
-            bool Load() override
-            {
-                // OriginalCaster is always available in Spell::prepare
-                return GetOriginalCaster()->GetTypeId() == TYPEID_PLAYER;
-            }
-
-            void AchievementCredit(SpellEffIndex /*effIndex*/)
-            {
-                // but in effect handling OriginalCaster can become NULL
-                if (Player* originalCaster = GetOriginalCaster()->ToPlayer())
-                    if (GameObject* go = GetHitGObj())
-                        if (go->GetGOInfo()->type == GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING)
-                            originalCaster->UpdateAchievementCriteria(CRITERIA_TYPE_BE_SPELL_TARGET, SPELL_PLANT_CHARGES_CREDIT_ACHIEVEMENT);
-            }
-
-            void Register() override
-            {
-                OnEffectHitTarget += SpellEffectFn(spell_gen_seaforium_blast_SpellScript::AchievementCredit, EFFECT_1, SPELL_EFFECT_GAMEOBJECT_DAMAGE);
-            }
-        };
-
-        SpellScript* GetSpellScript() const override
-        {
-            return new spell_gen_seaforium_blast_SpellScript();
         }
 };
 
@@ -2888,50 +2860,13 @@ class spell_gen_summon_elemental : public SpellScriptLoader
 
 enum Mounts
 {
-    // Magic Broom
-    SPELL_MAGIC_BROOM_60                = 42680,
-    SPELL_MAGIC_BROOM_100               = 42683,
-    SPELL_MAGIC_BROOM_150               = 42667,
-    SPELL_MAGIC_BROOM_280               = 42668,
-
-    // Headless Horseman's Mount
-    SPELL_HEADLESS_HORSEMAN_MOUNT_60    = 51621,
-    SPELL_HEADLESS_HORSEMAN_MOUNT_100   = 48024,
-    SPELL_HEADLESS_HORSEMAN_MOUNT_150   = 51617,
-    SPELL_HEADLESS_HORSEMAN_MOUNT_280   = 48023,
-
     // Winged Steed of the Ebon Blade
     SPELL_WINGED_STEED_150              = 54726,
     SPELL_WINGED_STEED_280              = 54727,
 
-    // Big Love Rocket
-    SPELL_BIG_LOVE_ROCKET_0             = 71343,
-    SPELL_BIG_LOVE_ROCKET_60            = 71344,
-    SPELL_BIG_LOVE_ROCKET_100           = 71345,
-    SPELL_BIG_LOVE_ROCKET_150           = 71346,
-    SPELL_BIG_LOVE_ROCKET_310           = 71347,
-
-    // Invincible
-    SPELL_INVINCIBLE_60                 = 72281,
-    SPELL_INVINCIBLE_100                = 72282,
-    SPELL_INVINCIBLE_150                = 72283,
-    SPELL_INVINCIBLE_310                = 72284,
-
     // Blazing Hippogryph
     SPELL_BLAZING_HIPPOGRYPH_150        = 74854,
     SPELL_BLAZING_HIPPOGRYPH_280        = 74855,
-
-    // Celestial Steed
-    SPELL_CELESTIAL_STEED_60            = 75619,
-    SPELL_CELESTIAL_STEED_100           = 75620,
-    SPELL_CELESTIAL_STEED_150           = 75617,
-    SPELL_CELESTIAL_STEED_280           = 75618,
-    SPELL_CELESTIAL_STEED_310           = 76153,
-
-    // X-53 Touring Rocket
-    SPELL_X53_TOURING_ROCKET_150        = 75957,
-    SPELL_X53_TOURING_ROCKET_280        = 75972,
-    SPELL_X53_TOURING_ROCKET_310        = 76154,
 };
 
 class spell_gen_mount : public SpellScriptLoader
@@ -3299,6 +3234,79 @@ class spell_gen_darkflight : public SpellScriptLoader
         }
 };
 
+enum TouchOfEluneSpells
+{
+    SPELL_TOUCH_OF_ELUNE_DAY   = 154796,
+    SPELL_TOUCH_OF_ELUNE_NIGHT = 154797
+};
+
+// Touch of Elune - 154748
+// The client data only describes the passive and the two mutually exclusive stat auras.
+// The server has to select the appropriate aura from the realm's local day/night time.
+class spell_gen_touch_of_elune : public AuraScript
+{
+    PrepareAuraScript(spell_gen_touch_of_elune);
+
+    uint32 _updateTimer = 0;
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_TOUCH_OF_ELUNE_DAY, SPELL_TOUCH_OF_ELUNE_NIGHT });
+    }
+
+    void UpdateStatAura()
+    {
+        Unit* target = GetTarget();
+        if (!target)
+            return;
+
+        time_t const now = GameTime::GetGameTime();
+        tm localTime;
+        tm const* dateTime = localtime_r(&now, &localTime);
+        bool isDay = dateTime && dateTime->tm_hour >= 6 && dateTime->tm_hour < 18;
+        uint32 desiredAura = isDay ? SPELL_TOUCH_OF_ELUNE_DAY : SPELL_TOUCH_OF_ELUNE_NIGHT;
+        uint32 obsoleteAura = isDay ? SPELL_TOUCH_OF_ELUNE_NIGHT : SPELL_TOUCH_OF_ELUNE_DAY;
+
+        target->RemoveAurasDueToSpell(obsoleteAura);
+        if (!target->HasAura(desiredAura))
+            target->CastSpell(target, desiredAura, true);
+    }
+
+    void HandleApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        _updateTimer = MINUTE * IN_MILLISECONDS;
+        UpdateStatAura();
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (Unit* target = GetTarget())
+        {
+            target->RemoveAurasDueToSpell(SPELL_TOUCH_OF_ELUNE_DAY);
+            target->RemoveAurasDueToSpell(SPELL_TOUCH_OF_ELUNE_NIGHT);
+        }
+    }
+
+    void OnUpdate(uint32 diff)
+    {
+        if (_updateTimer > diff)
+        {
+            _updateTimer -= diff;
+            return;
+        }
+
+        _updateTimer = MINUTE * IN_MILLISECONDS;
+        UpdateStatAura();
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_gen_touch_of_elune::HandleApply, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+        AfterEffectRemove += AuraEffectRemoveFn(spell_gen_touch_of_elune::HandleRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+        OnAuraUpdate += AuraUpdateFn(spell_gen_touch_of_elune::OnUpdate);
+    }
+};
+
 #define GOBELING_GUMBO_BURP 42755
 
 // Gobelin Gumbo - 42760
@@ -3473,9 +3481,13 @@ public:
 
         void Register() override
         {
-            OnEffectApply += AuraEffectApplyFn(spell_brewfest_speed_AuraScript::HandleEffectApply, EFFECT_0, SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED, AURA_EFFECT_HANDLE_REAL);
-            OnEffectPeriodic += AuraEffectPeriodicFn(spell_brewfest_speed_AuraScript::HandleEffectPeriodic,EFFECT_1, SPELL_AURA_PERIODIC_DUMMY);
-            OnEffectRemove += AuraEffectRemoveFn(spell_brewfest_speed_AuraScript::HandleEffectRemove, EFFECT_2, SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED, AURA_EFFECT_HANDLE_REAL);
+            // Normal and Exhausted no longer share the three-effect layout of
+            // Trot/Canter/Gallop in this client build. Apply and remove are
+            // aura-lifecycle events; the periodic handler already ignores
+            // Exhausted and remains attached to effect 1 when it can tick.
+            OnEffectApply += AuraEffectApplyFn(spell_brewfest_speed_AuraScript::HandleEffectApply, EFFECT_FIRST_FOUND, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
+            OnEffectPeriodic += AuraEffectPeriodicFn(spell_brewfest_speed_AuraScript::HandleEffectPeriodic, EFFECT_1, SPELL_AURA_ANY);
+            OnEffectRemove += AuraEffectRemoveFn(spell_brewfest_speed_AuraScript::HandleEffectRemove, EFFECT_FIRST_FOUND, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
         }
     };
 
@@ -5213,7 +5225,7 @@ public:
         void Register() override
         {
             AfterEffectApply += AuraEffectApplyFn(spell_mercenary_contract_AuraScript::OnApply, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
-            AfterEffectRemove += AuraEffectRemoveFn(spell_mercenary_contract_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_TRANSFORM, AURA_EFFECT_HANDLE_REAL);
+            AfterEffectRemove += AuraEffectRemoveFn(spell_mercenary_contract_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
         }
     };
 
@@ -5257,6 +5269,65 @@ class spell_gen_relearn_enchanting_quests : public SpellScript
     void Register() override
     {
         OnEffectHit += SpellEffectFn(spell_gen_relearn_enchanting_quests::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+// 192962 - Recipe: Class Glyph (Smashing Herbs / inscription relearning).
+// Its twelve trigger spells are server-only and absent from build 26972.
+// Reconstruct the class reward with existing Legion recipes; see the audit
+// for the evidence and the limits of the original reward reconstruction.
+class spell_gen_inscription_class_glyph : public SpellScript
+{
+    PrepareSpellScript(spell_gen_inscription_class_glyph);
+
+    static uint32 RecipeForClass(uint8 playerClass)
+    {
+        switch (playerClass)
+        {
+            case CLASS_WARRIOR:      return 225560; // Glyph of the Blazing Savior
+            case CLASS_PALADIN:      return 192846; // Glyph of the Queen
+            case CLASS_HUNTER:       return 192845; // Glyph of Stellar Flare
+            case CLASS_ROGUE:        return 192841; // Glyph of Blackout
+            case CLASS_PRIEST:       return 192838; // Glyph of Ghostly Fade
+            case CLASS_DEATH_KNIGHT: return 192848; // Glyph of the Wraith Walker
+            case CLASS_SHAMAN:       return 192844; // Glyph of the Spectral Raptor
+            case CLASS_MAGE:         return 192840; // Glyph of Sparkles
+            case CLASS_WARLOCK:      return 192839; // Glyph of Fel Imp
+            case CLASS_MONK:         return 192843; // Glyph of Crackling Crane Lightning
+            case CLASS_DRUID:        return 192842; // Glyph of the Sentinel
+            case CLASS_DEMON_HUNTER: return 225528; // Glyph of Fel-Enemies
+            default:                return 0;
+        }
+    }
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        for (uint8 playerClass = CLASS_WARRIOR; playerClass <= CLASS_DEMON_HUNTER; ++playerClass)
+            if (!sSpellMgr->GetSpellInfo(RecipeForClass(playerClass)))
+                return false;
+        return true;
+    }
+
+    void PreventMissingTrigger(SpellEffIndex effIndex)
+    {
+        PreventHitDefaultEffect(effIndex);
+    }
+
+    void LearnRecipe()
+    {
+        if (Player* player = GetCaster()->ToPlayer())
+            if (player->HasSkill(SKILL_INSCRIPTION))
+                if (uint32 recipe = RecipeForClass(player->getClass()))
+                    if (!player->HasSpell(recipe))
+                        player->learnSpell(recipe, false);
+    }
+
+    void Register() override
+    {
+        // Trigger spells run in both launch phases, before OnEffectHit.
+        OnEffectLaunch += SpellEffectFn(spell_gen_inscription_class_glyph::PreventMissingTrigger, EFFECT_ALL, SPELL_EFFECT_TRIGGER_SPELL);
+        OnEffectLaunchTarget += SpellEffectFn(spell_gen_inscription_class_glyph::PreventMissingTrigger, EFFECT_ALL, SPELL_EFFECT_TRIGGER_SPELL);
+        AfterCast += SpellCastFn(spell_gen_inscription_class_glyph::LearnRecipe);
     }
 };
 
@@ -6538,9 +6609,12 @@ class spell_flight_masters_whistle_argus : public SpellScript
 
     void HandleAfterCast()
     {
-        auto caster = GetCaster();
-        auto player = caster->ToPlayer();
-        if (!caster || !player)
+        Unit* caster = GetCaster();
+        if (!caster)
+            return;
+
+        Player* player = caster->ToPlayer();
+        if (!player)
             return;
 
         if (auto node = sObjectMgr->GetNearestTaxiNode(player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), player->GetMapId(), player))
@@ -7627,6 +7701,59 @@ struct areatrigger_gen_shadow_wave : public AreaTriggerAI
     }
 };
 
+// Arcane Pulse (Nightborne racial) - 260364
+class spell_arcane_pulse : public SpellScript
+{
+    PrepareSpellScript(spell_arcane_pulse);
+
+    void HandleDamage(SpellEffIndex /*effIndex*/)
+    {
+        float damage = GetCaster()->GetTotalAttackPowerValue(BASE_ATTACK) * 2.0f;
+        if (damage == 0.0f)
+            damage = float(GetCaster()->GetSpellPowerDamage(SPELL_SCHOOL_MASK_ALL)) * 0.75f;
+
+        SetHitDamage(int32(damage));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_arcane_pulse::HandleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+    }
+};
+
+// Light's Judgment damage (Lightforged Draenei racial) - 256893
+class spell_light_judgement : public SpellScript
+{
+    PrepareSpellScript(spell_light_judgement);
+
+    void HandleDamage(SpellEffIndex /*effIndex*/)
+    {
+        SetHitDamage(int32(6.25f * GetCaster()->GetUInt32Value(UNIT_FIELD_ATTACK_POWER)));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_light_judgement::HandleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+    }
+};
+
+// Light's Reckoning (Lightforged Draenei racial) - 255652
+class playerscript_light_reckoning : public PlayerScript
+{
+public:
+    playerscript_light_reckoning() : PlayerScript("playerscript_light_reckoning") { }
+
+    void OnDeath(Player* player) override
+    {
+        if (!player->HasAura(255652))
+            return;
+
+        if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(255652))
+            if (SpellEffectInfo const* effectInfo = spellInfo->Effects[EFFECT_0])
+                player->CastSpell(player, effectInfo->TriggerSpell, true);
+    }
+};
+
 // 256948
 class spell_spatial_rift_main : public SpellScript
 {
@@ -7891,6 +8018,29 @@ class spell_q29347_crayfish : public AuraScript
     void Register() override
     {
         OnEffectUpdate += AuraEffectUpdateFn(spell_q29347_crayfish::OnUpdate, EFFECT_0, SPELL_AURA_SET_VEHICLE_ID);
+    }
+};
+
+// 200033 - The New Blood: the jailer channels, the captive is imprisoned.
+class spell_gen_new_blood_imprisoned : public SpellScript
+{
+    PrepareSpellScript(spell_gen_new_blood_imprisoned);
+
+    void FilterCaster(WorldObject*& target)
+    {
+        Unit* caster = GetCaster();
+        // Native effects 0/1 include both caster and selected target. Applying
+        // their stun/visual aura to the jailer wraps him in the captive's chains.
+        // Retain the explicit captive and the spell's native channel visual.
+        if (target == caster && caster->GetEntry() == 101460 &&
+            (caster->GetMapId() == 1220 || caster->GetMapId() == 1502))
+            target = nullptr;
+    }
+
+    void Register() override
+    {
+        OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_gen_new_blood_imprisoned::FilterCaster, EFFECT_0, TARGET_UNIT_CASTER);
+        OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_gen_new_blood_imprisoned::FilterCaster, EFFECT_1, TARGET_UNIT_CASTER);
     }
 };
 
@@ -8410,26 +8560,51 @@ class spell_iron_demolisher_cannon_blast : public SpellScript
     }
 };
 
-// 200033 - The New Blood: the jailer channels, the captive is imprisoned.
-class spell_gen_new_blood_imprisoned : public SpellScript
+// Umbral Shift - 253826. Its mastery effect is enabled only by the third
+// Umbra-Weaver's Portent item (253825); the two-piece proc grants shadow DR.
+class spell_gen_umbral_shift : public AuraScript
 {
-    PrepareSpellScript(spell_gen_new_blood_imprisoned);
+    PrepareAuraScript(spell_gen_umbral_shift);
 
-    void FilterCaster(WorldObject*& target)
+    void CalculateMastery(AuraEffect const* /*aurEff*/, float& amount,
+        bool& canBeRecalculated)
     {
-        Unit* caster = GetCaster();
-        // Native effects 0/1 include both caster and selected target. Applying
-        // their stun/visual aura to the jailer wraps him in the captive's chains.
-        // Retain the explicit captive and the spell's native channel visual.
-        if (target == caster && caster->GetEntry() == 101460 &&
-            (caster->GetMapId() == 1220 || caster->GetMapId() == 1502))
-            target = nullptr;
+        canBeRecalculated = true;
+        if (Unit* target = GetTarget())
+            if (!target->HasAura(253825))
+                amount = 0.0f;
     }
 
     void Register() override
     {
-        OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_gen_new_blood_imprisoned::FilterCaster, EFFECT_0, TARGET_UNIT_CASTER);
-        OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_gen_new_blood_imprisoned::FilterCaster, EFFECT_1, TARGET_UNIT_CASTER);
+        DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_gen_umbral_shift::CalculateMastery,
+            EFFECT_1, SPELL_AURA_MOD_RATING);
+    }
+};
+
+// Umbral Shift three-piece enabler - 253825
+class spell_gen_umbra_weavers_portent : public AuraScript
+{
+    PrepareAuraScript(spell_gen_umbra_weavers_portent);
+
+    void HandleApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (AuraEffect* mastery = GetTarget()->GetAuraEffect(253826, EFFECT_1))
+            mastery->RecalculateAmount(GetTarget());
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (AuraEffect* mastery = GetTarget()->GetAuraEffect(253826, EFFECT_1))
+            mastery->ChangeAmount(0.0f, false);
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_gen_umbra_weavers_portent::HandleApply,
+            EFFECT_0, SPELL_AURA_219, AURA_EFFECT_HANDLE_REAL);
+        AfterEffectRemove += AuraEffectRemoveFn(spell_gen_umbra_weavers_portent::HandleRemove,
+            EFFECT_0, SPELL_AURA_219, AURA_EFFECT_HANDLE_REAL);
     }
 };
 
@@ -8448,6 +8623,7 @@ void AddSC_generic_spell_scripts()
     new spell_gen_parachute();
     new spell_gen_pet_summoned();
     new spell_gen_remove_flight_auras();
+    RegisterSpellScript(spell_gen_escape_artist);
     new spell_gen_trick();
     new spell_gen_trick_or_treat();
     new spell_creature_permanent_feign_death();
@@ -8460,7 +8636,6 @@ void AddSC_generic_spell_scripts()
     new spell_generic_clone();
     new spell_generic_clone_weapon();
     new spell_gen_clone_weapon_aura();
-    new spell_gen_seaforium_blast();
     new spell_gen_magic_rooster();
     new spell_gen_allow_cast_from_item_only();
     new spell_gen_launch();
@@ -8494,19 +8669,14 @@ void AddSC_generic_spell_scripts()
     new spell_gen_lifebloom("spell_faction_champion_dru_lifebloom", SPELL_FACTION_CHAMPIONS_DRU_LIFEBLOOM_FINAL_HEAL);
     new spell_gen_summon_elemental("spell_gen_summon_fire_elemental", SPELL_SUMMON_FIRE_ELEMENTAL);
     new spell_gen_summon_elemental("spell_gen_summon_earth_elemental", SPELL_SUMMON_EARTH_ELEMENTAL);
-    new spell_gen_mount("spell_magic_broom", 0, SPELL_MAGIC_BROOM_60, SPELL_MAGIC_BROOM_100, SPELL_MAGIC_BROOM_150, SPELL_MAGIC_BROOM_280);
-    new spell_gen_mount("spell_headless_horseman_mount", 0, SPELL_HEADLESS_HORSEMAN_MOUNT_60, SPELL_HEADLESS_HORSEMAN_MOUNT_100, SPELL_HEADLESS_HORSEMAN_MOUNT_150, SPELL_HEADLESS_HORSEMAN_MOUNT_280);
     new spell_gen_mount("spell_winged_steed_of_the_ebon_blade", 0, 0, 0, SPELL_WINGED_STEED_150, SPELL_WINGED_STEED_280);
-    new spell_gen_mount("spell_big_love_rocket", SPELL_BIG_LOVE_ROCKET_0, SPELL_BIG_LOVE_ROCKET_60, SPELL_BIG_LOVE_ROCKET_100, SPELL_BIG_LOVE_ROCKET_150, SPELL_BIG_LOVE_ROCKET_310);
-    new spell_gen_mount("spell_invincible", 0, SPELL_INVINCIBLE_60, SPELL_INVINCIBLE_100, SPELL_INVINCIBLE_150, SPELL_INVINCIBLE_310);
     new spell_gen_mount("spell_blazing_hippogryph", 0, 0, 0, SPELL_BLAZING_HIPPOGRYPH_150, SPELL_BLAZING_HIPPOGRYPH_280);
-    new spell_gen_mount("spell_celestial_steed", 0, SPELL_CELESTIAL_STEED_60, SPELL_CELESTIAL_STEED_100, SPELL_CELESTIAL_STEED_150, SPELL_CELESTIAL_STEED_280, SPELL_CELESTIAL_STEED_310);
-    new spell_gen_mount("spell_x53_touring_rocket", 0, 0, 0, SPELL_X53_TOURING_ROCKET_150, SPELL_X53_TOURING_ROCKET_280, SPELL_X53_TOURING_ROCKET_310);
     new spell_gen_upper_deck_create_foam_sword();
     new spell_gen_bonked();
     new spell_gen_running_wild();
     new spell_gen_two_forms();
     new spell_gen_darkflight();
+    RegisterAuraScript(spell_gen_touch_of_elune);
     new spell_gen_gobelin_gumbo();
     new spell_brewfest_speed();
     new spell_gen_tricky_treat();
@@ -8591,6 +8761,9 @@ void AddSC_generic_spell_scripts()
     RegisterAuraScript(spell_gen_guiding_hand);
     RegisterAuraScript(spell_gen_misc);
     RegisterSpellScript(spell_gen_terror_from_below_dmg);
+    RegisterSpellScript(spell_arcane_pulse);
+    RegisterSpellScript(spell_light_judgement);
+    new playerscript_light_reckoning();
     RegisterSpellScript(spell_spatial_rift_main);
     RegisterSpellScript(spell_gen_relearn_mining_quests);
     RegisterSpellScript(spell_gen_relearn_jewelcrafting_quests);
@@ -8602,6 +8775,7 @@ void AddSC_generic_spell_scripts()
     RegisterSpellScript(spell_gen_relearn_leatherworking_quests);
     RegisterSpellScript(spell_gen_relearn_tailoring_quests);
     RegisterSpellScript(spell_gen_relearn_inscription_quests);
+    RegisterSpellScript(spell_gen_inscription_class_glyph);
     RegisterSpellScript(spell_gen_relearn_enchanting_quests);
     RegisterSpellScript(spell_gen_love_seat);
     RegisterSpellScript(spell_q13698_saw);
@@ -8609,6 +8783,7 @@ void AddSC_generic_spell_scripts()
     RegisterAuraScript(spell_q29347_bait);
     RegisterAuraScript(spell_q29347_crayfish);
     RegisterSpellScript(spell_big_red_rays);
+    RegisterSpellScript(spell_gen_new_blood_imprisoned);
     RegisterSpellScript(spell_set_up_board);
     RegisterAuraScript(spell_hearthstation_horde);
     RegisterAuraScript(spell_hearthstation_alliance);
@@ -8625,4 +8800,6 @@ void AddSC_generic_spell_scripts()
     RegisterAuraScript(spell_legion_food_table);
     RegisterAuraScript(spell_legion_hearty_feast);
     RegisterSpellScript(spell_iron_demolisher_cannon_blast);
+    RegisterAuraScript(spell_gen_umbral_shift);
+    RegisterAuraScript(spell_gen_umbra_weavers_portent);
 }

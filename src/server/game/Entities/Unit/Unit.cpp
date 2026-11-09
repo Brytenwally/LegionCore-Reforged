@@ -80,6 +80,40 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include <numeric>
+#include <limits>
+
+namespace
+{
+void TriggerMasterHarvester(Player* player, int32 powerSpent)
+{
+    if (powerSpent < 10)
+        return;
+
+    AuraEffect const* harvester = player->GetAuraEffect(248113, EFFECT_0);
+    if (!harvester)
+        return;
+
+    uint32 effectIndex;
+    switch (player->GetSpecializationId())
+    {
+        case SPEC_WARLOCK_AFFLICTION: effectIndex = EFFECT_0; break;
+        case SPEC_WARLOCK_DEMONOLOGY: effectIndex = EFFECT_1; break;
+        case SPEC_WARLOCK_DESTRUCTION: effectIndex = EFFECT_2; break;
+        default: return;
+    }
+
+    SpellInfo const* info = harvester->GetSpellInfo();
+    float chance = info->Effects[effectIndex]->BasePoints * (powerSpent / 10);
+    if (!roll_chance_f(chance))
+        return;
+
+    int32 duration = info->Effects[EFFECT_3]->BasePoints * IN_MILLISECONDS;
+    if (Aura* aura = player->GetAura(196098))
+        aura->SetDuration(aura->GetDuration() + duration);
+    else
+        player->CastSpellDuration(player, 196098, true, duration);
+}
+}
 
 float baseMoveSpeed[MAX_MOVE_TYPE] =
 {
@@ -149,8 +183,10 @@ m_block(dmgInfo.blocked), m_cleanDamage(dmgInfo.cleanDamage), m_damageBeforeHit(
 
 void DamageInfo::ModifyDamage(int32 amount)
 {
-    amount = std::min(amount, int32(GetDamage()));
-    m_damage += amount;
+    // Allow restoring damage after absorption even when the absorbable part
+    // reached zero. Use a wide intermediate for the full uint32 damage range.
+    m_damage = uint32(std::max<int64>(0, std::min<int64>(
+        int64(m_damage) + amount, std::numeric_limits<uint32>::max())));
 }
 
 void DamageInfo::AbsorbDamage(int32 amount)
@@ -2778,6 +2814,21 @@ void Unit::CalcAbsorbResist(Unit* victim, SpellSchoolMask schoolMask, DamageEffe
         return;
     }
 
+    // Reserve the bypassed portion of this hit once, across all shields. Applying
+    // the percentage to each shield's remaining capacity let a large Prydaz
+    // shield absorb a small hit entirely even with absorption bypass active.
+    uint32 absorbIgnoringDamage = uint32(double(dmgInfo.GetDamage()) * auraAbsorbMod / 100.0);
+    auto transferBypassedDamage = [&dmgInfo](uint32 value, bool restore)
+    {
+        while (value)
+        {
+            int32 part = int32(std::min<uint32>(value, std::numeric_limits<int32>::max()));
+            dmgInfo.ModifyDamage(restore ? part : -part);
+            value -= uint32(part);
+        }
+    };
+    transferBypassedDamage(absorbIgnoringDamage, false);
+
     // We're going to call functions which can modify content of the list during iteration over it's elements
     // Let's copy the list so we can prevent iterator invalidation
     // absorb without mana cost
@@ -2805,9 +2856,6 @@ void Unit::CalcAbsorbResist(Unit* victim, SpellSchoolMask schoolMask, DamageEffe
         bool defaultPrevented = false;
 
         absorbAurEff->GetBase()->CallScriptEffectAbsorbHandlers(absorbAurEff, aurApp, dmgInfo, currentAbsorb, defaultPrevented);
-
-        // Apply absorb mod auras
-        AddPct(currentAbsorb, -auraAbsorbMod);
 
         // absorb must be smaller than the damage itself
         currentAbsorb = RoundToInterval(currentAbsorb, 0.f, float(dmgInfo.GetDamage()));
@@ -2880,8 +2928,6 @@ void Unit::CalcAbsorbResist(Unit* victim, SpellSchoolMask schoolMask, DamageEffe
         if (defaultPrevented)
             continue;
 
-        AddPct(currentAbsorb, -auraAbsorbMod);
-
         // absorb must be smaller than the damage itself
         currentAbsorb = RoundToInterval(currentAbsorb, 0.f, float(dmgInfo.GetDamage()));
 
@@ -2909,6 +2955,8 @@ void Unit::CalcAbsorbResist(Unit* victim, SpellSchoolMask schoolMask, DamageEffe
                 absorbAurEff->GetBase()->Remove(AURA_REMOVE_BY_ENEMY_SPELL);
         }
     }
+
+    transferBypassedDamage(absorbIgnoringDamage, true);
 
     // split damage auras - only when not damaging self
     if (victim != this)
@@ -7354,6 +7402,46 @@ bool Unit::HandleSpellCritChanceAuraProc(Unit* victim, DamageInfo* /*dmgInfoProc
     return true;
 }
 
+float Unit::AddSoulLeechAbsorb(float amount, float capPct)
+{
+    if (!IsAlive() || amount <= 0.0f)
+        return 0.0f;
+
+    AuraEffect* shield = GetAuraEffect(108366, EFFECT_0);
+    float previous = shield ? shield->GetAmount() : 0.0f;
+    float total = std::min(previous + amount, CalculatePct(float(GetMaxHealth()), capPct));
+    if (!shield)
+    {
+        CastCustomSpell(this, 108366, &total, nullptr, nullptr, true);
+        shield = GetAuraEffect(108366, EFFECT_0);
+    }
+    if (!shield)
+        return 0.0f;
+
+    // The contribution was already modified by the caller. Do not multiply
+    // the accumulated shield again when refreshing it, or exceed its cap.
+    shield->SetAmount(total);
+    shield->GetBase()->RefreshDuration();
+    return std::max(0.0f, total - previous);
+}
+
+void Unit::HealFromSoulLeech(float ownerAbsorb, float petAbsorb)
+{
+    Player* player = ToPlayer();
+    if (!player || !player->GetPet() || !player->GetPet()->IsAlive())
+        return;
+
+    AuraEffect* ownerHeal = GetAuraEffect(108446, EFFECT_1);
+    AuraEffect* petHeal = GetAuraEffect(108446, EFFECT_2);
+    if (!ownerHeal || !petHeal)
+        return;
+
+    float bp0 = CalculatePct(ownerAbsorb, ownerHeal->GetAmount());
+    float bp1 = CalculatePct(petAbsorb, petHeal->GetAmount());
+    if (bp0 > 0.0f || bp1 > 0.0f)
+        CastCustomSpell(this, 108447, &bp0, &bp1, nullptr, true);
+}
+
 //victim may be NULL
 bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect* triggeredByAura, SpellInfo const* procSpell, uint32 procFlag, uint32 procEx, double cooldown, Spell* spell)
 {
@@ -8596,7 +8684,16 @@ bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect
                     if (procEx & PROC_EX_CRITICAL_HIT)
                     {
                         bool RemoveHeatingUp = HasAura(48107) ? true: false;
-                        CastSpell(this, RemoveHeatingUp ? 48108: 48107, true);
+                        uint32 hotStreakState = RemoveHeatingUp ? 48108 : 48107;
+
+                        // Controlled Burn - when the first critical strike would grant
+                        // Heating Up, it can promote that proc directly to Hot Streak.
+                        if (!RemoveHeatingUp)
+                            if (AuraEffect const* controlledBurn = GetAuraEffect(205033, EFFECT_0))
+                                if (roll_chance_i(controlledBurn->GetAmount()))
+                                    hotStreakState = 48108;
+
+                        CastSpell(this, hotStreakState, true);
 
                         if (RemoveHeatingUp)
                             RemoveAura(48107);
@@ -8789,49 +8886,8 @@ bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect
                 }
                 case 248113: // The Master Harvester
                 {
-                    if (effIndex != EFFECT_0)
-                        return false;
-
-                    if (procSpell->Power.PowerType == POWER_SOUL_SHARDS)
-                    {
-                        uint32 pwr = procSpell->Power.PowerCost / 10.f;
-                        if (HasAura(137043)) // affliction
-                        {
-                            float chance = dummySpell->Effects[EFFECT_0]->BasePoints * pwr;
-                            if (!roll_chance_f(chance))
-                                return false;
-
-                            if (Aura* aur = GetAura(196098))
-                                aur->SetDuration(aur->GetDuration() + dummySpell->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
-                            else
-                                CastSpellDuration(this, 196098, true, dummySpell->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
-                            break;
-                        }
-                        if (HasAura(137044)) // demonology
-                        {
-                            float chance2 = dummySpell->Effects[EFFECT_1]->BasePoints * pwr;
-                            if (!roll_chance_f(chance2))
-                                return false;
-
-                            if (Aura* aur = GetAura(196098))
-                                aur->SetDuration(aur->GetDuration() + dummySpell->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
-                            else
-                                CastSpellDuration(this, 196098, true, dummySpell->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
-                            break;
-                        }
-                        if (HasAura(137046)) // destruction
-                        {
-                            float chance3 = dummySpell->Effects[EFFECT_2]->BasePoints * pwr;
-                            if (!roll_chance_f(chance3))
-                                return false;
-
-                            if (Aura* aur = GetAura(196098))
-                                aur->SetDuration(aur->GetDuration() + dummySpell->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
-                            else
-                                CastSpellDuration(this, 196098, true, dummySpell->Effects[EFFECT_3]->BasePoints * static_cast<int32>(IN_MILLISECONDS));
-                            break;
-                        }
-                    }
+                    // Handled once when shards are paid, including variable
+                    // costs. Cast/hit procs do not establish a resource spend.
                     return false;
                 }
                 case 108370: // Soul Leech
@@ -8839,84 +8895,32 @@ bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect
                     if (!damage || triggeredByAura->GetEffIndex() != EFFECT_0 || victim == this)
                         return false;
 
-                    if (dummySpell->IsTargetingArea())
+                    if (procSpell && procSpell->IsTargetingArea())
                         return false;
 
-                    Unit* warlock = nullptr;
-                    Unit* pet = nullptr;
-
-                    if (Player* plr = ToPlayer())
-                    {
-                        warlock = this;
-
-                        if (Unit* _pet = plr->GetPet())
-                            pet = _pet;
-                    }
-                    else
-                    {
-                        pet = this;
-
-                        if (Unit* owner = GetOwner())
-                            warlock = owner;
-                    }
-
+                    Player* warlock = ToPlayer();
+                    if (!warlock && GetOwner())
+                        warlock = GetOwner()->ToPlayer();
                     if (!warlock)
                         return false;
 
-                    triggered_spell_id = 108366;
-
-                    uint8 capPct = 15;
-
+                    float capPct = 15.0f;
                     if (AuraEffect* auraEff = warlock->GetAuraEffect(219272, EFFECT_1))
-                    {
                         capPct = auraEff->GetAmount();
-                    }
-                    else if (AuraEffect* auraEff = warlock->GetAuraEffect(108370, EFFECT_1))
-                        capPct = auraEff->GetAmount();
+                    else if (AuraEffect* leechCap = warlock->GetAuraEffect(108370, EFFECT_1))
+                        capPct = leechCap->GetAmount();
 
-                    int32 hasabsorb = 0;
-                    basepoints0 = CalculatePct(damage, triggerAmount);
+                    float contribution = CalculatePct(damage, triggerAmount);
+                    for (AuraEffect* modifier : warlock->GetAuraEffectsByType(SPELL_AURA_MOD_ABSORB_AMOUNT))
+                        AddPct(contribution, modifier->GetAmount());
 
-                    Unit::AuraEffectList const& mAbsorbtionPercent = warlock->GetAuraEffectsByType(SPELL_AURA_MOD_ABSORB_AMOUNT);
-                    for (Unit::AuraEffectList::const_iterator i = mAbsorbtionPercent.begin(); i != mAbsorbtionPercent.end(); ++i)
-                        AddPct(basepoints0, (*i)->GetAmount());
-
-                    if (pet)
-                    {
-                        if (AuraEffect* auraEff = pet->GetAuraEffect(triggered_spell_id, EFFECT_0))
-                            hasabsorb = auraEff->GetAmount();
-
-                        float maxAbsorb = pet->CountPctFromMaxHealth(capPct);
-                        float bp0 = basepoints0 + hasabsorb;
-
-                        if (bp0 > maxAbsorb)
-                            bp0 = maxAbsorb;
-
-                        float const cappedAbsorb = bp0;     // the capped value, not the raw one
-                        pet->AddDelayedEvent(10, [cappedAbsorb, triggered_spell_id, pet]() -> void
-                        {
-                            if (!pet)
-                                return;
-                            pet->CastCustomSpell(pet, triggered_spell_id, &cappedAbsorb, nullptr, nullptr, true);
-                        });
-                        hasabsorb = 0;
-                    }
-
-                    if (AuraEffect* auraEff = warlock->GetAuraEffect(triggered_spell_id, EFFECT_0))
-                        hasabsorb = auraEff->GetAmount();
-
-                    float maxAbsorb = warlock->CountPctFromMaxHealth(capPct);
-                    basepoints0 += hasabsorb;
-
-                    if (basepoints0 > maxAbsorb)
-                        basepoints0 = maxAbsorb;
-
-                    warlock->AddDelayedEvent(10, [basepoints0, triggered_spell_id, warlock]() -> void
-                    {
-                        if (!warlock)
-                            return;
-                        warlock->CastCustomSpell(warlock, triggered_spell_id, &basepoints0, nullptr, nullptr, true);
-                    });
+                    // Read the live shield for each contribution. Queuing precomputed
+                    // totals lost damage procs arriving in the same update.
+                    float petAbsorb = 0.0f;
+                    if (Pet* pet = warlock->GetPet())
+                        petAbsorb = pet->AddSoulLeechAbsorb(contribution, capPct);
+                    float ownerAbsorb = warlock->AddSoulLeechAbsorb(contribution, capPct);
+                    warlock->HealFromSoulLeech(ownerAbsorb, petAbsorb);
                     return true;
                 }
             }
@@ -9481,7 +9485,7 @@ bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect
                     {
                         if (Player* plr = ToPlayer())
                         {
-                            if (uint8 cost = procSpell->Power.PowerCost)
+                            if (int32 cost = spell ? spell->GetPowerCost(POWER_HOLY_POWER) : GetPowerCost(POWER_HOLY_POWER))
                                 plr->ModifySpellCooldown(853, -(triggerAmount * 100 * cost));
                         }
                     }
@@ -9494,7 +9498,7 @@ bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect
 
                     if (procSpell->Power.PowerType == POWER_HOLY_POWER)
                     {
-                        if (uint8 cost = procSpell->Power.PowerCost)
+                        if (int32 cost = spell ? spell->GetPowerCost(POWER_HOLY_POWER) : GetPowerCost(POWER_HOLY_POWER))
                             if (Aura* aura = GetAura(231895)) // Sanctified Wrath
                                 aura->ModStackAmount(cost);
                     }
@@ -10193,7 +10197,12 @@ bool Unit::HandleDummyAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect
                     if (!isInCombat())
                         return false;
 
-                    CastSpell(this, 214501, true);
+                    // Sheilun can hold at most 12 clouds. Effusive Mists
+                    // uses the same pool as the passive ten-second spawns.
+                    std::list<AreaTrigger*> clouds;
+                    GetAreaObjectList(clouds, 214501);
+                    if (clouds.size() < 12)
+                        CastSpell(this, 214501, true);
                     break;
                 }
                 case 137639: // Storm, Earth, and Fire
@@ -10379,6 +10388,12 @@ bool Unit::HandleObsModEnergyAuraProc(Unit* victim, DamageInfo* /*dmgInfoProc*/,
 bool Unit::HandleModDamagePctTakenAuraProc(Unit* victim, DamageInfo* dmgInfoProc, AuraEffect* triggeredByAura, SpellInfo const* procSpell, uint32 procFlags, uint32 procEx, double cooldown)
 {
     SpellInfo const* dummySpell = triggeredByAura->GetSpellInfo();
+    // Shadow Shield's effect 0 only reduces incoming damage. Effect 1 already
+    // triggers 115234 and consumes a shield stack through its spell script.
+    // Do not try to trigger spell 0 (or trigger 115234 a second time) here.
+    if (dummySpell->Id == 115232)
+        return false;
+
     //uint32 effIndex = triggeredByAura->GetEffIndex();
     //int32  triggerAmount = triggeredByAura->GetAmount();
 
@@ -10931,9 +10946,9 @@ bool Unit::HandleProcTriggerSpell(Unit* victim, DamageInfo* dmgInfoProc, AuraEff
         }
         case 194909: // Frozen Pulse
         {
-            uint8 minUsed = GetMaxPower(POWER_RUNES) - auraSpellInfo->Effects[EFFECT_1]->BasePoints * 2;
-            uint8 power = GetPower(POWER_RUNES);
-            if ((power - minUsed) > 0)
+            // The tooltip requires fewer than EFFECT_1 full runes. Rune power is
+            // already stored as the number of currently full runes.
+            if (GetPower(POWER_RUNES) >= auraSpellInfo->Effects[EFFECT_1]->BasePoints)
                 return false;
             break;
         }
@@ -12783,13 +12798,24 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, uin
 
     // Chaos Bolt - 116858
     // damage is increased by your critical strike chance
-    if (IsPlayer() && spellProto && (spellProto->Id == 116858 || spellProto->Id == 215279))
+    if (spellProto && (spellProto->Id == 116858 || spellProto->Id == 215279))
     {
-        float crit_chance = GetFloatValue(PLAYER_FIELD_SPELL_CRIT_PERCENTAGE/* + GetFirstSchoolInMask(spellProto->GetSchoolMask())*/);
-        int32 modif = victim->GetTotalAuraModifier(SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE);
-        if(modif < -100)
-            crit_chance -= 50.0f;
-        AddPct(DoneTotalMod, crit_chance);
+        // Dimensional Rift's Chaos Tear casts 215279, but the spell must scale
+        // with the summoning warlock's critical strike chance just like the
+        // player's Chaos Bolt.
+        Player* chaosBoltCaster = ToPlayer();
+        if (!chaosBoltCaster && spellProto->Id == 215279)
+            if (Unit* owner = GetAnyOwner())
+                chaosBoltCaster = owner->ToPlayer();
+
+        if (chaosBoltCaster)
+        {
+            float crit_chance = chaosBoltCaster->GetFloatValue(PLAYER_FIELD_SPELL_CRIT_PERCENTAGE/* + GetFirstSchoolInMask(spellProto->GetSchoolMask())*/);
+            int32 modif = victim->GetTotalAuraModifier(SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE);
+            if(modif < -100)
+                crit_chance -= 50.0f;
+            AddPct(DoneTotalMod, crit_chance);
+        }
     }
 
     // Lava Burst - 51505
@@ -13526,6 +13552,29 @@ bool Unit::isSpellCrit(Unit* victim, SpellInfo const* spellProto, SpellSchoolMas
 					}
 					case SPELLFAMILY_MAGE:
 					{
+						switch (spellProto->Id)
+						{
+							case 133:   // Fireball
+							case 11366: // Pyroblast
+							{
+								// Firestarter - Fireball and Pyroblast always critically strike
+								// targets above the health threshold stored in the talent aura.
+								if (AuraEffect const* firestarter = GetAuraEffect(205026, EFFECT_0))
+									if (victim->GetHealthPct() > firestarter->GetAmount())
+									{
+										critChance = 100.0f;
+										return true;
+									}
+								break;
+							}
+							case 194466: // Phoenix's Flames (primary hit)
+							case 224637: // Phoenix's Flames (splash hit)
+								critChance = 100.0f;
+								return true;
+							default:
+								break;
+						}
+
 						if (victim)
 							if (HasAura(213541) && int32(victim->GetHealthPct()) >= 80) // Mage Initiation PvP Talent
 								crit_chance += 30;
@@ -13584,6 +13633,12 @@ bool Unit::isSpellCrit(Unit* victim, SpellInfo const* spellProto, SpellSchoolMas
                     {
                         switch (spellProto->Id)
                         {
+                            case 23881: // Bloodthirst - Fresh Meat
+                                if (AuraEffect const* threshold = GetAuraEffect(215568, EFFECT_1))
+                                    if (victim->GetHealthPct() > threshold->GetAmount())
+                                        if (AuraEffect const* bonus = GetAuraEffect(215568, EFFECT_0))
+                                            crit_chance += bonus->GetAmount();
+                                break;
                             case 118000: // Dragon Roar is always a critical hit
                                 critChance = 100.0f;
                                 return true;
@@ -15443,6 +15498,9 @@ void Unit::VisualForPower(Powers power, int32 curentVal, int32 modVal, int32 max
         {
             if (modVal < 0)
             {
+                if (spellInfo && !generate)
+                    TriggerMasterHarvester(player, std::min(oldVal, -modVal));
+
                 if (AuraEffect* aurEff = GetAuraEffect(215941, EFFECT_0)) // Soul Conduit
                 {
                     int8 _count = abs(modVal) / 10.f;
@@ -15525,14 +15583,20 @@ void Unit::VisualForPower(Powers power, int32 curentVal, int32 modVal, int32 max
                 }
                 if (HasSpell(205723)) // Red Thirst
                 {
-                    if (m_everyPower[power] > 100)
+                    if (SpellInfo const* redThirst = sSpellMgr->GetSpellInfo(205723))
                     {
-                        int32 countMod = int32(m_everyPower[power] / 100);
-                        int32 modColdown = countMod * -1000;
-                        if (SpellInfo const* _spellInfo = sSpellMgr->GetSpellInfo(205723))
-                            modColdown *= _spellInfo->Effects[EFFECT_0]->CalcValue(this);
-                        player->ModifySpellCooldown(55233, modColdown);
-                        m_everyPower[power] -= (100 * countMod);
+                        // DBC effect 1 stores the Runic Power interval (6 RP),
+                        // while internal power units are tenths. Preserve the
+                        // remainder so partial intervals carry to the next spend.
+                        int32 runicPowerInterval = redThirst->Effects[EFFECT_1]->CalcValue(this) * 10;
+                        if (runicPowerInterval > 0 && m_everyPower[power] >= runicPowerInterval)
+                        {
+                            int32 countMod = int32(m_everyPower[power] / runicPowerInterval);
+                            int32 cooldownReduction = countMod * -1000
+                                * redThirst->Effects[EFFECT_0]->CalcValue(this);
+                            player->ModifySpellCooldown(55233, cooldownReduction);
+                            m_everyPower[power] -= runicPowerInterval * countMod;
+                        }
                     }
                 }
             }
@@ -15583,7 +15647,10 @@ void Unit::VisualForPower(Powers power, int32 curentVal, int32 modVal, int32 max
                     CastCustomSpell(this, 195290, &speed, nullptr, nullptr, true);
             }
 
-            if (modVal < 0 && (curentVal < 10000 || (curentVal < 6500 && HasAura(193225))))
+            // Void Eruption normally requires 100 Insanity; Legacy of the Void
+            // lowers that threshold to 65. Remove its availability aura only
+            // after crossing the threshold that applies to this priest.
+            if (modVal < 0 && curentVal < (HasAura(193225) ? 6500 : 10000))
                 RemoveAurasDueToSpell(218413);
 
             if (!curentVal)
@@ -22462,6 +22529,9 @@ void Unit::Kill(Unit* victim, bool durabilityLoss, SpellInfo const* spellProto)
             victim->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_KILLED_BY_PLAYER, 1, ToPlayer()->GetTeam());
     }
 
+    if (Player* killedPlayer = victim->ToPlayer())
+        sScriptMgr->OnPlayerDeath(killedPlayer);
+
     // Hook for OnPVPKill Event
     if (Player* killerPlr = ToPlayer())
     {
@@ -23396,10 +23466,12 @@ float Unit::MeleeSpellMissChance(const Unit* victim, WeaponAttackType attType, u
     else
         missChance -= victim->GetTotalAuraModifier(SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE);
 
-    if (!spellId && haveOffhandWeapon() && !IsInFeralForm())
+    // This aura type is a boolean rule, not a numerical hit modifier. Focus in
+    // Chaos applies aura 200876 while Enraged, which must suppress the complete
+    // dual-wield penalty while retaining the normal base miss chance.
+    if (!spellId && haveOffhandWeapon() && !IsInFeralForm() &&
+        !HasAuraType(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY))
         missChance += 17.0f;
-
-    missChance -= GetTotalAuraModifier(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY);
 
     if (IsCreature() && ToCreature()->GetCreatureTemplate()->TypeFlags[0] & CREATURE_TYPEFLAGS_BOSS)
         missChance = 0.0f;

@@ -404,6 +404,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   apply the files of `sql/old/<db>` and `sql/updates/<db>` in name order, skipping those in `updates`, as the updater
   does. Upstream `2026_10_28_01_russian_texts_leftovers.sql` fails on a fresh realm (it updates a table that a later
   upstream file drops); realms that already have it applied are not affected.
+- **Phase 4, class spell mechanics** (2026-11-09, details in the plan): LegionCore-7.3.5's per-spec spell audits, Tier 21
+  bonuses, racials and warlock legendary / pet fixes: five spell files taken whole, ten merged, the core hunks applied
+  (Soul Leech, Master Harvester, Cosmic Ripple, `PlayerScript::OnDeath` merged by hand), SQL `2026_11_11_45..99` and
+  `2026_11_12_00..25` (checked on MySQL 8). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
