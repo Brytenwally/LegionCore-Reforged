@@ -4,6 +4,9 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "GameObjectAI.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
 #include "broken_shore.h"
 
 //Phases: 5171 5940 5942 6181
@@ -672,12 +675,13 @@ public:
                 switch (eventId)
                 {
                     case EVENT_1:
-                        events.RescheduleEvent(EVENT_1, 1000);
-                        for (uint8 i = 0; i < 3; i++)
+                        for (uint8 target = 0; target < 3 && flameCastCount < sizeof(flameTarget) / sizeof(flameTarget[0]); ++target)
                         {
                             me->CastSpell(flameTarget[flameCastCount], 190666, true);
                             flameCastCount++;
                         }
+                        if (flameCastCount < sizeof(flameTarget) / sizeof(flameTarget[0]))
+                            events.RescheduleEvent(EVENT_1, 1000);
                         break;
                 }
             }
@@ -744,7 +748,7 @@ public:
 
         void MovementInform(uint32 type, uint32 id) override
         {
-            if (type != POINT_MOTION_TYPE)
+            if (type != POINT_MOTION_TYPE || (id != 1 && id != 2))
                 return;
 
             if (id == 1)
@@ -917,12 +921,13 @@ public:
             me->SetReactState(REACT_AGGRESSIVE);
         }
 
-        void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType dmgType) override
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
         {
-            if (damage >= me->GetHealth())
+            bool lethal = damage >= me->GetHealth(attacker);
+            if (lethal)
                 damage = 0;
 
-            if (me->HealthBelowPct(15) && !fightEnd)
+            if ((lethal || me->HealthBelowPct(15)) && !fightEnd)
             {
                 fightEnd = true;
                 DoCast(me, SPELL_BALNAZZAR_CREDIT, true);
@@ -1133,10 +1138,46 @@ public:
 };
 
 //247318
+namespace AshbringerAcquisition
+{
+    bool CanRetrieve(Player* player, GameObject* weapon)
+    {
+        if (!player || !weapon || !player->IsInWorld() || !player->CanContact() || !player->IsAlive() ||
+            player->IsBeingTeleported() || player->getClass() != CLASS_PALADIN ||
+            !weapon->IsInWorld() || !weapon->isSpawned() || weapon->GetEntry() != 247318 || weapon->GetMapId() != 1500 ||
+            !player->GetMap() || player->GetMap() != weapon->GetMap() || player->GetInstanceId() != weapon->GetInstanceId() ||
+            !player->InSamePhase(weapon) || !player->canSeeOrDetect(weapon) || !player->IsWithinLOSInMap(weapon) ||
+            !player->IsWithinDistInMap(weapon, weapon->GetInteractionDistance()) ||
+            weapon->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE) || player->GetQuestRewardStatus(38376) ||
+            (player->GetQuestStatus(38376) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(38376) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(weapon->GetInstanceId());
+        InstanceScript* instance = player->GetInstanceScript();
+        return scenario && scenario->GetScenarioId() == 775 && scenario->GetCurrentStep() == DATA_STAGE_4 &&
+            instance && instance->getScenarionStep() == DATA_STAGE_4;
+    }
+}
+
 class go_bs_the_ashbringer : public GameObjectScript
 {
+    struct AI : GameObjectAI
+    {
+        explicit AI(GameObject* object) : GameObjectAI(object) { }
+        bool GossipHello(Player* player, bool) override
+        {
+            return !AshbringerAcquisition::CanRetrieve(player, go);
+        }
+    };
+
 public:
     go_bs_the_ashbringer() : GameObjectScript("go_bs_the_ashbringer") {}
+
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        return !AshbringerAcquisition::CanRetrieve(player, go);
+    }
+
+    GameObjectAI* GetAI(GameObject* go) const override { return new AI(go); }
 
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
@@ -1145,17 +1186,35 @@ public:
 
         if (Player* player = target->ToPlayer())
         {
+            if (!AshbringerAcquisition::CanRetrieve(player, go))
+                return;
             if (InstanceScript* instance = player->GetInstanceScript())
                 if (instance->getScenarionStep() == DATA_STAGE_4)
                 {
                     if (state == GO_JUST_DEACTIVATED || player->HasItemCount(120978))
                     {
+                        if (!player->HasItemCount(120978))
+                        {
+                            ItemPosCountVec destination;
+                            InventoryResult result = player->CanStoreNewItem(NULL_BAG, NULL_SLOT, destination, 120978, 1);
+                            if (result != EQUIP_ERR_OK)
+                            {
+                                player->SendEquipError(result, nullptr, nullptr, 120978);
+                                go->SetLootState(GO_READY);
+                                return;
+                            }
+                        }
+                        SpellCastResult result = player->CastSpell(player, SPELL_RETRIEVING_THE_ASHBRINGER, true);
+                        if (result != SPELL_CAST_OK)
+                        {
+                            TC_LOG_WARN("scripts", "Ashbringer pickup: retrieval 180850 failed with result %u for player %u; retain object for retry", uint32(result), player->GetGUIDLow());
+                            go->SetLootState(GO_READY);
+                            return;
+                        }
                         instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46130); //Step 4
-                        instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 775, 1);
                         if (Creature* trigger = go->FindNearestCreature(103454, 10.0f))
                             trigger->DespawnOrUnsummon();
 
-                        player->CastSpell(player, SPELL_RETRIEVING_THE_ASHBRINGER, true);
                         if (state == GO_ACTIVATED)
                             go->Delete();
                     }
@@ -1210,6 +1269,7 @@ class spell_bs_dominate_mind : public SpellScriptLoader
             PrepareAuraScript(spell_bs_dominate_mind_AuraScript);
 
             bool unbrekable = false;
+            bool willFailureReported = false;
             uint16 timer = 4000;
 
             void OnApply(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
@@ -1234,14 +1294,15 @@ class spell_bs_dominate_mind : public SpellScriptLoader
             {
                 if (timer)
                 {
-                    if (!GetCaster())
+                    Unit* caster = GetCaster();
+                    if (!caster)
                         return;
 
                     if (!unbrekable)
                     {
                         if (timer <= diff)
                         {
-                            if (InstanceScript* instance = GetCaster()->GetInstanceScript())
+                            if (InstanceScript* instance = caster->GetInstanceScript())
                                 if (instance->getScenarionStep() == DATA_STAGE_4)
                                 {
                                     instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46130); //Step 5
@@ -1257,8 +1318,18 @@ class spell_bs_dominate_mind : public SpellScriptLoader
                     {
                         if (timer <= diff)
                         {
-                            GetCaster()->CastSpell(GetCaster(), 217042, true);
-                            timer = 0;
+                            SpellCastResult result = caster->CastSpell(caster, 217042, true);
+                            if (result == SPELL_CAST_OK)
+                                timer = 0;
+                            else
+                            {
+                                timer = 1;
+                                if (!willFailureReported)
+                                {
+                                    willFailureReported = true;
+                                    TC_LOG_WARN("scripts", "Ashbringer domination: Unbreakable Will 217042 failed with result %u for caster %u; retain aura-owned retry", uint32(result), caster->GetGUIDLow());
+                                }
+                            }
                         }
                         else timer -= diff;
                     }

@@ -5,6 +5,14 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 #include "broken_shore.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "ObjectAccessor.h"
+#include "TemporarySummon.h"
+#include "Conversation.h"
+#include "ObjectMgr.h"
+#include "../../Warrior/Intro/malgalor_finale.h"
+#include "../../Warrior/Intro/reinforcement_transition.h"
 
 class instance_broken_shore : public InstanceMapScript
 {
@@ -18,12 +26,23 @@ public:
 
     struct instance_broken_shore_InstanceMapScript : public InstanceScript
     {
-        instance_broken_shore_InstanceMapScript(InstanceMap* map) : InstanceScript(map) {}
+        instance_broken_shore_InstanceMapScript(InstanceMap* map) : InstanceScript(map), warriorTransition(map) {}
+
+        WarriorReinforcement::State warriorTransition;
 
         std::list<Creature*> trashGUIDconteiner;
-        std::list<GameObject*> DoorGUIDconteiner;
+        GuidSet DoorGUIDconteiner;
         ObjectGuid tyrosusGUID;
         uint8 alliesFight;
+
+        void MalgalorDeath(Creature* creature, Unit* killer)
+        {
+            Scenario* scenario = MalgalorFinale::Progress(creature);
+            if (!scenario || scenario->GetCurrentStep() != 4 || MalgalorFinale::Victory(scenario)) return;
+            auto members = MalgalorFinale::Capture(creature);
+            Player* owner = killer ? killer->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr;
+            MalgalorFinale::Death(creature, members, owner ? owner->GetGUID() : ObjectGuid::Empty);
+        }
 
         void Initialize() override
         {
@@ -36,6 +55,7 @@ public:
 
         void OnCreatureCreate(Creature* creature) override
         {
+            warriorTransition.Observe(creature);
             switch (creature->GetEntry())
             {
                 case NPC_ARGENT_PHALANX_1:
@@ -85,9 +105,15 @@ public:
                 case GO_ZERUS_DOOR:
                 case GO_BOSS_ZERUS_DOOR_1:
                 case GO_BOSS_ZERUS_DOOR_2:
-                    DoorGUIDconteiner.push_back(go);
+                    DoorGUIDconteiner.insert(go->GetGUID());
                     break;
             }
+        }
+
+        void OnGameObjectRemove(GameObject* go) override
+        {
+            DoorGUIDconteiner.erase(go->GetGUID());
+            InstanceScript::OnGameObjectRemove(go);
         }
 
         void SetData(uint32 type, uint32 data) override
@@ -157,15 +183,21 @@ public:
             switch (newStep)
             {
                 case DATA_STAGE_3:
-                    for (auto go : DoorGUIDconteiner)
-                        if (go->GetEntry() == GO_ZERUS_DOOR)
-                            HandleGameObject(go->GetGUID(), true);
+                {
+                    GuidSet doors = DoorGUIDconteiner;
+                    for (ObjectGuid const& guid : doors)
+                        if (GameObject* go = instance->GetGameObject(guid))
+                            if (go->GetGUID() == guid && go->GetEntry() == GO_ZERUS_DOOR)
+                                HandleGameObject(guid, true);
                     break;
+                }
             }
         }
 
-        void CreatureDies(Creature* creature, Unit* /*killer*/) override
+        void CreatureDies(Creature* creature, Unit* killer) override
         {
+            warriorTransition.Death(creature, killer);
+            MalgalorDeath(creature, killer);
             switch (creature->GetEntry())
             {
                 case NPC_BURNING_CRUSHER:
@@ -183,19 +215,26 @@ public:
                     DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 52847); //+3
                     break;
                 case NPC_JAILER_ZERUS_BOSS:
+                {
                     DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46064); //Set Stage 4
-                    for (auto go : DoorGUIDconteiner)
+                    GuidSet doors = DoorGUIDconteiner;
+                    for (ObjectGuid const& guid : doors)
                     {
+                        GameObject* go = instance->GetGameObject(guid);
+                        if (!go || go->GetGUID() != guid)
+                            continue;
+
                         if (go->GetEntry() == GO_BOSS_ZERUS_DOOR_1)
-                            HandleGameObject(go->GetGUID(), true);
+                            HandleGameObject(guid, true);
                         if (go->GetEntry() == GO_BOSS_ZERUS_DOOR_2)
                             go->SetPhaseMask(1, true);
                     }
                     break;
+                }
             }
         }
 
-        void Update(uint32 diff) override {}
+        void Update(uint32 diff) override { warriorTransition.Update(diff); }
     };
 };
 

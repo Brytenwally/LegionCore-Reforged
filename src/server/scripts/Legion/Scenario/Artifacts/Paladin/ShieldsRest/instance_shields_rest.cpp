@@ -5,6 +5,9 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 #include "shields_rest.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include <array>
 
 
 
@@ -31,8 +34,14 @@ public:
         uint8 igrimEvent;
 
         uint8 count_kills;
-        uint8 count_kills1;
-        uint16 scenarioid;
+        std::array<ObjectGuid, 2> magnarGuardGUIDs;
+        std::array<bool, 2> magnarGuardDeaths;
+        ObjectGuid magnarCompanionGUID;
+        ObjectGuid magnarDoorGUID;
+        bool magnarGuardCreditSent;
+        bool magnarGuardsDelivered;
+        bool magnarGuardDispatching;
+        uint32 magnarGuardGeneration = 0;
 
         void Initialize() override
         {
@@ -44,23 +53,28 @@ public:
             windshaperDiedCount = 0;
             igrimEvent = 0;
             count_kills = 0;
-            count_kills1 = 0;
-            scenarioid = 0;
-        }
-
-        void OnPlyerEnter(Player* player)
-        {
-            if (!player)
-                return;
-
-            player->AddDelayedEvent(3000, [player, this]() -> void
-            {
-                scenarioid = player->GetScenarioId();
-            });
+            magnarGuardGUIDs = {};
+            magnarGuardDeaths = {};
+            magnarCompanionGUID.Clear();
+            magnarDoorGUID.Clear();
+            magnarGuardCreditSent = false;
+            magnarGuardsDelivered = false;
+            magnarGuardDispatching = false;
+            ++magnarGuardGeneration;
         }
 
         void OnCreatureCreate(Creature* creature) override
         {
+            if (creature->GetEntry() == 96455)
+                for (uint32 slot = 0; slot < magnarGuardGUIDs.size(); ++slot)
+                    if (creature->GetDBTableGUIDLow() == 361412 + slot)
+                    {
+                        bool recordedDeath = magnarGuardDeaths[slot] && !creature->IsAlive();
+                        magnarGuardGUIDs[slot] = creature->GetGUID();
+                        magnarGuardDeaths[slot] = recordedDeath;
+                    }
+            if (creature->GetEntry() == 96468 && creature->GetDBTableGUIDLow() == 361306)
+                magnarCompanionGUID = creature->GetGUID();
             switch (creature->GetEntry())
             {
                 case NPC_INVISIBLE_MAN:
@@ -73,6 +87,8 @@ public:
 
         void OnGameObjectCreate(GameObject* go) override
         {
+            if (go->GetEntry() == 243897 && go->GetDBTableGUIDLow() == 134170)
+                magnarDoorGUID = go->GetGUID();
             switch (go->GetEntry())
             {
                 case GO_FIRST_DOOR:
@@ -154,21 +170,98 @@ public:
                     }
                     break;
                 case 96455:
-                    if (unit->GetPositionX() <= 4800.0f)
-                        count_kills1++;
-                    if (count_kills1 == 2)
-                    {
-                        if (Player* pl = unit->FindNearestPlayer(100.0f))
-                            pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46358);
-                        if (GameObject* go = unit->FindNearestGameObject(243897, 70.0f))
-                            go->SetPhaseMask(4, true);
-                        if (GameObject* go = unit->FindNearestGameObject(248777, 70.0f))
-                            go->SetPhaseMask(4, true);
-                        if (Creature* targ = unit->FindNearestCreature(96468, 150.0f, true))
-                            targ->AI()->DoAction(2);
-                    }
+                    RegisterMagnarGuardDeath(unit);
                     break;
             }
+        }
+
+        void RegisterMagnarGuardDeath(Unit* unit)
+        {
+            Scenario* scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+            if (!unit || !unit->IsInWorld() || unit->IsAlive() || unit->GetMap() != instance ||
+                !scenario || scenario->GetScenarioId() != 909 || scenario->GetCurrentStep() > 2)
+                return;
+            for (uint32 slot = 0; slot < magnarGuardGUIDs.size(); ++slot)
+                if (unit->GetGUID() == magnarGuardGUIDs[slot])
+                    magnarGuardDeaths[slot] = true;
+            TryAdvanceMagnarGuards();
+        }
+
+        void TryAdvanceMagnarGuards()
+        {
+            if (magnarGuardsDelivered || magnarGuardDispatching)
+                return;
+            Scenario* scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 909 ||
+                (scenario->GetCurrentStep() != 2 && !(magnarGuardCreditSent && scenario->GetCurrentStep() == 3)))
+                return;
+            if (scenario->GetCurrentStep() == 2)
+            {
+                if (!magnarGuardDeaths[0] || !magnarGuardDeaths[1])
+                    return;
+                for (uint32 slot = 0; slot < magnarGuardGUIDs.size(); ++slot)
+                    if (Creature* guard = instance->GetCreature(magnarGuardGUIDs[slot]))
+                        if (guard->IsAlive())
+                        {
+                            magnarGuardDeaths[slot] = false;
+                            return;
+                        }
+            }
+            Creature* companion = instance->GetCreature(magnarCompanionGUID);
+            GameObject* door = instance->GetGameObject(magnarDoorGUID);
+            if (!companion || !companion->IsInWorld() || !companion->IsAlive() || companion->IsDespawn() ||
+                companion->GetEntry() != 96468 || !companion->IsAIEnabled || !companion->AI() ||
+                !door || !door->IsInWorld() || door->GetEntry() != 243897 || !door->InSamePhase(companion))
+                return;
+            Player* recipient = nullptr;
+            for (auto const& reference : instance->GetPlayers())
+            {
+                Player* player = reference.getSource();
+                if (player && player->IsInWorld() && player->CanContact() && !player->isGameMaster() &&
+                    !player->IsBeingTeleported() && player->getClass() == CLASS_WARRIOR && player->GetMap() == instance &&
+                    player->GetInstanceId() == instance->GetInstanceId() && player->InSamePhase(companion) &&
+                    player->IsWithinDistInMap(companion, 150.0f) && !player->GetQuestRewardStatus(39191) &&
+                    (player->GetQuestStatus(39191) == QUEST_STATUS_INCOMPLETE || player->GetQuestStatus(39191) == QUEST_STATUS_COMPLETE) &&
+                    (!recipient || companion->GetDistance(player) < companion->GetDistance(recipient)))
+                    recipient = player;
+            }
+            if (!recipient)
+                return;
+            uint32 generation = magnarGuardGeneration;
+            magnarGuardDispatching = true;
+            if (scenario->GetCurrentStep() == 2)
+            {
+                CreatureAI* expectedAI = companion->AI();
+                expectedAI->DoAction(2);
+                if (generation != magnarGuardGeneration)
+                    return;
+                scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+                companion = instance->GetCreature(magnarCompanionGUID);
+                if (!scenario || scenario->GetScenarioId() != 909 || scenario->GetCurrentStep() != 2 ||
+                    !companion || !companion->IsInWorld() || !companion->IsAlive() || companion->IsDespawn() ||
+                    !companion->IsAIEnabled || companion->AI() != expectedAI || !expectedAI->GetData(1059))
+                {
+                    magnarGuardDispatching = false;
+                    return;
+                }
+                magnarGuardCreditSent = true;
+                recipient->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46358);
+            }
+            if (generation != magnarGuardGeneration)
+                return;
+            scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+            companion = instance->GetCreature(magnarCompanionGUID);
+            door = instance->GetGameObject(magnarDoorGUID);
+            if (scenario && scenario->GetScenarioId() == 909 && scenario->GetCurrentStep() == 3 &&
+                companion && companion->IsInWorld() && companion->IsAlive() && !companion->IsDespawn() &&
+                companion->GetEntry() == 96468 && companion->IsAIEnabled && companion->AI() &&
+                door && door->IsInWorld() && door->GetEntry() == 243897 && door->InSamePhase(companion))
+            {
+                magnarGuardsDelivered = true;
+                door->SetPhaseMask(4, true);
+                companion->AI()->DoAction(2);
+            }
+            magnarGuardDispatching = false;
         }
 
         void SetData(uint32 type, uint32 data) override
@@ -208,6 +301,10 @@ public:
         {
             switch (type)
             {
+                case 1059:
+                    return magnarGuardCreditSent;
+                case 1060:
+                    return magnarGuardGeneration;
                 case DATA_YRGRIM_EVENT:
                     return igrimEvent;
                 default:
@@ -260,7 +357,8 @@ public:
 
         void onScenarionNextStep(uint32 newStep) override
         {
-            if (scenarioid && scenarioid != 1082)
+            Scenario* scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 1082 || scenario->GetCurrentStep() != newStep)
                 return;
 
             switch (newStep)
@@ -272,7 +370,31 @@ public:
             }
         }
 
-        void Update(uint32 diff) override {}
+        uint32 hunterWindTimer = 0;
+        void Update(uint32 diff) override
+        {
+            if (hunterWindTimer > diff) { hunterWindTimer -= diff; return; }
+            hunterWindTimer = 500;
+            TryAdvanceMagnarGuards();
+            auto scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 1068)
+                return;
+            bool active = scenario->GetCurrentStep() == 1 && windshaperDiedCount < 3;
+            for (auto guid : trashList)
+                if (auto helper = instance->GetCreature(guid))
+                    // Native Hunter corridor emitters; the other invisible
+                    // actors are rune/ritual effects and must remain untouched.
+                    if (helper->GetDBTableGUIDLow() == 365439 || helper->GetDBTableGUIDLow() == 365440)
+                    {
+                        if (active && !helper->HasAura(SPELL_SPIRIT_WINDS_AT))
+                            helper->CastSpell(helper, SPELL_SPIRIT_WINDS_AT, true);
+                        else if (!active && helper->HasAura(SPELL_SPIRIT_WINDS_AT))
+                        {
+                            helper->RemoveAurasDueToSpell(SPELL_SPIRIT_WINDS_AT);
+                            helper->RemoveAllAreaObjects();
+                        }
+                    }
+        }
     };
 };
 

@@ -370,6 +370,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   temple, monk chests / scene equips / kite travel, and the cross-class voice files; core lifecycle / heal / before-logout
   hooks. `IsMapObjectArrivalProtected` is a stub (false) until LegionCore-7.3.5's map-arrival hold is ported (phase 7).
   Compiled; untested in game.
+- **Phase 3.7 Paladin** (2026-11-09, details in the plan): Silver Hand, Truthguard, Ashbringer scenario scripts
+  (CLEAN files taken, two merged) and 8 SQL files (all passed verbatim). The shared map 1500 instance pulls three warrior
+  headers in early. Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

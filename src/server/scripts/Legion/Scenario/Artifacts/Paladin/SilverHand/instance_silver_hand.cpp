@@ -4,6 +4,9 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "silver_hand_first_fight.h"
 
 
 class instance_silver_hand : public InstanceMapScript
@@ -33,6 +36,11 @@ public:
 
         WorldLocation loc_res_pla;
 
+        void CreatureDies(Creature* creature, Unit* /*killer*/) override
+        {
+            SilverHandFirstFight::DeliverDeath(creature);
+        }
+
         WorldLocation* GetClosestGraveYard(float x, float y, float z) override
         {
             loc_res_pla.WorldRelocate(1539, x, y, z);
@@ -49,6 +57,54 @@ public:
             return &loc_res_pla;
         }
         
+        GuidSet _finaleActorsStarted;
+        bool _finaleDiscoveryPending = false;
+
+        void QueueFinaleDiscovery()
+        {
+            if (_finaleDiscoveryPending)
+                return;
+
+            _finaleDiscoveryPending = true;
+            TC_LOG_WARN("scripts", "Silver Hand finale: missing actors; retry discovery in1000ms");
+            AddDelayedEvent(1000, [this]() -> void
+            {
+                _finaleDiscoveryPending = false;
+                Scenario* scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+                if (!scenario || scenario->GetScenarioId() != 1092 || scenario->GetCurrentStep() != 10)
+                {
+                    TC_LOG_WARN("scripts", "Silver Hand finale: dropping stale actor discovery");
+                    return;
+                }
+                onScenarionNextStep(10);
+            });
+        }
+
+        void CastBlindingLight(Creature* boss)
+        {
+            SpellCastResult result = boss->CastSpell(boss, 215260);
+            boss->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC| UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+            if (result == SPELL_CAST_OK)
+                return;
+
+            ObjectGuid guid = boss->GetGUID();
+            TC_LOG_WARN("scripts", "Silver Hand finale: Blinding Light failed with result %u; retry in1000ms", uint32(result));
+            AddDelayedEvent(1000, [this, guid]() -> void
+            {
+                Scenario* scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+                Creature* boss = instance->GetCreature(guid);
+                if (!scenario || scenario->GetScenarioId() != 1092 || scenario->GetCurrentStep() != 10 ||
+                    !boss || boss->GetGUID() != guid || !boss->IsInWorld() || boss->IsPreDelete() || !boss->IsAlive() ||
+                    boss->GetEntry() != 106719 || boss->GetMapId() != 1539 || boss->GetMap() != instance)
+                {
+                    _finaleActorsStarted.erase(guid);
+                    TC_LOG_WARN("scripts", "Silver Hand finale: dropping stale Blinding Light retry");
+                    return;
+                }
+                CastBlindingLight(boss);
+            });
+        }
+
         void onScenarionNextStep(uint32 newStep) override
         {
             if (newStep == 8)
@@ -64,8 +120,10 @@ public:
                         continue;
 
                     if (Creature* travar = player->FindNearestCreature(106676, 70.0f, true))
+                    {
                         travar->AI()->DoAction(true);
-                    break;
+                        break;
+                    }
                 }
             }
             if (newStep == 10)
@@ -73,23 +131,42 @@ public:
                 Map::PlayerList const &PlList = instance->GetPlayers();
 
                 if (PlList.isEmpty())
+                {
+                    QueueFinaleDiscovery();
                     return;
-                
+                }
+
+                bool travardFound = false;
+                bool mordothFound = false;
                 for (Map::PlayerList::const_iterator i = PlList.begin(); i != PlList.end(); ++i)
                 {
                     Player* player = i->getSource();
                     if (!player || !player->CanContact())
                         continue;
 
-                    if (Creature* travar = player->FindNearestCreature(106777, 70.0f, true))
-                        travar->AI()->Talk(3);
-                    if (Creature* boss = player->FindNearestCreature(106719, 70.0f, true))
+                    if (!travardFound)
                     {
-                        boss->CastSpell(boss, 215260);
-                        boss->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC| UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        if (Creature* travar = player->FindNearestCreature(106777, 70.0f, true))
+                        {
+                            travardFound = true;
+                            if (_finaleActorsStarted.insert(travar->GetGUID()).second)
+                                travar->AI()->Talk(3);
+                        }
                     }
-                    break;
+                    if (!mordothFound)
+                    {
+                        if (Creature* boss = player->FindNearestCreature(106719, 70.0f, true))
+                        {
+                            mordothFound = true;
+                            if (_finaleActorsStarted.insert(boss->GetGUID()).second)
+                                CastBlindingLight(boss);
+                        }
+                    }
+                    if (travardFound && mordothFound)
+                        break;
                 }
+                if (!travardFound || !mordothFound)
+                    QueueFinaleDiscovery();
             }
         }
     };

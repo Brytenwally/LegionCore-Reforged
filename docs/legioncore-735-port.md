@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -262,3 +262,21 @@ Audits: Sheilun "partial", Fu Zan and the Fists "client traversal pending". SQL 
   work for phase 7, so nothing waits on it here.
 - `port_lc735_sql.py` now also forces the second guard style (a temporary table with `CHECK(ok=1)`: the constraint is
   loosened and the `@..._safe` variable it was fed is set to 1 just before).
+
+## Phase 3.7: Paladin (2026-11-09)
+
+Audits: Silver Hand "partial", Truthguard and Ashbringer with their pickups repaired, all "client traversal pending".
+- **Holy, The Silver Hand**: `SilverHand.cpp` and `instance_silver_hand.cpp` (CLEAN: taken as is) with the new
+  `silver_hand_first_fight.h`, `_first_path.h`, `_first_room.h`, `_procession.h` (first-fight progression bound to the
+  owned boss's death, companion guards and post-heal recovery); SQL scene equip, real loot, collapse exit, the initial
+  motions of the companions and Mordoth (`2026_11_10_33..37`).
+- **Protection, Truthguard** (Shield's Rest): `instance_shields_rest.cpp` (CLEAN), `shields_rest.cpp` merged three-way
+  (Yrgrim's surrender through `DamageTakenAfterScaling`, companions protected after target-relative damage scaling; one
+  conflict, the same `MoveJump` fix on both sides); SQL real loot and the travel click (`_31`, `_32`).
+- **Retribution, Ashbringer** (map 1500, the class route ported in 3.2): `broken_shore.cpp` merged three-way (Balnazzar
+  finished on a scaled lethal blow without killing the actor), `instance_broken_shore.cpp` (CLEAN); SQL spell loot (`_38`).
+  The map 1500 instance also runs the warrior's scenario 933: it includes the warrior headers `Warrior/Intro/
+  malgalor_finale.h`, `malgalor_scene.h`, `reinforcement_transition.h`, copied now; the rest of the warrior's content
+  (its SQL, `wars_intro_scenario.cpp`) comes with 3.12, so the warrior part of this instance runs on our current data
+  until then.
+- All 8 SQL files passed their guards verbatim on the database copy.

@@ -4,6 +4,11 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "GameObjectAI.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "TemporarySummon.h"
+#include "Vehicle.h"
 #include "shields_rest.h"
 
 //Phases: 6363
@@ -135,12 +140,13 @@ public:
             }
         }
 
-        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
         {
-            if (damage >= me->GetHealth())
+            if (damage >= me->GetHealth(attacker))
             {
                 damage = 0;
-                attacker->getThreatManager().modifyThreatPercent(me, -90);
+                if (attacker)
+                    attacker->getThreatManager().modifyThreatPercent(me, -90);
             }
         }
 
@@ -531,12 +537,13 @@ public:
         npc_sr_spectral_windshaperAI(Creature* creature) : ScriptedAI(creature)
         {
             me->SetReactState(REACT_DEFENSIVE);
+            SetCombatMovement(false); // keep each emitter at its native lane
             checkWindPos = false;
         }
 
         EventMap events;
         bool checkWindPos;
-        uint32 windSpell;
+        uint32 windSpell = 0;
 
         void Reset() override
         {
@@ -555,7 +562,8 @@ public:
 
         void EnterCombat(Unit* /*who*/) override
         {
-            events.CancelEvent(EVENT_1);
+            // The corridor continues producing storms while its guardians
+            // fight. Already released storms finish independently of them.
             events.RescheduleEvent(EVENT_2, 2000);
         }
 
@@ -574,7 +582,10 @@ public:
                 switch (eventId)
                 {
                     case EVENT_1:
-                        DoCast(windSpell);
+                        if (windSpell)
+                            // Native target 106 is a CHANNEL_CASTER destination.
+                            // This AI has no channel: supply the actual lane origin.
+                            me->CastSpell(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), windSpell, false);
                         events.RescheduleEvent(EVENT_1, urand(6, 12) * IN_MILLISECONDS);
                         break;
                     case EVENT_2:
@@ -606,29 +617,43 @@ public:
             me->SetReactState(REACT_PASSIVE);
         }
 
-        uint16 startTimer;
+        uint16 startTimer = 0;
+        uint32 lifetime = 0;
+        bool finished = false;
 
         void Reset() override {}
         
         void IsSummonedBy(Unit* summoner) override
         {
             startTimer = 500;
+            lifetime = 30000;
+            finished = false;
         }
 
         void MovementInform(uint32 type, uint32 id) override
         {
-            if (type != POINT_MOTION_TYPE)
+            if (type != POINT_MOTION_TYPE || id != 1 || finished)
                 return;
+            finished = true;
+            lifetime = 0;
+            startTimer = 0;
 
             if (me->GetVehicleKit())
-            {
                 me->GetVehicleKit()->RemoveAllPassengers();
-                me->DespawnOrUnsummon(100);
-            }
+            me->RemoveAllAreaObjects();
+            me->DespawnOrUnsummon(100);
         }
 
         void UpdateAI(uint32 diff) override
         {
+            if (lifetime && lifetime <= diff)
+            {
+                lifetime = 0;
+                MovementInform(POINT_MOTION_TYPE, 1); // failed path: release safely
+                return;
+            }
+            if (lifetime)
+                lifetime -= diff;
             if (startTimer)
             {
                 if (startTimer <= diff)
@@ -636,9 +661,16 @@ public:
                     startTimer = 0;
                     DoCast(me, SPELL_FIERCE_WINDS_AT, true);
 
+                    bool moving = false;
                     for (uint8 i = 0; i < 3; i++)
                         if (me->GetDistance(windshaperPos[i]) < 2.0f)
+                        {
                             me->GetMotionMaster()->MovePoint(1, windEndPos[i].GetPositionX(), windEndPos[i].GetPositionY(), windEndPos[i].GetPositionZ(), false);
+                            moving = true;
+                            break;
+                        }
+                    if (!moving)
+                        MovementInform(POINT_MOTION_TYPE, 1);
                 }
                 else
                     startTimer -= diff;
@@ -765,9 +797,9 @@ public:
             }
         }
 
-        void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType dmgType) override
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
         {
-            if (damage >= me->GetHealth() || me->HealthBelowPct(10))
+            if (damage >= me->GetHealth(attacker) || me->HealthBelowPct(10))
             {
                 damage = 0;
 
@@ -864,7 +896,7 @@ public:
                         me->GetMotionMaster()->MovePoint(2, 4878.36f, 523.51f, -49.09f);
                         break;
                     case EVENT_4:
-                        me->GetMotionMaster()->MoveJump(4880.58f, 532.99f, -43.42f, 20.0f, 10.0f, 111);
+                        me->GetMotionMaster()->MoveJump(4880.58f, 532.99f, -43.42f, me->GetOrientation(), 20.0f, 10.0f, 111);
                         me->SetHomePosition(4880.58f, 532.99f, -43.42f, 1.57f);
                         break;
                     case EVENT_5:
@@ -1038,43 +1070,135 @@ public:
     {
         npc_sr_argent_hippogryphAI(Creature* creature) : ScriptedAI(creature) {}
 
+        bool arrivalAccepted = false;
+        bool arrivalInProgress = false;
+        uint32 arrivalRetryTimer = 0;
+        std::map<ObjectGuid, uint32> boardingRequests;
+
         void Reset() override {}
 
         void IsSummonedBy(Unit* summoner) override
         {
             SetFlyMode(true);
-            summoner->CastSpell(me, 52391, true); //Ride Veh
+            if (!summoner)
+                return;
+            SpellCastResult result = summoner->CastSpell(me, 52391, true);
+            if (result == SPELL_CAST_OK)
+                return;
+            TC_LOG_WARN("scripts", "Truthguard travel: ride cast 52391 rejected with result %u for bird %u", uint32(result), me->GetEntry());
+            TempSummon* summon = me->ToTempSummon();
+            if (!summon || !summoner->ToPlayer() || summon->GetSummoner() != summoner ||
+                !((me->GetEntry() == NPC_HIPPOGRYPH_DALARAN_SUM && me->GetMapId() == 1220) ||
+                  (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO_SUM && me->GetMapId() == 1495)))
+                return;
+            Vehicle* vehicleKit = me->GetVehicleKit();
+            if (!GetRider() && (!vehicleKit || vehicleKit->HasEmptySeat(0)))
+                me->DespawnOrUnsummon(1);
         }
 
+        Player* GetRider()
+        {
+            if (!((me->GetEntry() == NPC_HIPPOGRYPH_DALARAN_SUM && me->GetMapId() == 1220) ||
+                (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO_SUM && me->GetMapId() == 1495)))
+                return nullptr;
+            TempSummon* summon = me->ToTempSummon();
+            if (!summon)
+                return nullptr;
+            Unit* summoner = summon->GetSummoner();
+            if (!summoner)
+                return nullptr;
+            Player* player = summoner->ToPlayer();
+            return player && player->GetVehicleBase() == me ? player : nullptr;
+        }
         void PassengerBoarded(Unit* who, int8 /*seatId*/, bool apply) override
         {
-            if (apply && (me->GetMapId() == 1220 || me->GetMapId() == 1495))
+            if (!arrivalAccepted && !arrivalInProgress && !arrivalRetryTimer && apply && who && who == GetRider())
                 me->GetMotionMaster()->MovePath(me->GetEntry() * 100, false);
         }
 
         void MovementInform(uint32 type, uint32 id) override
         {
-            if (type != WAYPOINT_MOTION_TYPE)
+            if (type != WAYPOINT_MOTION_TYPE || id != 4 || arrivalAccepted || arrivalInProgress || arrivalRetryTimer)
                 return;
 
-            if (id == 4 && me->GetAnyOwner())
+            if (Player* owner = GetRider())
             {
-                if (Player* owner = me->GetAnyOwner()->ToPlayer())
+                QuestStatus status = owner->GetQuestStatus(42017);
+                if (!owner->IsAlive() || owner->GetQuestRewardStatus(42017) ||
+                    (status != QUEST_STATUS_INCOMPLETE && status != QUEST_STATUS_COMPLETE))
+                    return;
+                arrivalInProgress = true;
+                uint16 previousScenario = owner->GetScenarioId();
+                SpellCastResult result = SPELL_FAILED_ERROR;
+                if (me->GetEntry() == NPC_HIPPOGRYPH_DALARAN_SUM)
                 {
-                    if (me->GetEntry() == NPC_HIPPOGRYPH_DALARAN_SUM)
-                    {
-                        owner->SetScenarioId(1082);
-                        owner->CastSpell(owner, SPELL_FLY_TO_STORMHEIM, true);
-                    }
-                    if (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO_SUM)
-                    {
-                        owner->CastSpell(owner, SPELL_RETURN_TO_DALARAN, true);
-                    }
-                    me->DespawnOrUnsummon(500);
+                    owner->SetScenarioId(1082);
+                    result = owner->CastSpell(owner, SPELL_FLY_TO_STORMHEIM, true);
                 }
+                if (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO_SUM)
+                    result = owner->CastSpell(owner, SPELL_RETURN_TO_DALARAN, true);
+                if (result != SPELL_CAST_OK)
+                {
+                    if (me->GetEntry() == NPC_HIPPOGRYPH_DALARAN_SUM && owner->GetScenarioId() == 1082)
+                        owner->SetScenarioId(previousScenario);
+                    arrivalInProgress = false;
+                    arrivalRetryTimer = 1000;
+                    TC_LOG_WARN("scripts", "Truthguard travel: endpoint cast rejected with result %u for player %u on bird %u; retaining rider for retry", uint32(result), owner->GetGUIDLow(), me->GetEntry());
+                    return;
+                }
+                arrivalAccepted = true;
+                arrivalInProgress = false;
+                me->DespawnOrUnsummon(500);
             }
         }
 
+        void SummonForPlayer(Player* player, uint32 spell)
+        {
+            if (player->GetVehicleBase() || !boardingRequests.emplace(player->GetGUID(), 5000).second)
+                return;
+            SpellCastResult result = player->CastSpell(player, spell, true);
+            if (result != SPELL_CAST_OK)
+            {
+                boardingRequests.erase(player->GetGUID());
+                TC_LOG_WARN("scripts", "Truthguard travel: summon cast %u rejected with result %u for player %u; source retained for retry", spell, uint32(result), player->GetGUIDLow());
+                return;
+            }
+        }
+
+        void UpdateBoardingRequests(uint32 diff)
+        {
+            for (auto request = boardingRequests.begin(); request != boardingRequests.end();)
+            {
+                Player* player = ObjectAccessor::GetPlayer(*me, request->first);
+                QuestStatus status = player ? player->GetQuestStatus(42017) : QUEST_STATUS_NONE;
+                if (!player || !player->IsAlive() || !me->IsInMap(player) || !me->InSamePhase(player) ||
+                    player->GetQuestRewardStatus(42017) || (status != QUEST_STATUS_INCOMPLETE && status != QUEST_STATUS_COMPLETE))
+                {
+                    request = boardingRequests.erase(request);
+                    continue;
+                }
+                Unit* vehicleBase = player->GetVehicleBase();
+                TempSummon* summon = vehicleBase ? vehicleBase->ToTempSummon() : nullptr;
+                bool boarded = summon && summon->GetSummoner() == player && me->IsInMap(summon) && me->InSamePhase(summon) &&
+                    ((me->GetEntry() == NPC_HIPPOGRYPH_DALARAN && summon->GetEntry() == NPC_HIPPOGRYPH_DALARAN_SUM) ||
+                     (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO && summon->GetEntry() == NPC_HIPPOGRYPH_SCENARIO_SUM));
+                if (boarded)
+                {
+                    request = boardingRequests.erase(request);
+                    me->DestroyForPlayer(player);
+                }
+                else if (request->second <= diff)
+                {
+                    request = boardingRequests.erase(request);
+                    TC_LOG_WARN("scripts", "Truthguard travel: boarding not observed for player %u at source %u; source retained for retry", player->GetGUIDLow(), me->GetEntry());
+                }
+                else
+                {
+                    request->second -= diff;
+                    ++request;
+                }
+            }
+        }
         void OnSpellClick(Unit* clicker) override
         {
             if (me->isSummon())
@@ -1082,28 +1206,49 @@ public:
 
             if (Player* player = clicker->ToPlayer())
             {
-                if (me->GetEntry() == NPC_HIPPOGRYPH_DALARAN)
+                QuestStatus status = player->GetQuestStatus(42017);
+                if (!player->IsAlive() || player->getClass() != CLASS_PALADIN || player->GetQuestRewardStatus(42017) ||
+                    (status != QUEST_STATUS_INCOMPLETE && status != QUEST_STATUS_COMPLETE) ||
+                    !me->IsInMap(player) || !me->InSamePhase(player))
+                    return;
+                if (!player->CanContact() || player->IsBeingTeleported() ||
+                    player->GetNPCIfCanInteractWith(me->GetGUID(), UNIT_NPC_FLAG_SPELLCLICK) != me ||
+                    !player->canSeeOrDetect(me) || !player->IsWithinLOSInMap(me))
+                    return;
+                if (me->GetEntry() == NPC_HIPPOGRYPH_DALARAN && me->GetMapId() == 1220)
                 {
-                    QuestStatus status = player->GetQuestStatus(42017);
                     if (status == QUEST_STATUS_INCOMPLETE)
                     {
-                        player->CastSpell(player, SPELL_SUMMON_HIPPO, true);
-                        me->DestroyForPlayer(player);
+                        SummonForPlayer(player, SPELL_SUMMON_HIPPO);
                     }
                 }
-                if (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO)
+                if (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO && me->GetMapId() == 1495)
                 {
+                    Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+                    if (!scenario || scenario->GetScenarioId() != 1082 || !player->HasItemCount(128866, 1, true))
+                        return;
                     if (InstanceScript* instance = player->GetInstanceScript())
                         if (instance->GetData(DATA_YRGRIM_EVENT) == 7)
                         {
-                            player->CastSpell(player, SPELL_SUMMON_HIPPO_INST, true);
-                            me->DestroyForPlayer(player);
+                            SummonForPlayer(player, SPELL_SUMMON_HIPPO_INST);
                         }
                 }
             }
         }
 
-        void UpdateAI(uint32 diff) override {}
+        void UpdateAI(uint32 diff) override
+        {
+            UpdateBoardingRequests(diff);
+            if (!arrivalRetryTimer)
+                return;
+            if (arrivalRetryTimer > diff)
+            {
+                arrivalRetryTimer -= diff;
+                return;
+            }
+            arrivalRetryTimer = 0;
+            MovementInform(WAYPOINT_MOTION_TYPE, 4);
+        }
     };
 
     CreatureAI* GetAI(Creature* creature) const override
@@ -1112,15 +1257,115 @@ public:
     }
 };
 
+namespace TruthguardAcquisition
+{
+    bool CastCredit(Player* player)
+    {
+        SpellCastResult result = player->CastSpell(player, SPELL_TRUTHGUARD_CREDIT, true);
+        if (result != SPELL_CAST_OK)
+        {
+            TC_LOG_WARN("scripts", "Truthguard pickup: credit cast 210133 rejected with result %u for player %u; progression retained for retry", uint32(result), player->GetGUIDLow());
+            return false;
+        }
+        return true;
+    }
+
+    bool EquipPair(Player* player)
+    {
+        Item* weapon = player->GetItemByEntry(128866);
+        Item* child = weapon ? player->GetChildItemByGuid(weapon->GetChildItem()) : nullptr;
+        if (!weapon || !child || child->GetEntry() != 128867 ||
+            child->GetGuidValue(ITEM_FIELD_CREATOR) != weapon->GetGUID() ||
+            !child->HasFlag(ITEM_FIELD_DYNAMIC_FLAGS, ITEM_FLAG_CHILD))
+        {
+            TC_LOG_WARN("scripts", "Truthguard pickup: missing or invalid native parent/child for player %u; no progression or replacement item", player->GetGUIDLow());
+            return false;
+        }
+        if (!weapon->IsEquipped())
+        {
+            uint16 destination;
+            InventoryResult result = player->CanEquipItem(NULL_SLOT, destination, weapon, true);
+            if (result == EQUIP_ERR_OK)
+                result = player->CanEquipChildItem(weapon);
+            if (result != EQUIP_ERR_OK)
+            {
+                player->SendEquipError(result, weapon);
+                return false;
+            }
+            if (destination != weapon->GetPos())
+                player->SwapItem(weapon->GetPos(), destination);
+        }
+        else if (weapon->GetPos() == ((INVENTORY_SLOT_BAG_0 << 8) | EQUIPMENT_SLOT_OFFHAND) &&
+            child->GetPos() != ((INVENTORY_SLOT_BAG_0 << 8) | EQUIPMENT_SLOT_MAINHAND))
+        {
+            InventoryResult result = player->CanEquipChildItem(weapon);
+            if (result != EQUIP_ERR_OK)
+            {
+                player->SendEquipError(result, weapon);
+                return false;
+            }
+            player->EquipChildItem(weapon->GetBagSlot(), weapon->GetSlot(), weapon);
+        }
+        if (player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND) != weapon ||
+            player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND) != child)
+        {
+            TC_LOG_WARN("scripts", "Truthguard pickup: native swap did not equip the linked pair for player %u; progression retained for retry", player->GetGUIDLow());
+            return false;
+        }
+        return true;
+    }
+
+    bool CanTake(Player* player, GameObject* weapon)
+    {
+        if (!player || !weapon || !player->IsInWorld() || !player->CanContact() || !player->IsAlive() ||
+            player->IsBeingTeleported() || player->getClass() != CLASS_PALADIN ||
+            !weapon->IsInWorld() || !weapon->isSpawned() || weapon->GetEntry() != 249420 || weapon->GetMapId() != 1495 ||
+            !player->GetMap() || player->GetMap() != weapon->GetMap() || player->GetInstanceId() != weapon->GetInstanceId() ||
+            !player->InSamePhase(weapon) || !player->canSeeOrDetect(weapon) || !player->IsWithinLOSInMap(weapon) ||
+            !player->IsWithinDistInMap(weapon, weapon->GetInteractionDistance()) ||
+            weapon->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE) ||
+            player->GetQuestRewardStatus(42017) ||
+            (player->GetQuestStatus(42017) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(42017) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(weapon->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == 1082 && scenario->GetCurrentStep() == DATA_STAGE_FINAL;
+    }
+}
+
 //249420
 class go_sr_truthguard : public GameObjectScript
 {
+    struct AI : GameObjectAI
+    {
+        explicit AI(GameObject* object) : GameObjectAI(object) { }
+        bool GossipHello(Player* player, bool) override
+        {
+            return !TruthguardAcquisition::CanTake(player, go) || go->getLootState() == GO_JUST_DEACTIVATED ||
+                player->HasItemCount(128866, 1, true);
+        }
+    };
+
 public:
     go_sr_truthguard() : GameObjectScript("go_sr_truthguard") {}
 
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        if (!TruthguardAcquisition::CanTake(player, go) || go->getLootState() == GO_JUST_DEACTIVATED)
+            return true;
+        if (player->HasItemCount(128866, 1, true))
+        {
+            if (player->HasItemCount(128866))
+                go->SetLootState(GO_JUST_DEACTIVATED, player);
+            return true;
+        }
+        return false;
+    }
+    GameObjectAI* GetAI(GameObject* go) const override { return new AI(go); }
+
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (!target)
+        if (!target || !go || state != GO_JUST_DEACTIVATED || go->getLootState() != GO_JUST_DEACTIVATED ||
+            !TruthguardAcquisition::CanTake(target->ToPlayer(), go) || !target->ToPlayer()->HasItemCount(128866))
             return;
 
         if (Player* player = target->ToPlayer())
@@ -1128,19 +1373,21 @@ public:
             if (InstanceScript* instance = player->GetInstanceScript())
                 if (instance->getScenarionStep() == DATA_STAGE_FINAL)
                 {
-                    if (state == GO_JUST_DEACTIVATED || player->HasItemCount(128866))
+                    if (!TruthguardAcquisition::EquipPair(player) || !TruthguardAcquisition::CastCredit(player))
                     {
-                        instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50545); //Step End
-                        if (instance->GetData(DATA_YRGRIM_EVENT) == 6)
-                            instance->SetData(DATA_YRGRIM_EVENT, 7);
-                        player->CastSpell(player, SPELL_TRUTHGUARD_CREDIT, true);
-                        player->CastSpell(player, SPELL_TRUTHGUARD_SCENE, true);
-                        if (Creature* trigger = go->FindNearestCreature(NPC_TRUTHGUARD_OATHSEEKER, 20.0f, true))
-                            trigger->DespawnOrUnsummon();
-
-                        if (state == GO_ACTIVATED)
-                            go->Delete();
+                        go->AddDelayedEvent(1, [go]()
+                        {
+                            if (go->getLootState() == GO_JUST_DEACTIVATED)
+                                go->SetLootState(GO_READY);
+                        });
+                        return;
                     }
+                    instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50545); //Step End
+                    if (instance->GetData(DATA_YRGRIM_EVENT) == 6)
+                        instance->SetData(DATA_YRGRIM_EVENT, 7);
+                    player->CastSpell(player, SPELL_TRUTHGUARD_SCENE, true);
+                    if (Creature* trigger = go->FindNearestCreature(NPC_TRUTHGUARD_OATHSEEKER, 20.0f, true))
+                        trigger->DespawnOrUnsummon();
                 }
         }
     }
