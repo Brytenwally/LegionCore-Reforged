@@ -1530,8 +1530,7 @@ void World::LoadConfigSettings(bool reload)
 
     m_bool_configs[CONFIG_ARTIFACT_TIER_ENABLE]  = sConfigMgr->GetBoolDefault("ArtifactTierEnable", true);
 
-    // Knowledge book (+1 rank) looted in raids / Mythic+ / PvP victory chests.
-    // Independent of Game.Patch: can be turned on or off at will.
+    // Knowledge book (+1 rank) looted in raids / Mythic+ / PvP victory chests: can be turned on or off at will.
     m_bool_configs[CONFIG_ARTIFACT_KNOWLEDGE_BOOK_LOOT_ENABLE] = sConfigMgr->GetBoolDefault("Artifact.Knowledge.BookLoot.Enable", true);
 
 	m_int_configs[CONFIG_WEIGHTED_MYTHIC_KEYSTONE] = sConfigMgr->GetIntDefault("Dungeon.WeightedMythicKeystone.Enabled", 1);
@@ -1548,19 +1547,15 @@ void World::LoadConfigSettings(bool reload)
 	m_bool_configs[CONFIG_GAIN_HONOR_ELITE] = sConfigMgr->GetBoolDefault("Custom.GainHonorOnEliteKill", false);
 
     // ---------------------------------------------------------------------------------------
-    // Legion content tiers. Each patch is its own tier: it drives the open content, the
-    // legendaries, obliterum, and the loot item level per difficulty.
-    // Item levels are each patch's original ones, before the catch-up raises Blizzard
-    // applied at the end of the expansion (see Custom.ItemLevel.Catchup.Enable).
+    // The server always runs the full 7.3.5 game (owner, 2026-11-09: Reforged's Game.Patch content
+    // tiers were removed). The settings below keep their 7.3 defaults and stay tunable.
     // ---------------------------------------------------------------------------------------
-    m_int_configs[CONFIG_LEGION_ENABLED_PATCH] = sConfigMgr->GetIntDefault("Game.Patch", PATCH_7_3);
-
     m_bool_configs[CONFIG_ITEMLEVEL_CATCHUP_ENABLE] = sConfigMgr->GetBoolDefault("Custom.ItemLevel.Catchup.Enable", false);
     m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER] = sConfigMgr->GetIntDefault("Custom.ItemLevel.DungeonTier", 0);
-    if (m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER] > PATCH_7_3)
+    if (m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER] > 5)
     {
-        TC_LOG_ERROR("server.loading", "Custom.ItemLevel.DungeonTier (%u) must be in the range 0..%u. Set to 0.",
-            m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER], uint32(PATCH_7_3));
+        TC_LOG_ERROR("server.loading", "Custom.ItemLevel.DungeonTier (%u) must be in the range 0..5. Set to 0.",
+            m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER]);
         m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER] = 0;
     }
     m_bool_configs[CONFIG_TIMEWALKING_ENABLE] = sConfigMgr->GetBoolDefault("Timewalking.Enable", true);
@@ -1574,50 +1569,7 @@ void World::LoadConfigSettings(bool reload)
     m_bool_configs[CONFIG_ARGUS_IN_SKY_ENABLE] = sConfigMgr->GetBoolDefault("Custom.ArgusInSky.Enable", false);
     m_bool_configs[CONFIG_SILITHUS_WOUND_DEFAULT] = sConfigMgr->GetBoolDefault("Custom.SilithusWound.Default", true);
 
-    // Values shared by the first three tiers (unchanged from 7.0.3 to 7.1.5)
-    if (m_int_configs[CONFIG_LEGION_ENABLED_PATCH] <= PATCH_7_1_5)
-    {
-        m_int_configs[CONFIG_ITEM_LEGENDARY_LIMIT] = sConfigMgr->GetIntDefault("Item.LegendaryLimit", 144439);
-        m_int_configs[CONFIG_ITEM_LEGENDARY_LEVEL] = sConfigMgr->GetIntDefault("Item.LegendaryLevel", 895);
-
-        m_int_configs[CONFIG_OBLITERUM_LEVEL_START] = sConfigMgr->GetIntDefault("Obliterum.LevelStart", 815);
-        m_int_configs[CONFIG_OBLITERUM_LEVEL_MIN] = sConfigMgr->GetIntDefault("Obliterum.LevelMin", 815);
-        m_int_configs[CONFIG_OBLITERUM_LEVEL_MAX] = sConfigMgr->GetIntDefault("Obliterum.LevelMax", 855);
-
-        m_int_configs[CONFIG_MAX_ITEM_LEVEL] = sConfigMgr->GetIntDefault("Max.ItemLevel", 925);
-
-        m_int_configs[CONFIG_ARTIFACT_KNOWLEDGE_CAP]  = sConfigMgr->GetIntDefault("Artifact.Knowledge.Cap", 25);
-        m_int_configs[CONFIG_ARTIFACT_KNOWLEDGE_START]  = sConfigMgr->GetIntDefault("Artifact.Knowledge.Start", 0);
-
-
-        // Raids: the tier changes with each patch
-        if (m_int_configs[CONFIG_LEGION_ENABLED_PATCH] == PATCH_7_0)         // Emerald Nightmare
-        {
-        }
-        else if (m_int_configs[CONFIG_LEGION_ENABLED_PATCH] == PATCH_7_1)    // Trial of Valor
-        {
-        }
-        else                                                                // The Nighthold
-        {
-        }
-    }
-    else if (m_int_configs[CONFIG_LEGION_ENABLED_PATCH] == PATCH_7_2)        // Tomb of Sargeras
-    {
-        m_int_configs[CONFIG_ITEM_LEGENDARY_LIMIT] = sConfigMgr->GetIntDefault("Item.LegendaryLimit", 147910);
-        m_int_configs[CONFIG_ITEM_LEGENDARY_LEVEL] = sConfigMgr->GetIntDefault("Item.LegendaryLevel", 970);
-
-        m_int_configs[CONFIG_OBLITERUM_LEVEL_START] = sConfigMgr->GetIntDefault("Obliterum.LevelStart", 835);
-        m_int_configs[CONFIG_OBLITERUM_LEVEL_MIN] = sConfigMgr->GetIntDefault("Obliterum.LevelMin", 835);
-        m_int_configs[CONFIG_OBLITERUM_LEVEL_MAX] = sConfigMgr->GetIntDefault("Obliterum.LevelMax", 875);
-
-        m_int_configs[CONFIG_MAX_ITEM_LEVEL] = sConfigMgr->GetIntDefault("Max.ItemLevel", 955);
-
-        m_int_configs[CONFIG_ARTIFACT_KNOWLEDGE_CAP]  = sConfigMgr->GetIntDefault("Artifact.Knowledge.Cap", 40);
-        m_int_configs[CONFIG_ARTIFACT_KNOWLEDGE_START]  = sConfigMgr->GetIntDefault("Artifact.Knowledge.Start", 25);
-
-
-    }
-    else                                                                    // Antorus / Argus
+    // 7.3 (Antorus / Argus) values
     {
         m_int_configs[CONFIG_ITEM_LEGENDARY_LIMIT] = sConfigMgr->GetIntDefault("Item.LegendaryLimit", 160000);
         m_int_configs[CONFIG_ITEM_LEGENDARY_LEVEL] = sConfigMgr->GetIntDefault("Item.LegendaryLevel", 1000);
@@ -1643,7 +1595,7 @@ void World::LoadConfigSettings(bool reload)
     m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_NORMAL] = sConfigMgr->GetIntDefault("ItemLevel.Dungeon.Normal", 805);
     m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_HEROIC] = sConfigMgr->GetIntDefault("ItemLevel.Dungeon.Heroic", 825);
     // the mythic takes one step with 7.2, then stays: the normal and heroic never move
-    m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_MYTHIC] = sConfigMgr->GetIntDefault("ItemLevel.Dungeon.Mythic", m_int_configs[CONFIG_LEGION_ENABLED_PATCH] >= PATCH_7_2 ? 845 : 840);
+    m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_MYTHIC] = sConfigMgr->GetIntDefault("ItemLevel.Dungeon.Mythic", 845);
     m_int_configs[CONFIG_ITEMLEVEL_MYTHICPLUS_BASE] = sConfigMgr->GetIntDefault("ItemLevel.MythicPlus.Base", 840);
 
     // Mythic+ caps, all drawn from one value so that a raid opening step needs one line in
@@ -1653,16 +1605,7 @@ void World::LoadConfigSettings(bool reload)
     //   - loot key:        the one reaching the cap; as on retail, keys can go higher with no
     //                      practical limit (255, what a key level can hold), harder for the same loot.
     {
-        uint32 mythicPlusCap = 860;   // Emerald Nightmare heroic 865
-        switch (m_int_configs[CONFIG_LEGION_ENABLED_PATCH])
-        {
-            case PATCH_7_1:   mythicPlusCap = 870; break;   // Trial of Valor heroic 875
-            case PATCH_7_1_5: mythicPlusCap = 885; break;   // The Nighthold heroic 890
-            case PATCH_7_2:   mythicPlusCap = 910; break;   // Tomb of Sargeras heroic 915
-            case PATCH_7_3:   mythicPlusCap = 940; break;   // Antorus heroic 945
-            default: break;
-        }
-        mythicPlusCap = sConfigMgr->GetIntDefault("ItemLevel.MythicPlus.Cap", mythicPlusCap);
+        uint32 const mythicPlusCap = sConfigMgr->GetIntDefault("ItemLevel.MythicPlus.Cap", 940);   // Antorus heroic 945
         m_int_configs[CONFIG_ITEMLEVEL_MYTHICPLUS_CAP] = mythicPlusCap;
         m_int_configs[CONFIG_ITEMLEVEL_MYTHICPLUS_WEEKLY_CAP] = sConfigMgr->GetIntDefault("ItemLevel.MythicPlus.WeeklyCap", mythicPlusCap + 5);
         m_int_configs[CONFIG_CHALLENGE_LEVEL_MAX] = sConfigMgr->GetIntDefault("Challenge.LevelMax",
@@ -1685,60 +1628,6 @@ void World::LoadConfigSettings(bool reload)
 }
 
 /// Initialize the World
-namespace
-{
-    // The content scripts of sql/optional, one pair per tier. A tier counts as closed while `disables` holds
-    // a row its disable script wrote, whose comment starts with "<tier> content - ".
-    struct ContentTierScript
-    {
-        uint32 Patch;
-        char const* Name;
-    };
-
-    ContentTierScript const ContentTierScripts[] =
-    {
-        { PATCH_7_1,   "7.1"   },
-        { PATCH_7_1_5, "7.1.5" },
-        { PATCH_7_2,   "7.2"   },
-        { PATCH_7_3,   "7.3"   },
-    };
-
-    // Runs the enable or disable script of each tier whose state no longer matches Game.Patch, so a script
-    // only runs when the tier changes: a hand-made change in the zones it touches survives the other restarts.
-    bool ApplyContentTierScripts(uint32 patch)
-    {
-        if (!sConfigMgr->GetBoolDefault("Game.Patch.ContentScripts", true))
-            return true;
-
-        boost::filesystem::path const directory = boost::filesystem::path(BuiltInConfig::GetSourceDirectory()) / "sql" / "optional";
-        for (ContentTierScript const& tier : ContentTierScripts)
-        {
-            bool const open = patch >= tier.Patch;
-            bool const closed = bool(WorldDatabase.PQuery("SELECT 1 FROM disables WHERE comment LIKE '%s content - %%' LIMIT 1", tier.Name));
-            if (open != closed)
-                continue;
-
-            boost::filesystem::path const file = directory / (std::string(open ? "enable" : "disable") + "-patch-" + tier.Name + "-content.sql");
-            if (!boost::filesystem::exists(file))
-                continue;
-
-            TC_LOG_INFO("server.loading", "Game.Patch: %s the content of patch %s with %s", open ? "opening" : "closing", tier.Name, file.generic_string().c_str());
-            if (!DBUpdaterUtil::CheckExecutable())
-                return false;
-
-            try
-            {
-                DBUpdater<WorldDatabaseConnection>::ApplyFile(WorldDatabase, file);
-            }
-            catch (UpdateException const&)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-}
-
 void World::SetInitialWorldSettings()
 {
     ///- Server startup begin
@@ -1756,13 +1645,6 @@ void World::SetInitialWorldSettings()
 
     ///- Initialize config settings
     LoadConfigSettings();
-
-    ///- Open or close the content of each tier to match Game.Patch, before anything reads it
-    if (!ApplyContentTierScripts(m_int_configs[CONFIG_LEGION_ENABLED_PATCH]))
-    {
-        TC_LOG_FATAL("server.loading", "Game.Patch: a content script failed, the world database was left as it was before that script.");
-        exit(1);
-    }
 
     ///- Initialize Allowed Security Level
     LoadDBAllowedSecurityLevel();

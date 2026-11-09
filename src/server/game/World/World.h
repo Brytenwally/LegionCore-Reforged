@@ -107,18 +107,6 @@ enum PvPSeasonPendingAction
     PVP_SEASON_PENDING_RESTORE  = 2     // back to the save of the current season
 };
 
-// Legion content tiers (Game.Patch setting). Each patch is its own tier:
-// it drives the open content (raids, quests, currencies), the item level caps
-// and the Artifact Knowledge cap.
-enum LegionContentPatch
-{
-    PATCH_7_0   = 1,    // Emerald Nightmare
-    PATCH_7_1   = 2,    // Trial of Valor
-    PATCH_7_1_5 = 3,    // The Nighthold
-    PATCH_7_2   = 4,    // Tomb of Sargeras / Broken Shore
-    PATCH_7_3   = 5     // Antorus / Argus
-};
-
 enum WorldBoolConfigs
 {
     CONFIG_DURABILITY_LOSS_IN_PVP = 0,
@@ -251,12 +239,11 @@ enum WorldBoolConfigs
     CONFIG_ARTIFACT_TIER_ENABLE,
     CONFIG_ARTIFACT_KNOWLEDGE_BOOK_LOOT_ENABLE,
     // Item level catch-up: on = 7.3.5 DB2 values (original core behaviour),
-    // off = values of the tier set by Game.Patch.
+    // off = each content's original values (the ItemLevel.* settings).
     CONFIG_ITEMLEVEL_CATCHUP_ENABLE,
     CONFIG_LEGIONFALL_MAGE_TOWER_ALWAYS_BUILT,
     // Legion Assaults on the Broken Isles (7.2 content) and the pre-patch demon invasions on
-    // Azeroth. Deliberately detached from Game.Patch: these are events an administrator opens
-    // and closes at will, not consequences of the content tier.
+    // Azeroth: events an administrator opens and closes at will.
     CONFIG_LEGION_INVASIONS_ENABLE,
     CONFIG_TIMEWALKING_ENABLE,
     CONFIG_DEMON_INVASION_PREPATCH_ENABLE,
@@ -483,8 +470,8 @@ enum WorldIntConfigs
     CONFIG_WORLD_QUEST_DAILY_RESET,
     CONFIG_INVASION_POINT_RESET,
     CONFIG_ARTIFACT_KNOWLEDGE_CAP,
-    // Content tier whose dungeon item levels the client is shown, independent of Game.Patch:
-    // a realm can run 7.3 content while still advertising - and handing out - launch values.
+    // Content tier whose dungeon item levels the client is shown: a realm can still advertise - and hand
+    // out - launch values.
     // 0 leaves the DB2 alone, 1..5 map onto 7.0, 7.1, 7.1.5, 7.2 and 7.3.
     CONFIG_ITEMLEVEL_DUNGEON_TIER,
     CONFIG_ARTIFACT_KNOWLEDGE_START,
@@ -520,7 +507,6 @@ enum WorldIntConfigs
     CONFIG_WEIGHTED_MYTHIC_KEYSTONE,
     CONFIG_PLAYER_AFK_TIMEOUT,
     CONFIG_PLAYER_LEGION_LEGENDARY_EQUIP_COUNT,
-    CONFIG_LEGION_ENABLED_PATCH,
     CONFIG_LEGIONFALL_CONTRIBUTIONS_REQUIRED,
     CONFIG_TIMEWALKING_INTERVAL,
     CONFIG_GNOMEREGAN_RUN_MONTHS,
@@ -531,7 +517,7 @@ enum WorldIntConfigs
     CONFIG_WOW_TOKEN_MARKET_PRICE,
     CONFIG_WOW_TOKEN_REDEEM_BALANCE,
     CONFIG_WOW_TOKEN_ITEM_ID,
-    // Loot item level per difficulty, original values of the active tier (Game.Patch).
+    // Loot item level per difficulty, original values (7.3 defaults).
     // Ignored when CONFIG_ITEMLEVEL_CATCHUP_ENABLE is on. 0 = let the DB2 decide.
     CONFIG_ITEMLEVEL_DUNGEON_NORMAL,
     CONFIG_ITEMLEVEL_DUNGEON_HEROIC,

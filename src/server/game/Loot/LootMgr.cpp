@@ -145,10 +145,6 @@ uint32 LootStore::LoadLootTable()
         if (!strcmp(GetName(), "zone_loot_template") && result->GetFieldCount() > 10)
             ClassificationMask = fields[10].GetUInt8();
 
-        // Remove Dauntless gear from loot if patch 7.2 is not released yet
-        if (item >= 147212 && item <= 147223 && sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH) < PATCH_7_2)
-            continue;
-
         if (group >= (1 << 7))                          // stored in a 7 bit field, checked before the truncation
         {
             TC_LOG_ERROR("sql.sql", "Table '%s' Entry %d Item %d: group (%u) must be less %u - skipped", GetName(), entry, item, uint32(group), 1u << 7);
@@ -3682,13 +3678,6 @@ bool LootTemplate::CheckItemCondition(Player const* player, uint32 itemId, uint8
 {
     if (type == LOOT_ITEM_TYPE_ITEM)
     {
-        // Dauntless gear is not dropped before patch 7.2, as the loader does
-        if (player && player->GetSession()->GetSecurity() == SEC_PLAYER)
-        {
-            if (itemId >= 147212 && itemId <= 147223 && sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH) < PATCH_7_2)
-                return false;
-        }
-
         ConditionList const& conditionsList = sConditionMgr->GetConditionsForItemLoot(1, itemId);
         if (!sConditionMgr->IsObjectMeetToConditions(const_cast<Player*>(player), conditionsList))
             return false;

@@ -88,7 +88,7 @@ ContributionMgr& ContributionMgr::Instance()
 
 bool ContributionMgr::IsOpen() const
 {
-    return sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH) >= PATCH_7_2;
+    return true;                                            // the full 7.3.5 game: the Broken Shore is always open
 }
 
 bool ContributionMgr::IsAlwaysBuilt(ContributionLifeData const& data) const

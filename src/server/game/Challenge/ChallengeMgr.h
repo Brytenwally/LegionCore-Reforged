@@ -116,8 +116,6 @@ public:
     static uint32 GetLootTreeMod(int32& levelBonus, uint32& challengeLevel, Challenge* challenge = nullptr);
     static uint32 GetKeyLevelForItemLevel(uint32 baseItemLevel, uint32 itemLevel);
     static uint32 SelectRandomChallengeID(uint32 excludeID = 0);
-    // content tier in which a dungeon joined Mythic+ (Game.Patch)
-    static uint32 GetChallengeMapPatch(uint32 mapID);
     static uint8 GetKeyLevelAfterChest(uint32 bestLevel);
     static uint8 GetDecayedKeyLevel(uint8 level);
     void ApplyWeeklyKeyReset(std::unordered_set<ObjectGuid::LowType> const& onlineGuids);

@@ -16,34 +16,6 @@
 Game.Build.Version = 26972
 
 #
-#    Game.Patch
-#        Active Legion content tier. Each patch is its own tier: it drives the currencies, the
-#        item level caps, the Artifact Knowledge cap, and the quests and zones of each tier (see
-#        Game.Patch.ContentScripts). Raids do not depend on it: they open with the RAID OPENING
-#        section.
-#            1 - 7.0    The Emerald Nightmare
-#            2 - 7.1    Trial of Valor
-#            3 - 7.1.5  The Nighthold
-#            4 - 7.2    Tomb of Sargeras / Broken Shore
-#            5 - 7.3    Antorus / Argus  (all of 7.3.5)
-#        Default: 5
-
-Game.Patch = 5
-
-#
-#    Game.Patch.ContentScripts
-#        At startup, when Game.Patch has changed, the server runs the SQL files
-#        enable-patch-*/disable-patch-*-content.sql of sql/optional by itself: the quests and
-#        zones of the tiers above Game.Patch are closed, the others open. A file only runs when
-#        the tier changes, not at every startup.
-#        A player logging in inside a closed zone is sent to Stormwind or Orgrimmar.
-#            1 - enabled
-#            0 - disabled: run the files by hand
-#        Default: 1
-
-Game.Patch.ContentScripts = 1
-
-#
 #    Legionfall.ContributionsRequired
 #        Number of contributions (100 War Supplies each) needed to build a Broken Shore building:
 #        Mage Tower, Command Center, Nether Disruptor. On retail a whole region contributed; the
@@ -89,7 +61,7 @@ Custom.GnomereganRun.Days = 1
 #
 #    Custom.ItemLevel.Catchup.Enable
 #        Item level catch-up.
-#            0 - Loot uses the original item levels of the content tier set by Game.Patch
+#            0 - Loot uses the original item levels of each content (ItemLevel.* values below)
 #                (ItemLevel.* values below). A normal dungeon can no longer outclass the
 #                first raid.
 #            1 - Loot uses the 7.3.5 values frozen in the client DB2 files, that is the
@@ -105,8 +77,7 @@ Custom.ItemLevel.Catchup.Enable = 0
 #        805/825/840 for normal, heroic and mythic at launch, against 845/865/885 by 7.3.
 #        The client reads those numbers from ItemLevelSelector, so on a realm running an
 #        earlier tier the Adventure Guide promises rewards that never come.
-#        This is deliberately its own setting, NOT tied to Game.Patch: a realm can open 7.3
-#        content while still handing out launch rewards.
+#        A realm can run the full 7.3.5 game while still handing out launch rewards.
 #              0   leave the client data alone (7.3 values, 845/865/885)
 #              1   7.0    805 / 825 / 840
 #              2   7.1    same as 7.0
@@ -122,7 +93,7 @@ Custom.ItemLevel.DungeonTier = 0
 #
 #    Custom.LegionInvasions.Enable
 #        Legion Assaults on the Broken Isles (7.2 content).
-#        Independent from Game.Patch: turn the event on or off whenever you want.
+#        Turn the event on or off whenever you want.
 #        Default: 0
 
 Custom.LegionInvasions.Enable = 0
@@ -130,7 +101,7 @@ Custom.LegionInvasions.Enable = 0
 #
 #    Custom.DemonInvasionPrepatch.Enable
 #        Demon invasions on Azeroth (Eastern Kingdoms and Kalimdor), the event that
-#        preceded the Legion launch. Custom code, unrelated to Game.Patch.
+#        preceded the Legion launch. Custom code.
 #        Default: 0
 
 Custom.DemonInvasionPrepatch.Enable = 0
@@ -141,7 +112,6 @@ Custom.DemonInvasionPrepatch.Enable = 0
 #        every piece needed but never evaluates them on its own: the server has to send
 #        SMSG_UPDATE_CELESTIAL_BODY, which this option turns on. Which body is drawn is then
 #        decided client side from the MapCelestialBody rows and their player conditions.
-#        Independent from Game.Patch.
 #        Default: 0 - off
 
 Custom.ArgusInSky.Enable = 0
@@ -200,10 +170,9 @@ Artifact.Knowledge.BookLoot.Raids = 31
 #          - the loot key (Challenge.LevelMax) is the one reaching this cap. As on retail, keys
 #            can go higher (Challenge.LevelLimit): harder, for no better loot.
 #
-#        Leave it commented out: the value follows Game.Patch and Mythic+ opens with the tier, as
-#        soon as the raid is out, without waiting for its difficulties. End-of-run loot stays
-#        five below the heroic raid of the tier, the weekly chest reaches it, and the mythic raid
-#        always keeps the lead.
+#        Default: 940 (Antorus heroic 945 minus five). End-of-run loot stays five below the heroic
+#        raid, the weekly chest reaches it, and the mythic raid always keeps the lead. The table
+#        shows the values each earlier raid tier used:
 #
 #          Tier    Raid                    End of run   Chest   Loot key
 #          7.0     Emerald Nightmare       860          865     +8
@@ -279,7 +248,7 @@ Artifact.Knowledge.BookLoot.Raids = 31
 #        Since the return to the "launch" system (7.0), this value only initializes worldstate
 #        20023: there is no automatic weekly increase anymore, and the Knowledge of players is
 #        no longer forced to this value at login.
-#        Default: depends on Game.Patch - 0 (7.0/7.1/7.1.5), 25 (7.2), 40 (7.3)
+#        Default: 40
 
 Artifact.Knowledge.Start = 1
 
@@ -287,15 +256,14 @@ Artifact.Knowledge.Start = 1
 #    Artifact.Knowledge.Cap
 #        Highest Artifact Knowledge rank that can be reached, all sources combined (class hall
 #        research work orders, Knowledge books). Also used as the cap of currency 1171.
-#        Default: depends on Game.Patch - 25 (7.0/7.1/7.1.5), 40 (7.2), 55 (7.3)
+#        Default: 55
 
 #Artifact.Knowledge.Cap = 55
 
 #
 #    Artifact.Knowledge.BookLoot.Enable
 #        Lets the Knowledge book drop (item 146745, +1 rank on use) from Legion raid bosses, the
-#        Mythic+ chests (end of run and weekly) and the PvP victory chests. Independent from
-#        Game.Patch.
+#        Mythic+ chests (end of run and weekly) and the PvP victory chests.
 #        A player gets one per week at most, all sources together.
 #        Needs sql/old/world/2026_08_28_00_artifact_knowledge_rework.sql
 #        Default: 1 (on)
@@ -309,8 +277,7 @@ Artifact.Knowledge.BookLoot.Enable = 1
 # RAID OPENING
 #
 #    Raid.<Raid>.LFR.Wing<N>, Raid.<Raid>.Normal, Raid.<Raid>.Heroic, Raid.<Raid>.Mythic
-#        Each difficulty and each Raid Finder wing opens on its own, independently from
-#        Game.Patch.
+#        Each difficulty and each Raid Finder wing opens on its own.
 #            1 - open
 #            0 - closed
 #        Adds to the `disables` table: a raid is closed as soon as either one closes it.

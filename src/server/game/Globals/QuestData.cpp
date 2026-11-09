@@ -24,7 +24,6 @@
 #include "DB2Stores.h"
 #include "World.h"
 
-static bool IsWorldQuestInCurrentPatch(Quest const* quest);
 
 #define _TRINITY_CORE_CONFIG  "worldserver.conf"
 
@@ -248,7 +247,7 @@ void QuestDataStoreMgr::LoadWorldQuestTemplates()
             if (!quest)
                 continue;
             WorldQuestTemplate const* worldQuest = GetWorldQuestTemplate(quest);
-            if (!worldQuest || !IsWorldQuestInCurrentPatch(quest))
+            if (!worldQuest)
                 continue;
 
             if (quest->IsLegionInvasion())
@@ -3312,47 +3311,12 @@ std::set<Quest const*> const* QuestDataStoreMgr::GetWorldQuestTask(uint32 areaId
     return Trinity::Containers::MapGetValuePtr(_worldQuestAreaTaskStore, areaId);
 }
 
-// Content tier a world quest belongs to: the Broken Shore opened with 7.2, Argus with 7.3
-static uint32 GetWorldQuestRequiredPatch(Quest const* quest)
-{
-    if (quest->GetQuestId() == 48641)   // Armies of Legionfall emissary: added with 7.3, although it covers the Broken Shore
-        return PATCH_7_3;
-
-    AreaTableEntry const* area = quest->QuestSortID > 0 ? sAreaTableStore.LookupEntry(quest->QuestSortID) : nullptr;
-    if (!area)
-        return 0;
-
-    switch (area->ContinentID)
-    {
-        case 1669:  // Argus
-        case 1779:  // Invasion Points
-        case 1753:  // Seat of the Triumvirate
-            return PATCH_7_3;
-        case 1500:  // Broken Shore scenario
-            return PATCH_7_2;
-        default:
-            break;
-    }
-
-    if (area->ID == 7543 || area->ParentAreaID == 7543) // Broken Shore
-        return PATCH_7_2;
-    return 0;
-}
-
-static bool IsWorldQuestInCurrentPatch(Quest const* quest)
-{
-    return sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH) >= GetWorldQuestRequiredPatch(quest);
-}
-
 bool QuestDataStoreMgr::CanBeActivate(WorldQuestTemplate const* qTemplate, WorldQuestUpdate const* questUpdate)
 {
     if (!qTemplate)
         return false;
 
     Quest const* quest = questUpdate->quest;
-    if (!IsWorldQuestInCurrentPatch(quest))
-        return false;
-
     TC_LOG_DEBUG("worldquest", "CanBeActivate QuestInfoID %u QuestInfoID %u QuestID %u QuestSortID %u VariableID %u QuestID %u EventID %u", quest->QuestInfoID, qTemplate->QuestInfoID, quest->GetQuestId(), quest->QuestSortID, questUpdate->VariableID, questUpdate->QuestID, questUpdate->EventID);
 
     if (questUpdate->EventID)

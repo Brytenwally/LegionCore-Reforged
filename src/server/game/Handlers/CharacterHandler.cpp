@@ -659,20 +659,10 @@ void WorldSession::HandleLoadScreenOpcode(WorldPackets::Character::LoadingScreen
 
 namespace
 {
-    // A player logging in where the content is closed, after Game.Patch went down or a map was closed while he
-    // was away: a closed world map or a map closed as a whole, or the Broken Shore below 7.2, whose inhabitants
-    // the 7.2 disable script despawns (its Darkstone Isle, area 8143, stays).
+    // A player logging in on a map closed as a whole while he was away (`disables`) is sent to his capital
     bool IsInClosedContent(Player* player)
     {
-        if (!sConfigMgr->GetBoolDefault("Game.Patch.ContentScripts", true) || !AccountMgr::IsPlayerAccount(player->GetSession()->GetSecurity()))
-            return false;
-
-        if (DisableMgr::IsMapFullyDisabled(player->GetMapId()))
-            return true;
-
-        uint32 zoneId, areaId;
-        player->GetZoneAndAreaId(zoneId, areaId);
-        return sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH) < PATCH_7_2 && zoneId == 7543 && areaId != 8143;
+        return AccountMgr::IsPlayerAccount(player->GetSession()->GetSecurity()) && DisableMgr::IsMapFullyDisabled(player->GetMapId());
     }
 }
 

@@ -2247,8 +2247,7 @@ namespace
         uint16 Mythic;
     };
 
-    // Indexed by Custom.ItemLevel.DungeonTier - 1, deliberately its own setting rather than
-    // Game.Patch: a realm may want to open 7.3 content while still handing out launch rewards.
+    // Indexed by Custom.ItemLevel.DungeonTier - 1: a realm may want to hand out launch rewards in the full 7.3.5 game.
     // The last row is what the DB2 already ships, so tier 7.3 rewrites nothing. The 7.2 row is
     // an interpolation and should be corrected when real values turn up.
     DungeonItemLevels const DungeonLevelsByPatch[] =
@@ -2320,24 +2319,6 @@ void DB2Manager::LoadingExtraHotfixData()
         if (uint32 const rows = ApplyDungeonItemLevels(tier))
             TC_LOG_INFO("server.loading", ">> Rewrote %u dungeon item level selector(s) for content tier %u", rows, tier);
 
-    // Mythic+ dungeons of a later patch leave the client's challenge list: a record the server no longer holds
-    // reaches the client as a deletion. The open ones are announced too, for a client that saw another patch.
-    {
-        uint32 const patch = sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH);
-        std::vector<uint32> closed, open;
-        for (MapChallengeModeEntry const* entry : sMapChallengeModeStore)
-            if (uint32 const opening = ChallengeMgr::GetChallengeMapPatch(entry->MapID); opening > PATCH_7_0)
-                (patch < opening ? closed : open).push_back(entry->ID);
-
-        for (uint32 id : closed)
-            sMapChallengeModeStore.EraseRecord(id);
-        for (std::vector<uint32> const* ids : { &closed, &open })
-            for (uint32 id : *ids)
-                InsertNewHotfix(sMapChallengeModeStore.GetTableHash(), id);
-
-        if (!closed.empty())
-            TC_LOG_INFO("server.loading", ">> Mythic+: %u dungeon(s) of later patches withdrawn for patch %u", uint32(closed.size()), patch);
-    }
 
     // Artifact research notes (139390 class hall research order, 146745 completed notes).
     // Patch 7.3 replaced the flavour text with "these notes became obsolete the moment class

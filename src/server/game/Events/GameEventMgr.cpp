@@ -45,19 +45,8 @@ GameEventMgr::GameEventDataMap const& GameEventMgr::GetEventMap() const
     return mGameEvent;
 }
 
-// Events that belong to a content tier: they stay off while the server runs an earlier one
-static uint32 GetEventRequiredPatch(uint16 entry)
-{
-    if (entry >= 117 && entry <= 125)   // the Sentinax over the Broken Shore
-        return PATCH_7_2;
-    return 0;
-}
-
 bool GameEventMgr::CheckOneGameEvent(uint16 entry) const
 {
-    if (sWorld->getIntConfig(CONFIG_LEGION_ENABLED_PATCH) < GetEventRequiredPatch(entry))
-        return false;
-
     // timewalking switched off: its weeks never start, so its queues, quests and vendors stay away
     if (!sWorld->getBoolConfig(CONFIG_TIMEWALKING_ENABLE))
         switch (mGameEvent[entry].holiday_id)

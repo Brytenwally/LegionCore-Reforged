@@ -98,17 +98,19 @@ or run builds in the SkyFire repos, LegionCore-7.3.5 or mod-playerbots from a Re
 - Upstream already scripts every Legion dungeon and raid (175 files in
   `src/server/scripts/Legion`).
 
-### Patch progression (Reforged's own system)
-`worldserver.conf`: `Game.Patch` = 1..5 (7.0, 7.1, 7.1.5, 7.2, 7.3; default 5) drives content
-tiers: `sql/optional/enable|disable-patch-7.x-content.sql` run at startup on a tier change
-(`Game.Patch.ContentScripts`; they close the tier's maps/dungeons, opening quests and
-emissaries, not every addition), original per-tier item levels (`Custom.ItemLevel.*`,
-`ItemLevel.*`, catch-up optional), Mythic+ caps per tier (`Challenge.*`), the restored 7.0
-Artifact Knowledge system (`Artifact.Knowledge.*`: no weekly auto increase, work orders and
-Knowledge books, cap 25/40/55 by tier). Raids open per difficulty/LFR wing in `RAID OPENING`
-(`Raid.<Raid>.*`), independent of `Game.Patch`; PvP season and world events have their own
-switches. Not found: per-patch class/spell tuning, 7.2 Concordance or 7.3 Netherlight
-Crucible gating. Bots must follow these tiers (gear item levels, artifact knowledge).
+### Patch progression: removed 2026-11-09
+Reforged had `Game.Patch` (1..5 = 7.0 .. 7.3) gating content tiers: startup SQL scripts in `sql/optional` that closed or
+opened each tier's maps / quests / spawns (state = `disables` rows whose comment starts with "<tier> content - "),
+per-tier defaults for legendary / obliterum / max item level, Artifact Knowledge start / cap and Mythic+ caps,
+currency-to-gold conversion, world quest / game event / Mythic+ map / contribution / Dauntless loot gates, and a
+login relocation out of closed content. **Owner, 2026-11-09: "not a feature I'm interested in ... get rid of it".** Removed
+in the core commit "Remove Game.Patch content tiers": the server always runs the full 7.3.5 game; the tunable settings
+keep their keys with the 7.3 defaults (`Item.LegendaryLevel` 1000, `Max.ItemLevel` 985, `Artifact.Knowledge.Cap` 55 /
+`Start` 40, `ItemLevel.Dungeon.Mythic` 845, `ItemLevel.MythicPlus.Cap` 940...); `Custom.ItemLevel.Catchup.Enable` and
+`Custom.ItemLevel.DungeonTier` (item level options of their own) stay; the login check keeps only maps disabled as a
+whole. **The base world dump ships with 7.3 closed** (its `disables` holds the 7.3 rows): the server used to open it at
+every startup, so `sql/updates/world/2026_11_09_24_open_all_content_tiers.sql` runs each former enable script once, only
+for a tier still marked closed. Raid opening (`Raid.<Raid>.*`), PvP seasons and world events keep their own switches.
 
 ### Script build (basis for modules)
 - TrinityCore's script-module build: every folder under `src/server/scripts` is a module
@@ -341,6 +343,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   `dark_riders_artifact.cpp` (whole), SQL `2026_11_09_01..23_lc735_*`. **A full copy of this realm's world database
   can be rebuilt in the container in ~3 minutes** (method in the plan): LegionCore-7.3.5's guarded SQL is run on it
   first, then shipped with the guard forced to pass. Compiled; untested in game.
+- **Game.Patch removed** (2026-11-09, see "Patch progression: removed" above).
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
