@@ -39,6 +39,7 @@
 #include "SpellMgr.h"
 #include "Unit.h"
 #include "Util.h"
+#include "ScenarioResume.h"
 #include <array>
 #include <functional>
 #include <queue>
@@ -3265,6 +3266,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void SendSpellScene(uint32 miscValue, SpellInfo const* spellInfo, bool apply, Position* pos);
         void SceneCompleted(uint32 sceneID);
         bool HasSceneStatus(uint32 sceneID, SceneEventStatus const& status) const;
+        bool HasNewerSceneInstance(uint32 instance, uint32 sceneId) const;
         void TrigerScene(uint32 instanceID, std::string const Event);
 
         /*********************************************************/
@@ -3288,6 +3290,10 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
 
         uint16 GetScenarioId() const { return m_scenarioId; }
         void SetScenarioId(uint16 scenarioId) { m_scenarioId = scenarioId; }
+        // scenario checkpoint across logouts (PlayerScenario.cpp)
+        void RecordScenarioEntrance();
+        void PrepareScenarioLogin(uint32 mapId, uint32 instanceId);
+        bool CanResumeScenarioLogin(uint32 scenarioId) const;
 
         // Adventures.
         uint16 getAdventureQuestID();
@@ -3820,6 +3826,9 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         CollectionMgr* _collectionMgr;
 
         uint16 m_scenarioId = 0;
+        ScenarioResume m_scenarioResume;
+        uint32 m_scenarioLoginId = 0;
+        uint32 m_scenarioLoginInstance = 0;
         uint16 m_adventure_questID = 0;
 
         WargameRequest _wargameRequest;

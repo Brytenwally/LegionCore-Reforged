@@ -20,6 +20,19 @@
 #include "ArtifactPackets.h"
 #include "GameTables.h"
 
+namespace
+{
+    // Netherlight Crucible (7.3): unlocked at 110 by "An Offering of Light" and "An Offering of Shadow", or by the
+    // achievement "Now You're Cooking With Netherlight" (LegionCore-7.3.5, "Complete Argus world quests and Netherlight
+    // Crucible"); before, its packets changed relics the client never offered
+    bool CanUseNetherlightCrucible(Player* player)
+    {
+        return player->getLevel() >= 110 &&
+            (player->HasAchieved(12184) ||
+             (player->GetQuestStatus(48559) == QUEST_STATUS_REWARDED && player->GetQuestStatus(48560) == QUEST_STATUS_REWARDED));
+    }
+}
+
 void WorldSession::HandleArtifactAddPower(WorldPackets::Artifact::AddPower& artifactAddPower)
 {
     if (!_player->GetGameObjectIfCanInteractWith(artifactAddPower.GameObjectGUID, GAMEOBJECT_TYPE_ARTIFACT_FORGE))
@@ -130,6 +143,8 @@ void WorldSession::HandleArtifactAddPower(WorldPackets::Artifact::AddPower& arti
     artifact->SetUInt64Value(ITEM_FIELD_ARTIFACT_XP, artifact->GetUInt64Value(ITEM_FIELD_ARTIFACT_XP) - xpCost);
     artifact->SetState(ITEM_CHANGED, _player);
     _player->UpdateAchievementCriteria(CRITERIA_TYPE_OPEN_ARTIFACT_POWERS, 1);
+    // a purchase can cross the empowerment threshold: the new tier comes now, not at the next login (LegionCore-7.3.5)
+    _player->UnLockThirdSocketIfNeed(artifact);
 }
 
 
@@ -138,8 +153,11 @@ void WorldSession::HandleArtifactAddRelicTalent(WorldPackets::Artifact::Artifact
     if (!_player->GetGameObjectIfCanInteractWith(packet.GameObjectGUID, GAMEOBJECT_TYPE_ARTIFACT_FORGE))
         return;
 
+    if (!CanUseNetherlightCrucible(_player))
+        return;
+
     Item* artifact = _player->GetItemByGuid(packet.ArtifactGUID);
-    if (!artifact)
+    if (!artifact || !artifact->GetTemplate()->GetArtifactID())
         return;
 
     // Relic sockets are slots 2 to 4 and relic talents indices 0 to 5; both come from the client,
@@ -166,6 +184,12 @@ void WorldSession::HandleArtifactAddRelicTalent(WorldPackets::Artifact::Artifact
     if ((1 << packet.TalentIndex) & secondTierMask && chosen & secondTierMask)
         return;
     if ((1 << packet.TalentIndex) & thirdTierMask && (chosen & thirdTierMask || !(chosen & secondTierMask)))
+        return;
+    // the first talent comes before the others, and the second tier's pick decides the third's branch: 3 follows 1,
+    // 5 follows 2, 4 either (LegionCore-7.3.5)
+    if (packet.TalentIndex > 0 && !(chosen & 1))
+        return;
+    if ((packet.TalentIndex == 3 && !(chosen & (1 << 1))) || (packet.TalentIndex == 5 && !(chosen & (1 << 2))))
         return;
 
     uint32 reqLevel = 0;
@@ -200,6 +224,9 @@ void WorldSession::HandleArtifactAttuneSocketedRelic(WorldPackets::Artifact::Art
     if (!_player->GetGameObjectIfCanInteractWith(packet.GameObjectGUID, GAMEOBJECT_TYPE_ARTIFACT_FORGE))
         return;
 
+    if (!CanUseNetherlightCrucible(_player))
+        return;
+
     Item* artifact = _player->GetItemByGuid(packet.ArtifactGUID);
     if (!artifact || !artifact->GetTemplate()->GetArtifactID())
         return;
@@ -232,6 +259,9 @@ void WorldSession::HandleArtifactAttuneSocketedRelic(WorldPackets::Artifact::Art
 void WorldSession::HandleArtifactAttunePreviewRelic(WorldPackets::Artifact::ArtifactAttunePreviewdRelic& packet)
 {
     if (!_player->GetGameObjectIfCanInteractWith(packet.GameObjectGUID, GAMEOBJECT_TYPE_ARTIFACT_FORGE))
+        return;
+
+    if (!CanUseNetherlightCrucible(_player))
         return;
 
     Item* socket = _player->GetItemByGuid(packet.RelicGUID);

@@ -22123,7 +22123,7 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
         f_totalKills, f_todayKills, f_yesterdayKills, f_chosenTitle, f_watchedFaction,
         f_health, f_mana, f_instance_id, f_activespec, f_specialization, f_lootspecialization, f_exploredZones, f_equipmentCache, f_knownTitles, f_actionBars,
         f_grantableLevels, f_lfgBonusFaction, f_raidDifficulty, f_legacyRaidDifficulty, f_created_time,
-        f_killPoints
+        f_killPoints, f_scenarioResume
     };
 
     PreparedQueryResult result = holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADFROM);
@@ -22269,6 +22269,7 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
 
     uint32 mapId = fields[f_map].GetUInt16();
     uint32 instanceId = fields[f_instance_id].GetUInt32();
+    m_scenarioResume.Read(fields[f_scenarioResume].GetString());
 
     SetDungeonDifficultyID(CheckLoadedDungeonDifficultyID(Difficulty(fields[f_dungeonDifficulty].GetUInt8())));
     SetRaidDifficultyID(CheckLoadedRaidDifficultyID(Difficulty(fields[f_raidDifficulty].GetUInt8())));
@@ -22310,6 +22311,16 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
 
     m_atLoginFlags = fields[f_at_login].GetUInt16();
     bool mustResurrectFromUnlock = false;
+
+    // scenario checkpoint (PlayerScenario.cpp): before the stale transport fallback and the map creation; an unlock
+    // order still wins over it
+    if (!(m_atLoginFlags & AT_LOGIN_UNLOCK) && sMapStore.LookupEntry(mapId) && IsPositionValid())
+        PrepareScenarioLogin(mapId, instanceId);
+    if (m_scenarioLoginId)
+    {
+        m_movementInfo.transport.Reset();
+        transLowGUID = 0;
+    }
 
     if(m_atLoginFlags & AT_LOGIN_UNLOCK)
     {
@@ -22490,7 +22501,9 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
 
     // NOW player must have valid map
     // load the player's map here if it's not already loaded
-    Map* map = sMapMgr->CreateMap(mapId, this);
+    Map* map = m_scenarioLoginInstance ? sMapMgr->FindMap(mapId, m_scenarioLoginInstance) : nullptr;
+    if (!map)
+        map = sMapMgr->CreateMap(mapId, this);
 
     if (!map)
     {
@@ -22530,7 +22543,7 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
     }
 
     // if the player is in an instance and it has been reset in the meantime teleport him to the entrance
-    if (instanceId && !sInstanceSaveMgr->GetInstanceSave(instanceId) && !map->IsBattlegroundOrArena() && !map->CanCreatedZone() && !map->IsGarrison())
+    if (instanceId && !m_scenarioLoginId && !sInstanceSaveMgr->GetInstanceSave(instanceId) && !map->IsBattlegroundOrArena() && !map->CanCreatedZone() && !map->IsGarrison())
     {
         AreaTriggerStruct const* at = sAreaTriggerDataStore->GetMapEntranceTrigger(mapId);
         if (at)
@@ -25552,6 +25565,12 @@ void Player::SaveToDB(bool create /*=false*/)
 
         stmt->setUInt32(index++, GetLfgBonusFaction());
         stmt->setFloat(index++, m_killPoints);
+        // the checkpoint is saved with the position; a completed run keeps none
+        if (Map* map = FindMap())
+            if (Scenario* progress = map->IsScenario() ? sScenarioMgr->GetScenario(GetInstanceId()) : nullptr)
+                if (progress->IsCompleted(false))
+                    m_scenarioResume = {};
+        stmt->setString(index++, m_scenarioResume.Write());
 
         // Index
         stmt->setUInt64(index++, GetGUIDLow());
@@ -36862,20 +36881,26 @@ void Player::SendSpellScene(uint32 miscValue, SpellInfo const* /*spellInfo*/, bo
     }
     else
     {
-        uint32 ID = 0;
+        // every instance of the scene is retired, not only the last (LegionCore-7.3.5, "Retire completed scene
+        // instances and guard reentrant replacement"): an older one left behind could still fire its events
+        std::vector<uint32> instances;
         for (auto data : m_sceneInstanceID)
-            if (data.second == miscValue) // no break. get last.
-                ID = data.first;
+            if (data.second == miscValue)
+                instances.push_back(data.first);
 
-        if (!ID)    //as we have sctipt with finishing scene it now could be 0.
+        if (instances.empty())    //as we have sctipt with finishing scene it now could be 0.
             return;
 
         //TODO: this is a hack to "properly" reload the phase when completing the Keystone quest + scene
         // this should probably always be happening, but this I'd rather not break anything
         if (miscValue == 1142)
-            SceneCompleted(ID);
+            SceneCompleted(*std::max_element(instances.begin(), instances.end()));
 
-        SendDirectMessage(WorldPackets::Scene::CancelScene(ID).Write());
+        for (uint32 instance : instances)
+        {
+            SendDirectMessage(WorldPackets::Scene::CancelScene(instance).Write());
+            m_sceneInstanceID.erase(instance);
+        }
     }
 }
 
@@ -36896,13 +36921,23 @@ void Player::SceneCompleted(uint32 instance)
 
     uint32 const sceneId = data->second;
 
+    // a scene already completed, or replaced by a newer instance of itself, completes nothing (LegionCore-7.3.5)
+    if (HasSceneStatus(sceneId, SCENE_COMPLETE) || HasNewerSceneInstance(instance, sceneId))
+    {
+        m_sceneInstanceID.erase(instance);
+        return;
+    }
+    m_sceneStatus[sceneId] = SCENE_COMPLETE;
+
     // Triger some events at complete scene.
     TrigerScene(instance, "complete");
 
     // A finished scene is forgotten, so a replayed "complete" packet cannot fire its events again
     m_sceneInstanceID.erase(instance);
 
-    m_sceneStatus[sceneId] = SCENE_COMPLETE;
+    // the complete events started the scene again: the new instance takes over
+    if (HasNewerSceneInstance(instance, sceneId))
+        return;
 
     AddDelayedEvent(100, [this]() -> void
     {
@@ -36918,6 +36953,14 @@ void Player::SceneCompleted(uint32 instance)
             break;
         }
     }
+}
+
+bool Player::HasNewerSceneInstance(uint32 instance, uint32 sceneId) const
+{
+    for (auto const& other : m_sceneInstanceID)
+        if (other.second == sceneId && other.first > instance)
+            return true;
+    return false;
 }
 
 //! If check SCENE_LAUNCH return true if SCENE_COMPLETE too
@@ -36939,18 +36982,28 @@ void Player::TrigerScene(uint32 instanceID, std::string const Event)
         return;
     }
 
-    if (SpellScene const* spell_scene = sSpellMgr->GetSpellScene(data->second))
+    uint32 const sceneId = data->second;
+    // an instance replaced by a newer one of the same scene fires nothing (LegionCore-7.3.5)
+    if (HasNewerSceneInstance(instanceID, sceneId))
+        return;
+
+    if (SpellScene const* spell_scene = sSpellMgr->GetSpellScene(sceneId))
         if (sScriptMgr->OnSceneTrigger(this, spell_scene, Event))
             return;
 
-    const std::vector<SceneTriggerEvent>* triggerEvent = sSpellMgr->GetSceneTriggerEvent(data->second);
+    // the script may have retired or replaced the instance
+    if (m_sceneInstanceID.find(instanceID) == m_sceneInstanceID.end() || HasNewerSceneInstance(instanceID, sceneId))
+        return;
+
+    const std::vector<SceneTriggerEvent>* triggerEvent = sSpellMgr->GetSceneTriggerEvent(sceneId);
     if (!triggerEvent)
     {
-        TC_LOG_DEBUG("entities.player", " >> TrigerScene can't find SpellScene instance Event: %s instance %u Misc %u", Event.c_str(), instanceID, data->second);
+        TC_LOG_DEBUG("entities.player", " >> TrigerScene can't find SpellScene instance Event: %s instance %u Misc %u", Event.c_str(), instanceID, sceneId);
         return;
     }
 
-    m_sceneStatus[data->second] = SCENE_TRIGER;
+    if (!HasSceneStatus(sceneId, SCENE_COMPLETE))
+        m_sceneStatus[sceneId] = SCENE_TRIGER;
 
     for (std::vector<SceneTriggerEvent>::const_iterator itr = triggerEvent->begin(); itr != triggerEvent->end(); ++itr)
     {

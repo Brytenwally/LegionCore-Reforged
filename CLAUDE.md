@@ -344,6 +344,11 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   can be rebuilt in the container in ~3 minutes** (method in the plan): LegionCore-7.3.5's guarded SQL is run on it
   first, then shipped with the guard forced to pass. Compiled; untested in game.
 - **Game.Patch removed** (2026-11-09, see "Patch progression: removed" above).
+- **Phase 2 finished** (2026-11-09; details in `docs/legioncore-735-port.md`, "Phase 2 completion"): scenario
+  checkpoints across logouts (`PlayerScenario.cpp`, `characters.scenarioResume`; the scenario login check now needs one),
+  scene instance retirement, Netherlight Crucible checks and empowerment after a power purchase. **Rule: a login inside a
+  scenario is admitted only with its checkpoint** (live instance of this boot, or a fresh run from the recorded entrance).
+  The map 1500 class route (warrior / paladin / demon hunter) waits for phase 3.2. Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

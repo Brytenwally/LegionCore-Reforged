@@ -175,12 +175,17 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player, bool loginCheck)
     if (!entry->IsDungeon() || entry->IsGarrison())
         return true;
 
-    // logging back into a scenario keeps the player in it while its instance still runs (a client crash, a cut)
-    if (loginCheck && entry->IsScenario())
+    // logging back into a scenario: only with its checkpoint (PlayerScenario.cpp), into the live instance where the
+    // player stood or a fresh run from the recorded entrance; the Broken Shore intro while its quest is unfinished
+    if (loginCheck && entry->IsScenario() && mapid != 1191)
     {
+        uint32 const introQuest = player->GetTeam() == ALLIANCE ? 42740 : 40518;
+        bool const brokenShoreIntro = mapid == 1460 && player->GetQuestStatus(introQuest) == QUEST_STATUS_INCOMPLETE;
         Map* current = player->GetMap();
         Scenario* scenario = current && current->GetId() == mapid ? sScenarioMgr->GetScenario(current->GetInstanceId()) : nullptr;
-        if (!scenario || scenario->GetMap() != current)
+        bool const recorded = scenario && scenario->GetMap() == current && !scenario->IsCompleted(false) &&
+            player->CanResumeScenarioLogin(scenario->GetScenarioId());
+        if (!brokenShoreIntro && !recorded)
             return false;
     }
 

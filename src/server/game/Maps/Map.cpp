@@ -978,6 +978,9 @@ bool Map::AddPlayerToMap(Player* player, bool initPlayer /*= true*/)
 
     sOutdoorPvPMgr->HandlePlayerEnterMap(player->GetGUID(), zoneId);
 
+    // scenario checkpoint for a logout inside it (PlayerScenario.cpp)
+    player->RecordScenarioEntrance();
+
     return true;
 }
 
