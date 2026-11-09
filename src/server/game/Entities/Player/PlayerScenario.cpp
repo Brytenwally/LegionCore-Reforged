@@ -17,6 +17,8 @@
 #include "ObjectMgr.h"
 #include "ScenarioMgr.h"
 #include "WorldSession.h"
+#include "QuestData.h"
+#include "Item.h"
 #include "BrokenShoreClassRoute.h"
 
 namespace
@@ -86,7 +88,8 @@ void Player::PrepareScenarioLogin(uint32 mapId, uint32 instanceId)
         sScenarioMgr->GetScenario(instanceId) : nullptr;
     if (live && live->GetMap() && live->GetMap()->GetId() == mapId && live->GetScenarioId() == m_scenarioLoginId)
     {
-        if (live->IsCompleted(false))
+        // inventory and quest rows load later: keep the saved monk outro tentatively, the login check revalidates it
+        if (live->IsCompleted(false) && !(mapId == 1541 && m_scenarioLoginId == 1007 && getClass() == CLASS_MONK))
         {
             m_scenarioResume = {};
             m_scenarioLoginId = 0;
@@ -115,7 +118,8 @@ void Player::RecordScenarioEntrance()
         return;
 
     Scenario* progress = GetMap()->IsScenario() ? sScenarioMgr->GetScenario(GetInstanceId()) : nullptr;
-    if (!progress || !Resumable(GetMap()->GetEntry(), progress->GetScenarioId()) || progress->IsCompleted(false))
+    if (!progress || !Resumable(GetMap()->GetEntry(), progress->GetScenarioId()) ||
+        (progress->IsCompleted(false) && !(progress->GetScenarioId() == 1007 && HasPendingSheilunReturn())))
     {
         m_scenarioResume = {};
         m_scenarioLoginId = m_scenarioLoginInstance = 0;
@@ -147,4 +151,59 @@ void Player::RecordScenarioEntrance()
     m_scenarioResume.boot = uint64(GameTime::GetStartTime());
     if (m_scenarioLoginId == progress->GetScenarioId())
         SetScenarioId(0);
+}
+
+// Sheilun (monk, quest 41003, scenario 1007 on map 1541): the completed scenario keeps its checkpoint while the owned
+// staff still has its return to make (LegionCore-7.3.5 "require manual Sheilun loot and boarded return")
+bool Player::HasPendingSheilunReturn() const
+{
+    if (GetMapId() != 1541 || getClass() != CLASS_MONK || isGameMaster() || IsQuestRewarded(41003) ||
+        (GetQuestStatus(41003) != QUEST_STATUS_INCOMPLETE && GetQuestStatus(41003) != QUEST_STATUS_COMPLETE) ||
+        GetQuestObjectiveData(41003, 102479) < 1)
+        return false;
+    Item* item = GetItemByEntry(128937, false);
+    if (!item || item->GetOwnerGUID() != GetGUID() || !item->GetCount())
+        return false;
+    Quest const* quest = sQuestDataStore->GetQuestTemplate(41003);
+    if (quest)
+        for (auto const& objective : quest->GetObjectives())
+            if (objective.ID == 281599 && objective.ObjectID == 101880 && objective.StorageIndex == 2 && objective.Amount == 1)
+                return GetQuestObjectiveData(quest, objective.StorageIndex) < objective.Amount;
+    return false;
+}
+
+// a refused login into the completed Sheilun scenario returns an owner of the staff to the native Mistweaver exit;
+// it routes the player and grants nothing
+bool Player::ExitCompletedSheilunLogin()
+{
+    if (GetMapId() != 1541 || getClass() != CLASS_MONK ||
+        (m_scenarioLoginId && m_scenarioLoginId != 1007) ||
+        (m_scenarioResume.scenario && m_scenarioResume.scenario != 1007) ||
+        IsQuestRewarded(41003) ||
+        (GetQuestStatus(41003) != QUEST_STATUS_INCOMPLETE && GetQuestStatus(41003) != QUEST_STATUS_COMPLETE) ||
+        GetQuestObjectiveData(41003, 102479) < 1)
+        return false;
+
+    Scenario* progress = sScenarioMgr->GetScenario(GetInstanceId());
+    if (progress && (progress->GetMap() != GetMap() || progress->GetScenarioId() != 1007))
+        return false;
+
+    // GetItemByEntry scans the inventory and bag slots even before they are in the world
+    Item* staff = GetItemByEntry(128937, false);
+    if (!staff || staff->GetOwnerGUID() != GetGUID() || !staff->GetCount())
+        return false;
+
+    WorldSafeLocsEntry const* exit = sWorldSafeLocsStore.LookupEntry(5710);
+    if (!exit || exit->MapID != 1514)
+        return false;
+    float facing = exit->Loc.O * float(M_PI / 180.0);
+    if (!MapManager::IsValidMapCoord(exit->MapID, exit->Loc.X, exit->Loc.Y, exit->Loc.Z, facing) ||
+        !TeleportTo(exit->MapID, exit->Loc.X, exit->Loc.Y, exit->Loc.Z, facing))
+        return false;
+
+    m_scenarioResume = {};
+    m_scenarioLoginId = m_scenarioLoginInstance = 0;
+    SetScenarioId(0);
+    TC_LOG_INFO("entities.player", "Sheilun: login returns artifact owner %u to the native Mistweaver exit", GetGUIDLow());
+    return true;
 }

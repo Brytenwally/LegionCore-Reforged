@@ -183,7 +183,8 @@ bool MapManager::CanPlayerEnter(uint32 mapid, Player* player, bool loginCheck)
         bool const brokenShoreIntro = mapid == 1460 && player->GetQuestStatus(introQuest) == QUEST_STATUS_INCOMPLETE;
         Map* current = player->GetMap();
         Scenario* scenario = current && current->GetId() == mapid ? sScenarioMgr->GetScenario(current->GetInstanceId()) : nullptr;
-        bool const recorded = scenario && scenario->GetMap() == current && !scenario->IsCompleted(false) &&
+        bool const recorded = scenario && scenario->GetMap() == current &&
+            (!scenario->IsCompleted(false) || (scenario->GetScenarioId() == 1007 && player->HasPendingSheilunReturn())) &&
             player->CanResumeScenarioLogin(scenario->GetScenarioId());
         if (!brokenShoreIntro && !recorded)
             return false;

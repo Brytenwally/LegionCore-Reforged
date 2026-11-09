@@ -6,6 +6,14 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "ObjectAccessor.h"
+#include "ScenarioMgr.h"
+#include "Scenario.h"
+#include "Map.h"
+#include "sheilun_plan.h"
+#include "sheilun_acquisition.h"
+#include "sheilun_return.h"
+#include "sheilun_acquisition_scripts.h"
 
 
 // 101881
@@ -14,28 +22,9 @@ class npc_tazhan_chu : public CreatureScript
 public:
     npc_tazhan_chu() : CreatureScript("npc_tazhan_chu") { }
 
-    bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
+    bool OnGossipSelect(Player*, Creature*, uint32, uint32) override
     {
-
-        player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48494);
-        creature->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, 0); // госсип
-        creature->GetMotionMaster()->MovePoint(0, -1019.15f, -2795.95f, 38.91f);
-        if (Creature* mob = creature->FindNearestCreature(101882, 107.0f, true))
-        {
-            mob->GetMotionMaster()->MovePoint(0, -1019.15f, -2795.95f, 38.91f);
-            mob->AI()->Talk(4);
-            mob->CastSpell(mob, 60958);
-        }
-
-        if (Creature* mob = creature->FindNearestCreature(101885, 107.0f, true))
-            mob->GetMotionMaster()->MovePoint(0, -1019.15f, -2795.95f, 38.91f);
-
-        if (Creature* mob = creature->FindNearestCreature(101883, 107.0f, true))
-            mob->GetMotionMaster()->MovePoint(0, -1019.15f, -2795.95f, 38.91f);
-
-        if (GameObject* go = creature->FindNearestGameObject(246464, 100.0f))
-            go->SetPhaseMask(2, true);
-        player->CLOSE_GOSSIP_MENU();
+        // Native sGossipSelect receives the actual menu and option index.
         return true;
     }
 
@@ -60,10 +49,21 @@ public:
         FunctionProcessor _functions;
         uint8 countgossip;
 
+        #include "sheilun_taran_intro.h"
+        #include "sheilun_companion_wounds.h"
+
+        // These callbacks capture this AI, so they must not outlive it.
+        // Keep the older combat/rescue queue on its original UpdateAI clock.
+        FunctionProcessor _presentationFunctions;
+
+        void WoundSpeech() { Talk(11); Talk(12); }
+
         void Reset() override
         {
             events.Reset();
             me->SetWalk(false);
+            CancelIntroHeal();
+            _pendingWoundHeal = false;
         }
 
         void EnterCombat(Unit* who) override
@@ -76,11 +76,12 @@ public:
 
         void DoAction(int32 const action) override
         {
-            if (action == 1)
-                countgossip++;
+            if (action == 1) SheilunPlan::Refresh(me);
+        }
 
-            if (countgossip == 3)
-                me->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, 1); // госсип
+        void sGossipSelect(Player* player, uint32 menu, uint32 option) override
+        {
+            SheilunPlan::Start(player, me, menu, option);
         }
 
         void DamageDealt(Unit* victim, uint32& damage, DamageEffectType /*damageType*/) override
@@ -113,46 +114,9 @@ public:
             }
         }
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
-        {
-            if (!_introHealDone)
-                if (me->GetHealthPct() >= 95)
-                {
-                    _introHealDone = true;
-                    Talk(2);
-                    me->SetByteValue(UNIT_FIELD_BYTES_1, 0, 0);
-                    me->SetAnimKitId(0);
-                    if (Player* pl = who->ToPlayer())
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48371);
-                    me->GetMotionMaster()->MovePoint(1, -1020.62f, -3135.73f, 26.91f);
-                }
-
-            if (wait_heal)
-            {
-                if (me->GetHealthPct() >= 40)
-                {
-                    me->ClearUnitState(UNIT_STATE_STUNNED);
-                    me->RemoveAura(204237);
-                    wait_heal = false;
-                }
-            }
-        }
-
-        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
+        void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*dmgType*/) override
         {
             damage /= 2;
-            if (damage >= me->GetHealth())
-            {
-                damage = 0;
-                if (!wait_heal)
-                {
-                    wait_heal = true;
-                    me->AddAura(204237, me);
-                    Talk(11);
-                    Talk(12);
-                    me->AddUnitState(UNIT_STATE_STUNNED);
-                }
-            }
         }
 
         void MovementInform(uint32 type, uint32 id) override
@@ -167,7 +131,7 @@ public:
                         Talk(3);
                         DoCast(202053);
 
-                        me->AddDelayedEvent(4000, [this]() -> void
+                        _presentationFunctions.AddDelayedEvent(4000, [this]() -> void
                         {
                             std::list<GameObject*> gob;
                             GetGameObjectListWithEntryInGrid(gob, me, 246321, 35.0f);
@@ -219,7 +183,7 @@ public:
             {
                 _introDone = true;
                 Talk(0);
-                me->AddDelayedEvent(5000, [this]() -> void
+                _presentationFunctions.AddDelayedEvent(5000, [this]() -> void
                 {
                     Talk(1);
                 });
@@ -280,30 +244,9 @@ class npc_sheylun_small_events : public CreatureScript
 public:
     npc_sheylun_small_events() : CreatureScript("npc_sheylun_small_events") { }
 
-    bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
+    bool OnGossipSelect(Player*, Creature*, uint32, uint32) override
     {
-
-        uint32 criteria = 0;
-        switch (creature->GetEntry())
-        {
-            case 101882: //fay
-                criteria = 48446;
-                break;
-            case 101883: //birdman
-                criteria = 48447;
-                break;
-            case 101885: //Taoshi
-                criteria = 48448;
-                break;
-        }
-        if (criteria)
-        {
-            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, criteria);
-            creature->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, 0); // госсип
-            if (Creature* chu = creature->FindNearestCreature(101881, 100.0f, true))
-                chu->AI()->DoAction(1);
-        }
-        player->CLOSE_GOSSIP_MENU();
+        // Sender/action are both zero for these native white-bubble options.
         return true;
     }
 
@@ -324,8 +267,19 @@ public:
         bool wait_heal;
         FunctionProcessor _functions;
 
+        #include "sheilun_companion_wounds.h"
+
+        void WoundSpeech() { Talk(0); Talk(1); }
+        void sGossipSelect(Player* player, uint32 menu, uint32 option) override
+        {
+            SheilunPlan::Select(player, me, menu, option);
+        }
+        void OnHealApplied(Unit* /*who*/, uint32 /*amount*/, int32 /*gain*/) override { ObserveWoundHeal(); }
+        void UpdateLifecycle(uint32 /*diff*/) override { RecoverWound(); }
+
         void Reset() override
         {
+            _pendingWoundHeal = false;
             events.Reset();
             if (me->GetEntry() == 101882)
                 DoCast(203836);
@@ -387,35 +341,6 @@ public:
         void MovementInform(uint32 type, uint32 id) override
         {
             me->SetHomePosition(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation());
-        }
-
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
-        {
-            if (wait_heal)
-            {
-                if (me->GetHealthPct() >= 40)
-                {
-                    me->ClearUnitState(UNIT_STATE_STUNNED);
-                    me->RemoveAura(204237);
-                    wait_heal = false;
-                }
-            }
-        }
-
-        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
-        {
-            if (damage >= me->GetHealth())
-            {
-                damage = 0;
-                if (!wait_heal)
-                {
-                    wait_heal = true;
-                    me->AddAura(204237, me);
-                    Talk(0);
-                    Talk(1);
-                    me->AddUnitState(UNIT_STATE_STUNNED);
-                }
-            }
         }
 
         void UpdateAI(uint32 diff) override
@@ -541,14 +466,13 @@ public:
             events.RescheduleEvent(EVENT_1, 21000); // 204779
             events.RescheduleEvent(EVENT_2, 35000); // 204773  21
             events.RescheduleEvent(EVENT_3, 36000); // 43 summons
-            if (Creature* tazhan = me->FindNearestCreature(101881, 100.0f, true))
-                tazhan->AI()->AttackStart(me);
-            if (Creature* mob = me->FindNearestCreature(101882, 100.0f, true))
-                mob->AI()->AttackStart(me);
-            if (Creature* mob = me->FindNearestCreature(101885, 100.0f, true))
-                mob->AI()->AttackStart(me);
-            if (Creature* mob = me->FindNearestCreature(101883, 100.0f, true))
-                mob->AI()->AttackStart(me);
+            for (uint32 entry : {101881, 101882, 101885, 101883})
+                if (Creature* ally = me->FindNearestCreature(entry, 100.0f, true))
+                    if (CreatureAI* ai = ally->AI())
+                    {
+                        SheilunAcquisition::BattleAlly(me, ally);
+                        ai->AttackStart(me);
+                    }
         }
 
         void JustSummoned(Creature* summon) override
@@ -558,27 +482,7 @@ public:
 
         void JustDied(Unit* who) override
         {
-            if (Player* pl = me->FindNearestPlayer(100.0f))
-            {
-                pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48495);
-
-                pl->AddDelayedEvent(2000, [pl]() -> void
-                {
-                    pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48646);
-
-                    if (!pl->HasItemCount(128937, 1))
-                        pl->AddItem(128937, 1);
-
-                    pl->CastSpell(pl, 202435, true);
-
-                    pl->AddDelayedEvent(14000, [pl]() -> void
-                    {
-                        pl->KilledMonsterCredit(101880);
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1007, 1);
-                        pl->CastSpell(pl, 194151);
-                    });
-                });
-            }
+            SheilunAcquisition::Defeated(me, who);
         }
 
         void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
@@ -633,29 +537,10 @@ class go_art_sheylun : public GameObjectScript
 public:
     go_art_sheylun() : GameObjectScript("go_art_sheylun") {}
 
-    void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
+    bool OnGossipHello(Player* player, GameObject* go) override
     {
-        if (target && state == GO_ACTIVATED)
-        {
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48646);
-                if (Creature* trigger = go->FindNearestCreature(102479, 10.0f))
-                    trigger->DespawnOrUnsummon(1000);
-
-                if (!target->ToPlayer()->HasItemCount(128937, 1))
-                    target->ToPlayer()->AddItem(128937, 1);
-
-                target->CastSpell(target, 202435, true);
-
-                target->AddDelayedEvent(14000, [target]() -> void
-                {
-                    target->ToPlayer()->KilledMonsterCredit(101880);
-                    target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1007, 1);
-                    target->CastSpell(target, 194151);
-                });
-            }
-        }
+        if (SheilunAcquisition::Instance* controller = SheilunAcquisition::Controller(player)) controller->Open(player, go);
+        return true;
     }
 };
 
@@ -666,4 +551,6 @@ void AddSC_Sheylun()
     new go_sheylun_crate();
     new npc_aspersiy();
     new go_art_sheylun();
+    SheilunAcquisition::Register();
+    RegisterInstanceScript(instance_sheylun, 1541);
 };

@@ -721,6 +721,9 @@ void WorldSession::LogoutPlayer(bool Save)
         ///- Remove pet
         _player->RemovePet(nullptr, PET_SAVE_AS_CURRENT, true);
 
+        // scripts can keep an earned departure's safe save position before the save (OnLogout comes after it)
+        sScriptMgr->OnPlayerBeforeLogout(_player);
+
         // Lock class trial characters on logout
         if (_player->HasAtLoginFlag(AT_LOGIN_CLASS_TRIAL))
         {

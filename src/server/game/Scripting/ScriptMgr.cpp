@@ -2238,6 +2238,11 @@ void ScriptMgr::OnPlayerLogout(Player* player)
     FOREACH_SCRIPT(PlayerScript)->OnLogout(player);
 }
 
+void ScriptMgr::OnPlayerBeforeLogout(Player* player)
+{
+    FOREACH_SCRIPT(PlayerScript)->OnBeforeLogout(player);
+}
+
 void ScriptMgr::OnPlayerCreate(Player* player)
 {
     FOREACH_SCRIPT(PlayerScript)->OnCreate(player);

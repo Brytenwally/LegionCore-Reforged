@@ -366,6 +366,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   also the priest's), Felo'melorn's loot, scene equip, Lyandra's health events and Aethas' return, Meryl's sixth wave,
   and the Death Knight Frost leftovers (Halahk, Frost souls). SQL `2026_11_10_00..14`: **`2026_11_09_` stopped at 99,
   new port files use the next day's prefix** (the updater sorts by name). Compiled; untested in game.
+- **Phase 3.6 Monk** (2026-11-09, details in the plan): Sheilun (new headers, login exit and checkpoint exception), Fu Zan's
+  temple, monk chests / scene equips / kite travel, and the cross-class voice files; core lifecycle / heal / before-logout
+  hooks. `IsMapObjectArrivalProtected` is a stub (false) until LegionCore-7.3.5's map-arrival hold is ported (phase 7).
+  Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

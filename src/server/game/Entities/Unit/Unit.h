@@ -1114,6 +1114,7 @@ class TC_GAME_API Unit : public WorldObject
         UnitAI* GetAI() { return i_AI; }
         void SetAI(UnitAI* newAI) { i_AI = newAI; }
         void SetDisabledCurrentAI() { i_disabledAI = i_AI; i_AI = nullptr; }
+        UnitAI* GetDisabledAI() const { return i_disabledAI; }
 
         void BuildValuesUpdate(uint8 updatetype, ByteBuffer* data, Player* target) const override;
 

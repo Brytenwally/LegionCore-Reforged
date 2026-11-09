@@ -108,6 +108,10 @@ public:
     // Called in Creature::Update when deathstate = DEAD. Inherited classes may maniuplate the ability to respawn based on scripted events.
     virtual bool CanRespawn() { return true; }
 
+    // Runs before alive/corpse/respawn and evade/throttling branches (LegionCore-7.3.5)
+    virtual void UpdateLifecycle(uint32 /*diff*/) { }
+    virtual bool CanBeVisibleFor(WorldObject const* /*seer*/) const { return true; }
+
     // Called for reaction at stopping attack at no attackers or targets
     virtual void EnterEvadeMode();
 
@@ -215,6 +219,11 @@ protected:
     virtual void MoveInLineOfSight(Unit* /*who*/);
 
     virtual bool _EnterEvadeMode();
+
+public:
+    // Final positive heal after HealDone and ModifyHealth. Gain can be zero for overhealing; cancelled heals and negative
+    // health changes are excluded (LegionCore-7.3.5). Appended after the existing virtuals.
+    virtual void OnHealApplied(Unit* /*healer*/, uint32 /*amount*/, int32 /*gain*/) {}
 
 private:
     bool m_MoveInLineOfSight_locked;

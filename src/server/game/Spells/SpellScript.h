@@ -417,6 +417,8 @@ class TC_GAME_API SpellScript : public _SpellScript
         // returns: target of current effect if it was Unit otherwise NULL
         Unit* GetHitUnit() const;
         Unit* GetOriginalTarget();
+        // stable identity before InitExplicitTargets normalizes self effects; resolve it on the current map
+        ObjectGuid GetOriginalTargetGUID() const;
         // returns: target of current effect if it was Creature otherwise NULL
         Creature* GetHitCreature();
         // returns: target of current effect if it was Player otherwise NULL

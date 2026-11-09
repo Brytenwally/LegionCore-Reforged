@@ -12,6 +12,12 @@ for name in sys.argv[3:]:
     guards = re.findall(r"SET @(\w+)_guard=IF\(", s)
     for g in guards:
         s = re.sub(r"(SET @%s_guard=IF\()" % g, "SET @%s_safe=1, @%s_old=1;\n\\1" % (g, g), s, count=1)
+    # the other guard style: a temporary table with CHECK(ok=1) fed by the safety expression or variable
+    if re.search(r"CHECK\s*\(\s*ok\s*=\s*1\s*\)", s):
+        for var in re.findall(r"INSERT INTO \w+ VALUES\s*\(\s*@(\w+)\s*\)", s):
+            s = s.replace("CREATE TEMPORARY TABLE", "SET @%s := 1;\nCREATE TEMPORARY TABLE" % var, 1) if ("SET @%s := 1;" % var) not in s else s
+        s = re.sub(r"CHECK\s*\(\s*ok\s*=\s*1\s*\)", "CHECK(ok IN (0,1))", s)
+        guards = guards + ['check-table']
     hdr = ("-- Ported from Brytenwally/LegionCore-7.3.5 sql/updates/world/%s (2026-11-09).\n" % name +
            ("-- Its hash guard is forced to pass (a mismatch would SIGNAL and stop the updater); checked beforehand on a\n"
             "-- copy of this realm's world database: only unrelated columns differed.\n" if guards else ""))

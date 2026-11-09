@@ -25655,7 +25655,7 @@ void Player::SaveToDB(bool create /*=false*/)
         // the checkpoint is saved with the position; a completed run keeps none
         if (Map* map = FindMap())
             if (Scenario* progress = map->IsScenario() ? sScenarioMgr->GetScenario(GetInstanceId()) : nullptr)
-                if (progress->IsCompleted(false))
+                if (progress->IsCompleted(false) && !(progress->GetScenarioId() == 1007 && HasPendingSheilunReturn()))
                     m_scenarioResume = {};
         stmt->setString(index++, m_scenarioResume.Write());
 

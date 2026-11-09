@@ -965,7 +965,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder const& holder)
         if (player->HasAtLoginFlag(AT_LOGIN_FIRST))
             player->SetCreateSpellsPending(); // clears AT_LOGIN_FIRST once cast, so a logout during the intro retries
 
-        if (!player->GetMap()->AddPlayerToMap(player) || !player->GetMap()->IsGarrison() && !player->CheckInstanceLoginValid())
+        bool const addedToLoginMap = player->GetMap()->AddPlayerToMap(player);
+        bool const validLoginMap = addedToLoginMap && (player->GetMap()->IsGarrison() || player->CheckInstanceLoginValid());
+        if (!validLoginMap && !player->ExitCompletedSheilunLogin())
         {
             WorldLocation const& entryPoint = player->GetBattlegroundEntryPoint();
             if (AreaTriggerStruct const* at = sAreaTriggerDataStore->GetGoBackTrigger(player->GetMapId()))

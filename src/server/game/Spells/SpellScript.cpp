@@ -552,6 +552,11 @@ Unit* SpellScript::GetHitUnit() const
     return m_spell->unitTarget;
 }
 
+ObjectGuid SpellScript::GetOriginalTargetGUID() const
+{
+    return m_spell->m_originalTargetGUID;
+}
+
 Unit* SpellScript::GetOriginalTarget()
 {
     return m_spell->m_originalTarget;

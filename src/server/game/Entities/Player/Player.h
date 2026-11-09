@@ -3314,6 +3314,12 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void RecordScenarioEntrance();
         void PrepareScenarioLogin(uint32 mapId, uint32 instanceId);
         bool CanResumeScenarioLogin(uint32 scenarioId) const;
+        bool HasPendingSheilunReturn() const;
+        uint32 GetScenarioLoginInstance() const { return m_scenarioLoginInstance; }
+        // LegionCore-7.3.5 holds a player's world objects for a moment after a map arrival (its "map object arrival"
+        // protection); that system is not ported (phase 7), so no arrival is ever held here
+        bool IsMapObjectArrivalProtected() const { return false; }
+        bool ExitCompletedSheilunLogin();
 
         // Adventures.
         uint16 getAdventureQuestID();

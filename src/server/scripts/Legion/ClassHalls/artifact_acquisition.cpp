@@ -13,6 +13,7 @@
  *    Thas'dorah's Qormaladon, presentation, return and claim, and go_marksmanship_pickup.
  *  - Mage (phase 3.5): Aluneth's Nexus pickup and return (lights_wrath_pickup.h, shared with the priest's Light's Wrath),
  *    Felo'melorn's scene equip and the Fire scenario's return recovery (fire_return_recovery.h).
+ *  - Monk (phase 3.6): the monk scene equips (MonkArtifactScene) and the kite travel (monk_kite_travel.h).
  * The other classes' pieces come with their phases (docs/legioncore-735-port.md).
  */
 
@@ -1642,7 +1643,59 @@ public:
     }
 };
 
+namespace MonkArtifactScene
+{
+struct Pickup
+{
+    uint32 scene, package, map, scenario, firstStep, quest, item;
+};
+
+Pickup const Pickups[] = {
+    {1160, 1524, 1528, 983, 6, 40570, 128940},
+    {1342, 1668, 1625, 1137, 7, 42765, 128938},
+    {1192, 1557, 1541, 1007, 4, 41003, 128937}
+};
+
+// Scene-specific admission is independent of ordinary native equip-spell use.
+// In particular, a late completion after map change must not fall through to
+// the source17 branch that preserves those spells outside their quest maps.
+bool Denied(Player* player, SpellScene const* scene, std::string const& trigger)
+{
+    if (!scene)
+        return false;
+    Pickup const* pickup = nullptr;
+    for (Pickup const& row : Pickups)
+        if (uint32(scene->MiscValue) == row.scene)
+        {
+            pickup = &row;
+            break;
+        }
+    if (!pickup)
+        return false;
+    if (uint32(scene->SceneScriptPackageID) != pickup->package || trigger != "complete" || !player ||
+        !player->HasSceneStatus(pickup->scene, SCENE_COMPLETE) || !player->IsInWorld() ||
+        !player->CanContact() || !player->IsAlive() || player->IsBeingTeleported() ||
+        player->getClass() != CLASS_MONK || player->GetMapId() != pickup->map ||
+        !ArtifactAcquisition::Active(player, pickup->quest) || !player->HasItemCount(pickup->item, 1, false))
+        return true;
+    Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+    return !scenario || scenario->GetScenarioId() != pickup->scenario ||
+        scenario->GetCurrentStep() < pickup->firstStep || scenario->GetCurrentStep() > pickup->firstStep + 1;
+}
+}
+
+class scene_monk_artifact_equipment : public SceneTriggerScript
+{
+public:
+    scene_monk_artifact_equipment() : SceneTriggerScript("scene_monk_artifact_equipment") { }
+    bool OnTrigger(Player* player, SpellScene const* scene, std::string trigger) override
+    {
+        return MonkArtifactScene::Denied(player, scene, trigger);
+    }
+};
+
 #include "talonclaw_boarded_departure.h"
+#include "monk_kite_travel.h"
 #include "lights_wrath_pickup.h"
 
 void AddSC_artifact_acquisition()
@@ -1677,6 +1730,8 @@ void AddSC_artifact_acquisition()
     new scene_fire_artifact_equipment();
     new player_fire_artifact_return();
     RegisterCreatureAI(npc_fire_artifact_aethas);
+    new scene_monk_artifact_equipment();
+    RegisterSpellScript(spell_monk_kite_travel);
     new scene_frost_artifact_equipment();
     new scene_blood_artifact_equipment();
 }

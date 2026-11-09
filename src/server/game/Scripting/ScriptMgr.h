@@ -677,6 +677,9 @@ class TC_GAME_API PlayerScript : public ScriptObject
         // Called when a player logs out.
         virtual void OnLogout(Player* /*player*/) { }
 
+        // logout has begun, before the final character save (OnLogout comes after it)
+        virtual void OnBeforeLogout(Player* /*player*/) { }
+
         // Called when a player is created.
         virtual void OnCreate(Player* /*player*/) { }
 
@@ -1017,6 +1020,7 @@ class TC_GAME_API ScriptMgr
         void OnPlayerSpellCast(Player* player, Spell* spell, bool skipCheck);
         void OnPlayerLogin(Player* player, bool firstLogin = false);
         void OnPlayerLogout(Player* player);
+        void OnPlayerBeforeLogout(Player* player);
         void OnPlayerCreate(Player* player);
         void OnPlayerDelete(ObjectGuid const& guid);
         void OnPlayerBindToInstance(Player* player, Difficulty difficulty, uint32 mapid, bool permanent);

@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (`2026_10_29_24_artifact_boss_speakers`, `2026_10_30_20_artifact_combat_stories`, `_23_artifact_trash_voice`, `_24_artifact_owner_voice`...) are ported in one sweep after the last class | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -236,3 +236,29 @@ All three routes are "client traversal pending" in LegionCore-7.3.5's audits. SQ
 - On the database copy: `_00`-`_05`, `_08`, `_09` passed verbatim (after their predecessors); forced: `_06`, `_10`, `_11`,
   `_12`, `_14` (only `creature_text` / `quest_objectives` / quest texts differed: broadcast ids and our English), `_07` and
   `_13` (one or two rows changed, of exactly the expected event / action / target shape).
+
+## Phase 3.6: Monk (2026-11-09), plus the cross-class voice files
+
+Audits: Sheilun "partial", Fu Zan and the Fists "client traversal pending". SQL `2026_11_10_15..30_lc735_*`.
+- **Mistweaver, Sheilun** (41003, scenario 1007 on map 1541): `Sheylun.cpp` (CLEAN: taken as is) and its new headers
+  (`sheilun_acquisition*.h`, `_companion_wounds`, `_plan`, `_return`, `_return_route`, `_tactics`, `_taran_intro`): manual
+  loot of the staff, the boarded kite return to the temple, Taran's intro, companions protected through final damage and
+  applied healing. Core: the completed scenario keeps its checkpoint while the staff's return is pending
+  (`Player::HasPendingSheilunReturn`), a refused login into it returns a staff owner to the native Mistweaver exit
+  (`ExitCompletedSheilunLogin`, `CharacterHandler`), the kites (102648) bind to the quest attempt when summoned
+  (`Map::SummonCreature`). SQL `_24` (scene equip), `_25` (manual acquisition; its only failing check was the instance
+  script name in `instance_template`, which Reforged registers in code).
+- **Brewmaster, Fu Zan** (Temple of the Jade Serpent scenario): `instance_temple_of_the_jade_serpent.cpp` (CLEAN) and the
+  new `fuzan_temple_intro.h`, `fuzan_temple_sanctuary_door.h`, `fuzan_belphiar.h`, `fuzan_summerpetal.h`; SQL `_26`-`_30`.
+- **Windwalker / all monk routes**: the monk chests' real loot (`_19`) and scene equips (`MonkArtifactScene`, `_20`), the
+  kite travel (`monk_kite_travel.h`, `_15`), Tak-Tak's temple transfer chain (`_16`).
+- **Cross-class voice files** (`_17` boss speakers, `_18` Mist Warder, `_21` combat stories, `_22` trash voice, `_23` owner
+  voice): talk rows retargeted so a line is said by its own NPC to the real player / pet owner (targets 1 and 130). Forced:
+  only `creature_text` differed, or the talk rows they retarget have exactly the expected shape.
+- New core support: `CreatureAI::UpdateLifecycle` (every creature update, also while charmed), `CanBeVisibleFor`,
+  `OnHealApplied` (`Creature::NotifyHealApplied` from `Unit::DealHeal`), `PlayerScript::OnBeforeLogout` (before the
+  logout save), `SpellScript::GetOriginalTargetGUID`, `Unit::GetDisabledAI`, `Player::GetScenarioLoginInstance`.
+  `Player::IsMapObjectArrivalProtected` is a stub returning false: LegionCore-7.3.5's map-arrival object hold is engine
+  work for phase 7, so nothing waits on it here.
+- `port_lc735_sql.py` now also forces the second guard style (a temporary table with `CHECK(ok=1)`: the constraint is
+  loosened and the `@..._safe` variable it was fed is set to 1 just before).
