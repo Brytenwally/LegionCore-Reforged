@@ -3,6 +3,7 @@ void AddSC_broken_shore();
 void AddSC_legion_class_hall_messengers();
 void AddSC_class_hall_artifact_onboarding();
 void AddSC_artifact_acquisition();
+void AddSC_commanders_valor();
 void AddSC_ritual_ruination();
 void AddSC_dreadscar_followup();
 void AddSC_dark_whispers_artifact();
@@ -235,6 +236,7 @@ void AddLegionScripts()
     AddSC_legion_class_hall_messengers();
     AddSC_class_hall_artifact_onboarding();
     AddSC_artifact_acquisition();
+    AddSC_commanders_valor();
     AddSC_ritual_ruination();
     AddSC_dreadscar_followup();
     AddSC_dark_whispers_artifact();

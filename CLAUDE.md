@@ -383,6 +383,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   login restore), An Eye for a Scepter, Dark Whispers, Ritual Ruination, Dreadscar, the Dark Riders login exit; gossip
   secondary NPC flags checked against the second flag word and the class hall upgrade flag fixed (0x200). SQL numbering
   rolled to `2026_11_11_`; the port tool refuses an index above 99. Compiled; untested in game.
+- **Phase 3.12 Warrior** (2026-11-09, details in the plan): Warswords, Earth-Warder, the Broken Shore login exit, Strom'kar,
+  Commander's Valor, and the guarded jump arrivals (Skyhold, Strom'kar, Sharas'dal: arrival spells as self casts, same
+  map, alive, real movement). **Phase 3 (all twelve classes) is complete.** Left out: Strom'kar's loot auto-equip with full
+  bags, its blade's custom scale and crack decal (cosmetic). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

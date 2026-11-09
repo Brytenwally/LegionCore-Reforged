@@ -17,6 +17,8 @@
  *  - Priest (phase 3.8): Xal'atath (Farthing, soul attacks, presentation, pickup) and the Light's Wrath takeover
  *    (lights_wrath_takeover.h).
  *  - Rogue (phase 3.9): Valzuun's intel (valzuun_intel.h).
+ *  - Warrior (phase 3.12): Strom'kar (Zakajz, Thoradin, the awakening, ritual beam / torture, ground cracks, the split,
+ *    pickup, presentation, return); player_stromkar_loot_equipment left out (no CanAutoEquipLoot hook here).
  * The other classes' pieces come with their phases (docs/legioncore-735-port.md).
  */
 
@@ -1497,6 +1499,208 @@ void Queue(Player* player)
 }
 }
 
+namespace StromkarZakajz
+{
+void Protect(Creature* actor, Unit* attacker, uint32& damage)
+{
+    if (!actor || !attacker || !damage || !actor->IsAlive() || actor->GetEntry() != 104276 || actor->GetMapId() != 1539)
+        return;
+    Scenario* scenario = sScenarioMgr->GetScenario(actor->GetInstanceId());
+    if (!scenario || scenario->GetScenarioId() != 1037 || scenario->GetCurrentStep() < 8 || scenario->GetCurrentStep() > 9 ||
+        damage < actor->GetHealth(attacker))
+        return;
+    damage = 0;
+    if (actor->GetHealth() > 1)
+    {
+        actor->SetHealth(1);
+        TC_LOG_INFO("scripts.ai", "Stromkar: protected Zakajz's native finale from a scaled killing blow");
+    }
+}
+}
+
+struct npc_stromkar_zakajz : SmartAI
+{
+    explicit npc_stromkar_zakajz(Creature* actor) : SmartAI(actor) { }
+    ObjectGuid thoradin = {};
+    bool defeatPoseApplied = false;
+    bool executionStarted = false;
+    bool regenerationHeld = false;
+    bool previousRegeneration = false;
+    uint32 executionFlags = 0;
+    uint32 defeatPoseRetry = 0;
+    void ClearDefeatPose()
+    {
+        if (defeatPoseApplied)
+            me->RemoveAurasDueToSpell(130966, me->GetGUID());
+        defeatPoseApplied = false;
+        if (regenerationHeld)
+            me->setRegeneratingHealth(previousRegeneration);
+        regenerationHeld = false;
+    }
+    void Reset() override
+    {
+        ClearDefeatPose();
+        me->RemoveFlag(UNIT_FIELD_FLAGS, executionFlags);
+        executionFlags = 0;
+        executionStarted = false;
+        defeatPoseRetry = 0;
+        SmartAI::Reset();
+    }
+    void UpdateAI(uint32 diff) override
+    {
+        SmartAI::UpdateAI(diff);
+        Scenario* scenario = me->IsInWorld() && me->GetMapId() == 1539 && me->GetEntry() == 104276
+            ? sScenarioMgr->GetScenario(me->GetInstanceId()) : nullptr;
+        if (!scenario || scenario->GetScenarioId() != 1037 ||
+            (scenario->GetCurrentStep() != 9 && !(executionStarted && scenario->GetCurrentStep() == 10)) ||
+            !me->IsAlive() || (!executionStarted && me->GetHealthPct() > 1.0f))
+        {
+            ClearDefeatPose();
+            defeatPoseRetry = 0;
+            return;
+        }
+        // The initial Zakajz103398 uses this same native permanent dead pose.
+        // It has stun/dummy effects, not a real death or a progression event.
+        if (!me->HasAura(130966))
+        {
+            if (defeatPoseRetry > diff)
+                defeatPoseRetry -= diff;
+            else
+            {
+                defeatPoseRetry = 2000;
+                if (me->AddAura(130966, me))
+                    defeatPoseApplied = true;
+            }
+        }
+    }
+    void SpellHit(Unit* caster, SpellInfo const* spell) override
+    {
+        // The actual post-arrival Dark Drain starts the native terminal visual.
+        // Keep the downed body throughout it; removing130966 made Zakajz stand.
+        if (spell && spell->Id == 201904 && me->GetEntry() == 104276 && me->GetMapId() == 1539)
+        {
+            Scenario* scenario = me->IsInWorld() ? sScenarioMgr->GetScenario(me->GetInstanceId()) : nullptr;
+            if (executionStarted || !caster || !caster->ToPlayer() || !me->IsAlive() || me->GetHealthPct() > 1.0f ||
+                !scenario || scenario->GetScenarioId() != 1037 ||
+                (scenario->GetCurrentStep() != 9 && scenario->GetCurrentStep() != 10))
+                return;
+            executionStarted = true;
+            // This remains a living, scripted corpse. Ordinary out-of-combat
+            // regeneration otherwise heals it on the next native tick, which
+            // used to clear the downed pose. Restore the original setting on
+            // a real reset rather than changing the shared creature template.
+            previousRegeneration = me->isRegeneratingHealth();
+            regenerationHeld = true;
+            me->setRegeneratingHealth(false);
+            uint32 flags = UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_SELECTABLE;
+            executionFlags = flags & ~me->GetUInt32Value(UNIT_FIELD_FLAGS);
+            me->SetFlag(UNIT_FIELD_FLAGS, flags);
+            me->SetReactState(REACT_PASSIVE);
+            me->CombatStop(true);
+            // Match the native death path's bidirectional threat cleanup.
+            // CombatStop alone leaves hostile references on participants;
+            // do not clear a player's unrelated combat or manufacture death.
+            me->DeleteThreatList();
+            me->getHostileRefManager().deleteReferences();
+        }
+        SmartAI::SpellHit(caster, spell);
+    }
+    void JustSummoned(Creature* actor) override
+    {
+        // Claim before SmartAI dispatch, which can itself re-enter scripts.
+        if (!ClaimThoradin(actor))
+            return;
+        SmartAI::JustSummoned(actor);
+    }
+    bool IsFinalThoradin(Creature* actor) const
+    {
+        TempSummon* summon = actor ? actor->ToTempSummon() : nullptr;
+        return summon && actor->GetEntry() == 104307 && actor->IsInWorld() && !actor->IsPreDelete() &&
+            actor->IsAlive() && actor->GetMap() == me->GetMap() && actor->InSamePhase(me) &&
+            summon->GetSummonerGUID().GetEntry() == 104276;
+    }
+    bool ClaimThoradin(Creature* actor)
+    {
+        if (!actor || actor->GetEntry() != 104307 || me->GetEntry() != 104276 || me->GetMapId() != 1539)
+            return true;
+        Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+        if (!scenario || scenario->GetScenarioId() != 1037 ||
+            (scenario->GetCurrentStep() != 9 && scenario->GetCurrentStep() != 10))
+            return true;
+        if (actor->IsPreDelete())
+            return false;
+        TempSummon* summon = actor->ToTempSummon();
+        if (!summon || summon->GetSummonerGUID() != me->GetGUID() || !IsFinalThoradin(actor))
+            return true;
+
+        Creature* selected = ObjectAccessor::GetCreature(*me, thoradin);
+        if (!IsFinalThoradin(selected))
+        {
+            selected = actor;
+            // Recover the existing native actor if the boss AI was recreated
+            // or its owner callback was skipped. Inspect only the finale room;
+            // retain the cached actor at any distance once it is known.
+            std::list<Creature*> nearby;
+            GetCreatureListWithEntryInGrid(nearby, actor, 104307, 100.0f);
+            for (Creature* candidate : nearby)
+                if (IsFinalThoradin(candidate) && candidate->GetGUID().GetCounter() < selected->GetGUID().GetCounter())
+                    selected = candidate;
+        }
+        bool changed = thoradin != selected->GetGUID();
+        thoradin = selected->GetGUID();
+        if (selected != actor)
+        {
+            TC_LOG_INFO("scripts.ai", "Stromkar: rejected duplicate final Thoradin in instance %u; retained " UI64FMTD ", removed " UI64FMTD,
+                me->GetInstanceId(), uint64(selected->GetGUID().GetCounter()), uint64(actor->GetGUID().GetCounter()));
+            actor->DespawnOrUnsummon();
+            return false;
+        }
+        if (changed)
+            TC_LOG_INFO("scripts.ai", "Stromkar: claimed final Thoradin " UI64FMTD " for boss " UI64FMTD " in instance %u",
+                uint64(actor->GetGUID().GetCounter()), uint64(me->GetGUID().GetCounter()), me->GetInstanceId());
+        return true;
+    }
+    bool HasThoradin() const
+    {
+        return IsFinalThoradin(ObjectAccessor::GetCreature(*me, thoradin));
+    }
+    void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType type) override
+    {
+        SmartAI::DamageTakenAfterScaling(attacker, damage, type);
+        if (executionStarted)
+        {
+            damage = 0;
+            return;
+        }
+        StromkarZakajz::Protect(me, attacker, damage);
+    }
+};
+
+namespace StromkarThoradinPresence
+{
+bool Missing(Condition* condition, ConditionSourceInfo& sourceInfo)
+{
+    if (!condition || condition->SourceType != CONDITION_SOURCE_TYPE_SMART_EVENT || condition->SourceEntry != 104276 ||
+        condition->SourceGroup != 10 || condition->SourceId || condition->ConditionType != CONDITION_NEAR_CREATURE ||
+        condition->ConditionTarget != 1 || condition->ConditionValue1 != 104307 || condition->ConditionValue2 != 50 ||
+        condition->ConditionValue3 || !condition->NegativeCondition)
+        return true;
+    Creature* owner = sourceInfo.mConditionTargets[1] ? sourceInfo.mConditionTargets[1]->ToCreature() : nullptr;
+    auto* content = owner ? dynamic_cast<npc_stromkar_zakajz*>(owner->AI()) : nullptr;
+    return content && !content->HasThoradin();
+}
+}
+
+class condition_stromkar_thoradin_absence : public ConditionScript
+{
+public:
+    condition_stromkar_thoradin_absence() : ConditionScript("condition_stromkar_thoradin_absence") { }
+    bool OnConditionCheck(Condition* condition, ConditionSourceInfo& sourceInfo) override
+    {
+        return StromkarThoradinPresence::Missing(condition, sourceInfo);
+    }
+};
+
 namespace XalatathFarthing
 {
 void Protect(Creature* actor, Unit* attacker, uint32& damage)
@@ -1888,11 +2092,154 @@ public:
     GameObjectAI* GetAI(GameObject* object) const override { return new AI(object); }
 };
 
+namespace StromkarPickup
+{
+bool Denied(Player* player, GameObject* object)
+{
+    if (!object)
+        return true;
+    if (object->GetEntry() != 247877)
+        return false;
+    if (!player || !player->IsInWorld() || !player->CanContact() || !player->IsAlive() || player->IsBeingTeleported() ||
+        player->getClass() != CLASS_WARRIOR || !ArtifactAcquisition::Active(player, 41105) ||
+        !object->IsInWorld() || !object->isSpawned() || object->GetMapId() != 1539 ||
+        object->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_IN_USE | GO_FLAG_NOT_SELECTABLE) ||
+        object->getLootState() == GO_JUST_DEACTIVATED || player->GetMap() != object->GetMap() ||
+        !player->InSamePhase(object) || !player->canSeeOrDetect(object) || !player->IsWithinLOSInMap(object) ||
+        player->GetExactDist(object) > 5.0f)
+        return true;
+    Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+    return !scenario || scenario->GetScenarioId() != 1037 || scenario->GetCurrentStep() != 9;
+}
+}
+
+class go_stromkar_pickup : public GameObjectScript
+{
+    struct AI : SmartGameObjectAI
+    {
+        explicit AI(GameObject* object) : SmartGameObjectAI(object) { }
+        bool GossipHello(Player* player, bool isUse) override
+        {
+            if (StromkarPickup::Denied(player, go))
+                return true;
+            return SmartGameObjectAI::GossipHello(player, isUse);
+        }
+    };
+public:
+    go_stromkar_pickup() : GameObjectScript("go_stromkar_pickup") { }
+    bool OnGossipHello(Player* player, GameObject* object) override { return StromkarPickup::Denied(player, object); }
+    GameObjectAI* GetAI(GameObject* object) const override { return new AI(object); }
+};
+
+// player_stromkar_loot_equipment (LegionCore-7.3.5) is not ported: its hook, PlayerScript::CanAutoEquipLoot (equip
+// the blade straight from loot when the bags are full), is not in this core
+
+namespace StromkarPresentation
+{
+bool Complete(Player* player, SpellScene const* scene, std::string const& trigger)
+{
+    if (!scene || scene->MiscValue != 1225 || scene->SceneScriptPackageID != 1590)
+        return false;
+    if (trigger != "complete" || !player || !player->HasSceneStatus(1225, SCENE_COMPLETE) ||
+        !player->IsInWorld() || !player->CanContact() || !player->IsAlive() || player->IsBeingTeleported() ||
+        player->getClass() != CLASS_WARRIOR || player->GetMapId() != 1539 ||
+        !ArtifactAcquisition::Active(player, 41105) || !player->GetItemByEntry(128910))
+        return true;
+    Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+    // GO247877 and the native scene spell206436 send49110 before playback
+    // finishes. Once Execute also supplies49109 the final tree advances9 to10;
+    // the authenticated current scene must still equip the blade already owned.
+    if (!scenario || scenario->GetScenarioId() != 1037 ||
+        (scenario->GetCurrentStep() != 9 && scenario->GetCurrentStep() != 10))
+        return true;
+    SpellCastResult result = player->CastSpell(player, 206439, true);
+    if (result != SPELL_CAST_OK)
+    {
+        TC_LOG_WARN("scripts", "Stromkar pickup: native equip 206439 failed with result %u for player %u; existing item retained", uint32(result), player->GetGUIDLow());
+        return true;
+    }
+    Item* weapon = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
+    if (!weapon || weapon->GetEntry() != 128910)
+        TC_LOG_WARN("scripts", "Stromkar pickup: native equip 206439 accepted but blade is not equipped for player %u; retain native inventory errors", player->GetGUIDLow());
+    return true;
+}
+}
+
+class scene_stromkar_pickup : public SceneTriggerScript
+{
+public:
+    scene_stromkar_pickup() : SceneTriggerScript("scene_stromkar_pickup") { }
+    bool OnTrigger(Player* player, SpellScene const* scene, std::string trigger) override
+    {
+        return StromkarPresentation::Complete(player, scene, trigger);
+    }
+};
+
+#include "stromkar_return.h"
+
+struct npc_stromkar_thoradin : SmartAI
+{
+    explicit npc_stromkar_thoradin(Creature* actor) : SmartAI(actor) { }
+    bool initialized = false;
+    bool preserveIntro = false;
+    bool introFinished = false;
+    bool finalePending = false;
+    bool finaleDispatched = false;
+    StromkarReturn::State returnState;
+    void IsSummonedBy(Unit* summoner) override
+    {
+        if (initialized || me->IsPreDelete())
+            return;
+        initialized = true;
+        // TempSummon invokes this even when the owner's AI callback is skipped.
+        // A rejected actor must never start the native intro or return sequence.
+        Creature* owner = summoner ? summoner->ToCreature() : nullptr;
+        if (owner && owner->GetEntry() == 104276 && owner->GetMapId() == 1539)
+            if (auto* content = dynamic_cast<npc_stromkar_zakajz*>(owner->AI()))
+                if (!content->ClaimThoradin(me))
+                    return;
+        {
+            Scenario* scenario = sScenarioMgr->GetScenario(me->GetInstanceId());
+            preserveIntro = me->GetEntry() == 104307 && me->GetMapId() == 1539 && scenario &&
+                scenario->GetScenarioId() == 1037 && scenario->GetCurrentStep() == 9;
+        }
+        SmartAI::IsSummonedBy(summoner);
+    }
+    void SetData(uint32 id, uint32 value) override
+    {
+        StromkarReturn::Signal(me, id, value, returnState);
+        if (!preserveIntro || value != 1 || (id != 1 && id != 2))
+        {
+            SmartAI::SetData(id, value);
+            return;
+        }
+        if (id == 2)
+            introFinished = true;
+        else
+            finalePending = true;
+        if (introFinished && finalePending && !finaleDispatched)
+        {
+            finaleDispatched = true;
+            SmartAI::SetData(1, 1);
+        }
+    }
+    void UpdateAI(uint32 diff) override
+    {
+        SmartAI::UpdateAI(diff);
+        StromkarReturn::Update(me, diff, returnState);
+    }
+};
+
+#include "stromkar_ground_cracks.h"
+#include "stromkar_awakening.h"
+#include "stromkar_ritual_beam.h"
+#include "stromkar_ritual_torture.h"
 #include "talonclaw_boarded_departure.h"
 #include "monk_kite_travel.h"
 #include "lights_wrath_takeover.h"
 #include "lights_wrath_pickup.h"
 #include "valzuun_intel.h"
+#include "stromkar_split.h"
 
 void AddSC_artifact_acquisition()
 {
@@ -1937,6 +2284,21 @@ void AddSC_artifact_acquisition()
     new scene_xalatath_pickup();
     new go_xalatath_pickup();
     RegisterCreatureAI(npc_valzuun_intel);
+    RegisterCreatureAI(npc_stromkar_illusionist);
+    RegisterSpellScript(spell_stromkar_split_transport);
+    new npc_stromkar_valkyr();
+    new condition_stromkar_return();
+    RegisterCreatureAI(npc_stromkar_zakajz);
+    RegisterCreatureAI(npc_stromkar_awakening);
+    RegisterAreaTriggerAI(at_stromkar_ground_cracks);
+    RegisterSpellScript(spell_stromkar_opening_recoil);
+    RegisterSpellScript(spell_stromkar_ritual_beam);
+    RegisterAuraScript(spell_stromkar_ritual_channel);
+    RegisterAuraScript(spell_stromkar_ritual_torture);
+    RegisterCreatureAI(npc_stromkar_thoradin);
+    new condition_stromkar_thoradin_absence();
+    new scene_stromkar_pickup();
+    new go_stromkar_pickup();
     new scene_frost_artifact_equipment();
     new scene_blood_artifact_equipment();
 }

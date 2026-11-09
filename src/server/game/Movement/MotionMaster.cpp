@@ -25,6 +25,7 @@
 #include "RandomMovementGenerator.h"
 #include "TargetedMovementGenerator.h"
 #include "WaypointMovementGenerator.h"
+#include "SkyholdDeparture.h"
 
 inline MovementGenerator* GetIdleMovementGenerator()
 {
@@ -550,7 +551,12 @@ void MotionMaster::MoveJump(float x, float y, float z, float o, float speedXY, f
         init.SetFacing(o);
     if (spellEffectExtraData)
         init.SetSpellEffectExtraData(*spellEffectExtraData);
-    init.Launch();
+    int32 const duration = init.Launch();
+
+    // guarded scripted jumps (SkyholdDeparture.h): no movement, no arrival; and the arrival only on this map
+    bool const guarded = arrivalCast && _owner->IsPlayer() && GuardedJumpArrival::Matches(id, arrivalCast->SpellId);
+    if (guarded && duration <= 0)
+        return;
 
     uint32 arrivalSpellId = 0;
     ObjectGuid arrivalSpellTargetGuid;
@@ -560,7 +566,7 @@ void MotionMaster::MoveJump(float x, float y, float z, float o, float speedXY, f
         arrivalSpellTargetGuid = arrivalCast->Target;
     }
 
-    Mutate(new EffectMovementGenerator(id, arrivalSpellId, arrivalSpellTargetGuid), MOTION_SLOT_CONTROLLED);
+    Mutate(new EffectMovementGenerator(id, arrivalSpellId, arrivalSpellTargetGuid, guarded ? _owner->GetMapId() : uint32(-1)), MOTION_SLOT_CONTROLLED);
 
     // After Mutate: finalizing the replaced generator clears this state on creatures
     _owner->AddUnitState(UNIT_STATE_LONG_JUMP);

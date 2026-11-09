@@ -74,6 +74,7 @@
 #include "WaypointMovementGenerator.h"
 #include "World.h"
 #include "WorldPacket.h"
+#include "SkyholdDeparture.h"
 #include <G3D/Quat.h>
 
 pEffect SpellEffects[TOTAL_SPELL_EFFECTS] =
@@ -1959,6 +1960,7 @@ void Spell::EffectJumpDest(SpellEffIndex effIndex)
     {
         case 192085: // Jump to Skyhold
             z += 20.0f;
+            destTarget->Relocate(x, y, z); // MoveJump below takes destTarget: the lift was lost (LegionCore-7.3.5)
             break;
         case 197619: // Sundering
             o = m_caster->GetOrientation();
@@ -1998,12 +2000,19 @@ void Spell::EffectJumpDest(SpellEffIndex effIndex)
     // Death Grip and Wild Charge (no form)
     JumpArrivalCastArgs arrivalCast;
     arrivalCast.SpellId = m_spellInfo->GetEffect(effIndex, m_diffMode)->TriggerSpell;
+    // destination jumps have no unit target: the guarded scripted jumps' arrival spells are self casts (CastSpell
+    // refuses a null target) (LegionCore-7.3.5; Skyhold, Strom'kar, Sharas'dal)
+    bool const guardedArrival = m_caster->IsPlayer() && GuardedJumpArrival::Matches(m_spellInfo->Id, arrivalCast.SpellId);
+    if (guardedArrival)
+        arrivalCast.Target = m_caster->GetGUID();
     if (!arrivalCast.SpellId && delayCast)
     {
         arrivalCast.SpellId = delayCast->Spell;
         arrivalCast.Target = !delayCast->TargetGUID.IsEmpty() ? delayCast->TargetGUID : m_caster->GetGUID();
     }
-    m_caster->GetMotionMaster()->MoveJump(*destTarget, speedXY, speedZ, m_spellInfo->Id, !m_targets.GetObjectTargetGUID().IsEmpty(), &arrivalCast);
+    // Strom'kar's opening recoil keeps its script-validated landing facing
+    bool const hasOrientation = (m_caster->IsPlayer() && m_spellInfo->Id == 206360) || !m_targets.GetObjectTargetGUID().IsEmpty();
+    m_caster->GetMotionMaster()->MoveJump(*destTarget, speedXY, speedZ, m_spellInfo->Id, hasOrientation, &arrivalCast);
 }
 
 void Spell::CalculateJumpSpeeds(uint8 i, float dist, float & speedXY, float & speedZ)

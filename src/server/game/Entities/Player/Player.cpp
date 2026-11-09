@@ -21009,6 +21009,47 @@ void Player::KilledMonster(CreatureTemplate const* cInfo, ObjectGuid guid)
             KilledMonsterCredit(cInfo->KillCredit[i]);
 }
 
+// the warrior artifact quests' return to Skyhold (103739) credits only a warrior on map 1479 who holds the weapon and has
+// every other required objective, including the acquisition (LegionCore-7.3.5)
+namespace SkyholdArtifactReturn
+{
+    bool CanCredit(Player* player, Quest const* quest)
+    {
+        uint32 item;
+        uint32 acquisition;
+        switch (quest->GetQuestId())
+        {
+            case 39191: item = 128289; acquisition = 94851; break;
+            case 40043: item = 128908; acquisition = 98033; break;
+            case 41105: item = 128910; acquisition = 103114; break;
+            default: return true;
+        }
+
+        if (!player->IsInWorld() || !player->CanContact() || !player->GetMap() || player->GetMapId() != 1479 ||
+            player->IsBeingTeleported() || player->getClass() != CLASS_WARRIOR ||
+            player->GetQuestRewardStatus(quest->GetQuestId()) || !player->HasItemCount(item, 1, true))
+            return false;
+
+        bool hasAcquisition = false;
+        bool hasReturn = false;
+        for (QuestObjective const& objective : quest->GetObjectives())
+        {
+            if (objective.ObjectID == 103739)
+            {
+                hasReturn = true;
+                continue;
+            }
+            if (objective.Flags & QUEST_OBJECTIVE_FLAG_OPTIONAL)
+                continue;
+            if (uint32(objective.ObjectID) == acquisition)
+                hasAcquisition = true;
+            if (!player->HasQuestObjectiveComplete(quest, objective))
+                return false;
+        }
+        return hasAcquisition && hasReturn;
+    }
+}
+
 void Player::KilledMonsterCredit(uint32 entry, ObjectGuid guid /*= ObjectGuid::Empty*/)
 {
     uint16 addKillCount = 1;
@@ -21047,6 +21088,10 @@ void Player::KilledMonsterCredit(uint32 entry, ObjectGuid guid /*= ObjectGuid::E
         // just if !ingroup || !noraidgroup || raidgroup
         QuestStatusData* q_status = getQuestStatus(questid);
         if (!q_status)
+            continue;
+
+        // the warrior artifacts' Skyhold return credit only for an eligible recipient (LegionCore-7.3.5)
+        if (real_entry == 103739 && !SkyholdArtifactReturn::CanCredit(this, qInfo))
             continue;
 
         if (q_status->Status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->isRaidGroup() || qInfo->IsAllowedInRaid(GetMap()->GetDifficultyID())))

@@ -270,6 +270,9 @@ TC_GAME_API extern DB2Storage<GameObjectArtKitEntry>                    sGameObj
 TC_GAME_API extern DB2Storage<GuildColorBackgroundEntry>                sGuildColorBackgroundStore;
 TC_GAME_API extern DB2Storage<GuildColorBorderEntry>                    sGuildColorBorderStore;
 TC_GAME_API extern DB2Storage<GuildColorEmblemEntry>                    sGuildColorEmblemStore;
+// defined but not loaded on this core: Strom'kar's ground crack projection (StromkarGroundCrackData.h) checks them
+TC_GAME_API extern DB2Storage<DecalPropertiesEntry> sDecalPropertiesStore;
+TC_GAME_API extern DB2Storage<TextureBlendSetEntry> sTextureBlendSetStore;
 
 extern TaxiMask                                             sTaxiNodesMask;
 extern std::vector<uint8>                                   sTaxiNodesMaskV;

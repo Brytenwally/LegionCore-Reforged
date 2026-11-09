@@ -176,7 +176,9 @@ void EffectMovementGenerator::Finalize(Unit& owner)
 
 void EffectMovementGenerator::MovementInform(Unit& owner)
 {
-    if (_arrivalSpellId)
+    // a guarded jump's arrival needs the player alive on the map the jump started on (LegionCore-7.3.5)
+    bool const guardedLost = _arrivalMapId != uint32(-1) && (!owner.IsAlive() || owner.GetMapId() != _arrivalMapId);
+    if (_arrivalSpellId && !guardedLost)
         owner.CastSpell(ObjectAccessor::GetUnit(owner, _arrivalSpellTargetGuid), _arrivalSpellId, true);
 
     if (Creature* creature = owner.ToCreature())

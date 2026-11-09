@@ -38,6 +38,7 @@ public:
     EventObjectTemplate const* AddEventObjectTemplate(uint32 entry, float radius, uint32 spell, uint32 worldsafe);
     EventObjectData const* GetEventObjectData(ObjectGuid::LowType const& guid) const;
     EventObjectData& NewOrExistEventObjectData(ObjectGuid::LowType const& guid);
+    EventObjectDataContainer const& GetEventObjectDataContainer() const { return _eventObjectData; }
 private:
     EventObjectTemplateContainer _eventObjectTemplateMap;
     EventObjectDataContainer _eventObjectData;

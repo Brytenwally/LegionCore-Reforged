@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -323,8 +323,7 @@ SQL `2026_11_10_59..68_lc735_*` (and `_50`, the Devourer pickup, shipped with 3.
   `sharasdal_acquisition.h`, `_erunak_entry.h`, `_erunak_upper.h`, `_gauntlet_arrival.h`, `_lower_ascent.h`,
   `_upper_wall.h` (Erunak, the ascent, the gauntlet, the acquisition, companions protected after damage scaling);
   SQL `2026_11_10_70..74` (all passed verbatim). **Not yet**: LegionCore-7.3.5 guards the acquisition jump's arrival
-  (209683 -> 209684: cast only after a real landing on the same map, `MotionMaster::MoveJump` / `Spell::EffectJumpDest`);
-  that mechanism also serves the warrior's Skyhold and Strom'kar and is ported with 3.12, Sharas'dal's case included.
+  (209683 -> 209684): ported with 3.12's jump-arrival guard (`GuardedJumpArrival`).
 - **Maelstrom** (scenario 1038): the wave producer is no longer called as a link from the interaction row
   (`2026_11_10_69`, forced: only `creature_text` differed).
 - Doomhammer and the Fist of Ra-den have no LegionCore-7.3.5 changes beyond the class spells (phase 4).
@@ -374,3 +373,28 @@ SQL `2026_11_10_75..99` and `2026_11_11_00..06` (`_lc735_*`); the port tool now 
 - Warrior creation actions (`_18`). All 13 SQL files passed verbatim.
 - Part 2 (Arms, Strom'kar; the Skyhold jumps and the shared jump-arrival guard, also for Sharas'dal; Commander's Valor)
   follows.
+
+## Phase 3.12, part 2: Warrior's Strom'kar, Skyhold jumps, Commander's Valor (2026-11-09)
+
+SQL `2026_11_11_20..44_lc735_*` (all passed verbatim except the exit hole: forced, it only adds the Shadow Pool aura to
+spawn 369686, which exists as expected without an addon).
+- **Guarded jump arrivals** (`Movement/SkyholdDeparture.h`: `SkyholdDeparture`, `GuardedJumpArrival`): Aerylia's Skyhold
+  departures, Strom'kar's Execute (206455 -> 206456) and opening recoil (206360 -> 206361), the Skyhold return (192085 ->
+  216016), Sharas'dal's acquisition (209683 -> 209684) and 94954 -> 52174. Reforged already cast an arrival spell only
+  after a finished spline; added: these destination jumps' arrival spells are self casts (Reforged passed an empty
+  target, which `CastSpell` refuses, so they never fired), a jump that does not move gives no arrival, and the arrival
+  needs the player alive on the map the jump started on (`EffectMovementGenerator::_arrivalMapId`). The Skyhold jump's
+  +20 lift now reaches the spline (it was computed into a local, while `MoveJump` used `destTarget`), and the recoil
+  keeps its landing facing.
+- **Arms, Strom'kar** (Stormheim, map 1539, scenario 1037): the Strom'kar sections of `artifact_acquisition.cpp`
+  (Zakajz kept alive through his scaled finale, Thoradin's presence and dialogue, pickup, presentation, return) and the
+  new `stromkar_awakening.h`, `_ground_cracks.h`, `_return.h`, `_ritual_beam.h`, `_ritual_torture.h`, `_split.h`; Thoradin's
+  torture chains stay independent (204125 in `SpellMgr`'s list); the Skyhold return credit (103739) only for a warrior on
+  Skyhold who holds the weapon and the acquisition (`SkyholdArtifactReturn` in `KilledMonsterCredit`); SQL `_22`-`_44`.
+  **Left out**: equipping the blade straight from loot when the bags are full (`PlayerScript::CanAutoEquipLoot` and a
+  `StoreNewItem` rework: an edge case and an invasive change), the embedded blade's custom scale (a client hotfix of
+  `SpellVisualKitModelAttach`, cosmetic) and the burst cracks' custom decal: `DecalProperties` / `TextureBlendSet` stay
+  unloaded on this core, so `stromkar_ground_cracks.h` finds no data and skips that visual (it logs a warning once).
+- **Commander's Valor** (warrior class hall): `ClassHalls/commanders_valor.cpp` (new), restricted to active altar quest
+  circles (`EventObjectDataStoreMgr::GetEventObjectDataContainer`); SQL `_20`, `_21`.
+- Odyn's gaze visual source and self target (`_33`, `_40`).

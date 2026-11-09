@@ -66,7 +66,8 @@ class AssistanceMovementGenerator : public PointMovementGenerator<Creature>
 class EffectMovementGenerator : public MovementGenerator
 {
     public:
-        explicit EffectMovementGenerator(uint32 id, uint32 arrivalSpellId = 0, ObjectGuid const& arrivalSpellTargetGuid = ObjectGuid::Empty) : _pointId(id), _arrivalSpellId(arrivalSpellId), _arrivalSpellTargetGuid(arrivalSpellTargetGuid) { }
+        // arrivalMapId: a guarded jump (SkyholdDeparture.h) casts its arrival spell only on that map, alive
+        explicit EffectMovementGenerator(uint32 id, uint32 arrivalSpellId = 0, ObjectGuid const& arrivalSpellTargetGuid = ObjectGuid::Empty, uint32 arrivalMapId = uint32(-1)) : _pointId(id), _arrivalSpellId(arrivalSpellId), _arrivalSpellTargetGuid(arrivalSpellTargetGuid), _arrivalMapId(arrivalMapId) { }
 
         MovementGeneratorType GetMovementGeneratorType() const override { return EFFECT_MOTION_TYPE; }
 
@@ -81,6 +82,7 @@ class EffectMovementGenerator : public MovementGenerator
         uint32 _pointId;
         uint32 _arrivalSpellId;
         ObjectGuid _arrivalSpellTargetGuid;
+        uint32 _arrivalMapId;
 };
 
 #endif
