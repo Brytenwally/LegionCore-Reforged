@@ -373,6 +373,8 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - **Phase 3.7 Paladin** (2026-11-09, details in the plan): Silver Hand, Truthguard, Ashbringer scenario scripts
   (CLEAN files taken, two merged) and 8 SQL files (all passed verbatim). The shared map 1500 instance pulls three warrior
   headers in early. Compiled; untested in game.
+- **Phase 3.8 Priest** (2026-11-09, details in the plan): Xal'atath, T'uure (merged; cage opening hook), Light's Wrath
+  takeover and Azuregos, Sliver (DK Blood leftover). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

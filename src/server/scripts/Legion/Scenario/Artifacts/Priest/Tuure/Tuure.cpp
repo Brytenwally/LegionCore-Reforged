@@ -6,12 +6,101 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "Item.h"
+#include "Spell.h"
+#include "SpellScript.h"
+#include "ObjectAccessor.h"
+#include "Tuure.h"
 
 Position const tppos[2] =
 {
     {12.00f, 1189.50f, -45.98f, 0.0f},
     {58.69f, 1212.91f, -39.64f, 0.0f}
 };
+
+namespace TuureCompanion
+{
+    void Recover(Creature* actor, bool& pendingHeal, bool& waitHeal)
+    {
+        if (!pendingHeal) return;
+        pendingHeal = false;
+        if (!waitHeal || !actor->IsInWorld() || actor->IsPreDelete() || !actor->IsAlive() || actor->GetHealthPct() < 40)
+            return;
+        waitHeal = false;
+        actor->ClearUnitState(UNIT_STATE_STUNNED);
+        actor->RemoveAura(204237);
+    }
+}
+
+namespace TuureIntroHeal
+{
+    bool Eligible(Player* player, Creature* actor)
+    {
+        if (!player || !player->IsInWorld() || !player->CanContact() || player->isGameMaster() || !player->IsAlive() || player->HasPendingTeleport() ||
+            player->getClass() != CLASS_PRIEST || !actor->IsInWorld() || actor->IsPreDelete() || !actor->IsAlive() ||
+            actor->GetEntry() != 106134 || actor->GetMapId() != 1489 || !actor->GetMap() ||
+            player->GetMap() != actor->GetMap() || !player->InSamePhase(actor) ||
+            !player->IsWithinDistInMap(actor, 100.0f) || player->GetQuestRewardStatus(41993) ||
+            (player->GetQuestStatus(41993) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(41993) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(actor->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == 1085 && scenario->GetCurrentStep() == 0;
+    }
+}
+
+namespace TuureFirstFight
+{
+    bool Eligible(Player* player, Unit* anchor, uint32 firstStep, uint32 lastStep)
+    {
+        if (!player || !anchor || !anchor->IsInWorld() || anchor->IsPreDelete() || !anchor->GetMap() || anchor->GetMapId() != 1489 ||
+            !player->IsInWorld() || !player->CanContact() || player->isGameMaster() || player->HasPendingTeleport() ||
+            player->getClass() != CLASS_PRIEST || player->GetMap() != anchor->GetMap() ||
+            !player->InSamePhase(anchor) || !player->IsWithinDistInMap(anchor, 100.0f) || player->GetQuestRewardStatus(41993) ||
+            (player->GetQuestStatus(41993) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(41993) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(anchor->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == 1085 &&
+            scenario->GetCurrentStep() >= firstStep && scenario->GetCurrentStep() <= lastStep;
+    }
+
+    Player* Recipient(Creature* defeated, Unit* killer)
+    {
+        if (!defeated || !defeated->GetMap() || !killer) return nullptr;
+        if (Player* owner = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
+            return Eligible(owner, defeated, 0, 2) ? owner : nullptr;
+        if (killer->GetCharmerOrOwnerGUID() || killer->GetMap() != defeated->GetMap() || !killer->InSamePhase(defeated) ||
+            (killer->GetEntry() != 106134 && killer->GetEntry() != 106137 && killer->GetEntry() != 106253))
+            return nullptr;
+        Player* recipient = nullptr;
+        for (auto const& reference : defeated->GetMap()->GetPlayers())
+            if (Eligible(reference.getSource(), defeated, 0, 2))
+            {
+                if (recipient) return nullptr;
+                recipient = reference.getSource();
+            }
+        return recipient;
+    }
+
+    Player* Find(Map* map, ObjectGuid const& guid)
+    {
+        if (!map || guid.IsEmpty()) return nullptr;
+        for (auto const& reference : map->GetPlayers())
+            if (Player* player = reference.getSource())
+                if (player->GetGUID() == guid && player->GetMap() == map)
+                    return player;
+        return nullptr;
+    }
+
+    bool HasVictory(Scenario* scenario)
+    {
+        if (!scenario || scenario->GetScenarioId() != 1085) return false;
+        auto const* progress = scenario->GetAchievementMgr().GetCriteriaProgressMap();
+        auto found = progress->find(47519);
+        return found != progress->end() && found->second.Counter;
+    }
+}
 
 // 106134
 class npc_vindicator_boros : public CreatureScript
@@ -30,18 +119,28 @@ public:
         {
             _introDone = false;
             _introHealDone = false;
-            firstfighting = false;
             wait_heal = false;
-            firstwp = false;
-            secondwp = false;
         }
 
         EventMap events;
-        bool _introDone, _introHealDone, firstfighting, wait_heal, firstwp, secondwp;
-        FunctionProcessor _functions;
+        bool _pendingHealRecovery = false;
+        ObjectGuid _introHealer;
+        std::weak_ptr<uint8> _introAttempt;
+
+        void CancelIntroHeal()
+        {
+            _introHealer.Clear();
+            _introAttempt.reset();
+        }
+        bool _introDone, _introHealDone, wait_heal;
+        FunctionProcessor _entryFunctions;
+        uint64 _entryGeneration = 0;
 
         void Reset() override
         {
+            ++_entryGeneration;
+            _pendingHealRecovery = false;
+            CancelIntroHeal();
             events.Reset();
         }
 
@@ -53,89 +152,62 @@ public:
 
         void EnterEvadeMode() override
         {
-            // need to activate it ONLY if creature isn't stunned
-            _functions.AddFunction([this]() -> void
-            {
-                if (firstfighting)
-                {
-                    firstfighting = false;
-                    if (Player* pl = me->FindNearestPlayer(100.0f))
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50562);
-                    me->CreateConversation(2009);
-
-                    me->AddDelayedEvent(16000, [this]() -> void
-                    {
-                        if (Creature* targ = me->FindNearestCreature(106221, 40.0f, true))
-                            targ->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                    });
-                }
-            }, _functions.CalculateTime(1000));
+            // Evading is not a victory. The instance owns the real106201
+            // death receipt, native criteria delivery and timed continuation.
         }
 
-        void DoAction(int32 const action) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
-            switch (action)
+            if (!_introHealDone && addhealth)
             {
-                case 1:
+                Player* player = who ? who->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr;
+                if (TuureIntroHeal::Eligible(player, me))
                 {
-                    // need to activate it ONLY if creature isn't stunned
-                    _functions.AddFunction([this]() -> void
+                    player->AddQuestDelayedEvent(41993, 0, []() { });
+                    if (QuestStatusData* status = player->getQuestStatus(41993))
                     {
-                        if (Creature* jeims = me->FindNearestCreature(106137, 20.0f, true))
-                        {
-                            jeims->GetMotionMaster()->MoveFollow(me, PET_FOLLOW_DIST, float(PET_FOLLOW_ANGLE), MOTION_SLOT_IDLE);
-                            jeims->AI()->Talk(0);
-                        }
-                        me->GetMotionMaster()->MovePath(9859002, false);
-                        firstwp = true;
-                        me->CreateConversation(2039);
-                    }, _functions.CalculateTime(1000));
-                    break;
-                }
-                case 2:
-                {
-                    // need to activate it ONLY if creature isn't stunned
-                    _functions.AddFunction([this]() -> void
-                    {
-                        me->GetMotionMaster()->MovePoint(3, 69.05f, 1220.01f, -39.70f);
-                    }, _functions.CalculateTime(1000));
-                    break;
+                        _introHealer = player->GetGUID();
+                        _introAttempt = status->ScriptLifetime;
+                    }
                 }
             }
+
+            if (wait_heal && addhealth)
+                _pendingHealRecovery = true;
         }
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void CompleteIntroHeal()
         {
-            if (!_introHealDone)
-                if (me->GetHealthPct() >= 95)
-                {
-                    _introHealDone = true;
-                    Talk(2);
-                    me->SetByteValue(UNIT_FIELD_BYTES_1, 0, 0);
-                    me->SetAnimKitId(0);
-                    me->GetMotionMaster()->MovePoint(1, -13.92f, 1175.70f, -66.31f);
-                    if (Player* pl = who->ToPlayer())
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50563);
-                }
-
-            if (wait_heal)
-            {
-                if (me->GetHealthPct() >= 40)
-                {
-                    me->ClearUnitState(UNIT_STATE_STUNNED);
-                    me->RemoveAura(204237);
-                    wait_heal = false;
-                }
-            }
+            if (_introHealer.IsEmpty()) return;
+            Player* player = ObjectAccessor::GetPlayer(*me, _introHealer);
+            QuestStatusData* status = player ? player->getQuestStatus(41993) : nullptr;
+            bool ready = !_introHealDone && !_introAttempt.expired() && status &&
+                status->ScriptLifetime == _introAttempt.lock() && TuureIntroHeal::Eligible(player, me) && me->GetHealthPct() >= 95;
+            CancelIntroHeal(); // consume original attempt before reentrant callbacks
+            if (!ready) return;
+            _introHealDone = true;
+            Talk(2);
+            me->SetByteValue(UNIT_FIELD_BYTES_1, 0, 0);
+            me->SetAnimKitId(0);
+            me->GetMotionMaster()->MovePoint(1, -13.92f, 1175.70f, -66.31f);
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50563);
         }
 
-        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
+        void UpdateLifecycle(uint32 diff) override
         {
-            if (damage >= me->GetHealth())
+            TuureCompanion::Recover(me, _pendingHealRecovery, wait_heal);
+            CompleteIntroHeal();
+            _entryFunctions.Update(diff);
+        }
+
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
+        {
+            if (damage >= me->GetHealth(attacker))
             {
                 damage = 0;
                 if (!wait_heal)
                 {
+                    _pendingHealRecovery = false;
                     wait_heal = true;
                     me->AddAura(204237, me);
                     Talk(10);
@@ -147,41 +219,14 @@ public:
         void MovementInform(uint32 type, uint32 id) override
         {
             me->SetHomePosition(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation());
-            if (type == WAYPOINT_MOTION_TYPE)
-            {
-                if (firstwp)
-                {
-                    if (id == 6)
-                        me->CreateConversation(2007);
-                    if (id == 10)
-                        if (Player* pl = me->FindNearestPlayer(100.0f))
-                        {
-                            pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50831);
-                            firstwp = false;
-                        }
-                }
-                if (secondwp)
-                {
-                    if (id == 7)
-                    {
-                        if (Creature* jeims = me->FindNearestCreature(106137, 60.0f, true))
-                            jeims->AI()->Talk(2);
-                        // need to activate it ONLY if creature isn't stunned
-                        _functions.AddFunction([this]() -> void
-                        {
-                            if (Creature* targ = me->FindNearestCreature(106318, 100.0f, true))
-                                AttackStart(targ);
-                        }, _functions.CalculateTime(4000));
-                    }
-                }
-            }
             if (type == POINT_MOTION_TYPE)
             {
                 switch (id)
                 {
                     case 1:
-                        me->AddDelayedEvent(2000, [this]() -> void
+                        _entryFunctions.AddDelayedEvent(2000, [this, generation = _entryGeneration]() -> void
                         {
+                            if (generation != _entryGeneration) return;
                             DoCast(212629);
                             Talk(3);
                             if (GameObject* go = me->FindNearestGameObject(249469, 30.0f))
@@ -192,45 +237,34 @@ public:
                                     jeims->AI()->AttackStart(targ);
 
                         });
-
-                        me->AddDelayedEvent(3000, [this]() -> void
+                        _entryFunctions.AddDelayedEvent(3000, [this, generation = _entryGeneration]() -> void
                         {
+                            if (generation != _entryGeneration) return;
                             me->GetMotionMaster()->MovePoint(2, 34.70f, 1201.05f, -65.06f);
                         });
                         break;
                     case 2:
                         Talk(4);
-                        me->GetMotionMaster()->MoveJump(58.20f, 1214.60f, -74.35f, 0.0f, 10.0f, 10.0f);
+                        me->GetMotionMaster()->MoveJump(58.20f, 1214.60f, -74.35f, me->GetOrientation(), 10.0f, 10.0f);
                         if (Creature* targ = me->FindNearestCreature(106201, 60.0f, true))
                             AttackStart(targ);
-                        firstfighting = true;
                         break;
-                    case 3:
-                        me->CreateConversation(2015);
-                        // need to activate it ONLY if creature isn't stunned
-                        _functions.AddFunction([this]() -> void
-                        {
-                            secondwp = true;
-                            me->GetMotionMaster()->MovePath(9859003, false);
-                            if (Creature* jeims = me->FindNearestCreature(106137, 70.0f, true))
-                                jeims->AI()->Talk(1);
-                        }, _functions.CalculateTime(8000));
-                        break;
+
                 }
             }
         }
 
         void MoveInLineOfSight(Unit* who) override
         {
-            if (who->GetTypeId() != TYPEID_PLAYER)
-                return;
-
-            if (!_introDone && me->IsWithinDistInMap(who, 20.0f))
+            Player* player = who ? who->ToPlayer() : nullptr;
+            if (!_introDone && TuureIntroHeal::Eligible(player, me) && player->IsWithinDistInMap(me, 20.0f) &&
+                player->canSeeOrDetect(me) && player->IsWithinLOSInMap(me))
             {
                 _introDone = true;
-                Talk(0, who->GetGUID());
-                me->AddDelayedEvent(4000, [this]() -> void
+                Talk(0, player->GetGUID());
+                _entryFunctions.AddDelayedEvent(4000, [this, generation = _entryGeneration]() -> void
                 {
+                    if (generation != _entryGeneration) return;
                     Talk(1);
                 });
             }
@@ -241,7 +275,6 @@ public:
             if (me->HasUnitState(UNIT_STATE_STUNNED)) // need for this
                 return;
 
-            _functions.Update(diff);
 
             if (!UpdateVictim())
                 return;
@@ -291,10 +324,12 @@ public:
         }
 
         EventMap events;
+        bool _pendingHealRecovery = false;
         bool wait_heal;
 
         void Reset() override
         {
+            _pendingHealRecovery = false;
             events.Reset();
         }
 
@@ -309,26 +344,25 @@ public:
         }
 
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
-            if (wait_heal)
-            {
-                if (me->GetHealthPct() >= 40)
-                {
-                    me->ClearUnitState(UNIT_STATE_STUNNED);
-                    me->RemoveAura(204237);
-                    wait_heal = false;
-                }
-            }
+            if (wait_heal && addhealth)
+                _pendingHealRecovery = true;
         }
 
-        void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
+        void UpdateLifecycle(uint32) override
         {
-            if (damage >= me->GetHealth())
+            TuureCompanion::Recover(me, _pendingHealRecovery, wait_heal);
+        }
+
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
+        {
+            if (damage >= me->GetHealth(attacker))
             {
                 damage = 0;
                 if (!wait_heal)
                 {
+                    _pendingHealRecovery = false;
                     wait_heal = true;
                     me->AddAura(204237, me);
                     Talk(10);
@@ -424,17 +458,8 @@ public:
             events.SetPhase(PHASE_COMBAT);
             events.RescheduleEvent(EVENT_1, 8000, 0, PHASE_COMBAT); // 211480
          //   events.RescheduleEvent(EVENT_2, 25000, 0, PHASE_COMBAT); // rephase 211186 + 211190    
-            if (Creature* targ = me->FindNearestCreature(106134, 100.0f, true))
-                targ->AI()->AttackStart(me);
         }
 
-        void JustDied(Unit* who) override
-        {
-            if (Creature* boros = me->FindNearestCreature(106134, 120.0f, true))
-                boros->AI()->DoAction(2);
-            if (Player* pl = me->FindNearestPlayer(100.0f))
-                pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50634);
-        }
         void UpdateAI(uint32 diff) override
         {
             if (!UpdateVictim())
@@ -469,7 +494,7 @@ public:
 
                         me->SetReactState(REACT_PASSIVE);
                         me->CastSpell(tppos[point].GetPositionX(), tppos[point].GetPositionY(), tppos[point].GetPositionZ(), 211190);
-                        me->GetMotionMaster()->MoveJump(tppos[point].GetPositionX(), tppos[point].GetPositionY(), tppos[point++].GetPositionZ(), 0.0f, 15.0f, 15.0f);
+                        me->GetMotionMaster()->MoveJump(tppos[point].GetPositionX(), tppos[point].GetPositionY(), tppos[point++].GetPositionZ(), me->GetOrientation(), 15.0f, 15.0f);
                         events.RescheduleEvent(EVENT_2, 25000, 0, PHASE_COMBAT); // rephase 211186 + 211190  
                         events.SetPhase(PHASE_REPHASE);
                         events.RescheduleEvent(EVENT_3, 2000, 0, PHASE_REPHASE);
@@ -496,6 +521,62 @@ public:
     };
 };
 
+namespace TuureDefeat
+{
+    bool Eligible(Player* player, Creature* actor)
+    {
+        if (!player || !actor->IsInWorld() || !actor->IsAlive() || actor->GetEntry() != 106318 ||
+            actor->GetMapId() != 1489 || !actor->GetMap() || !player->IsInWorld() || !player->CanContact() || player->isGameMaster() ||
+            player->HasPendingTeleport() || player->getClass() != CLASS_PRIEST ||
+            player->GetMap() != actor->GetMap() || !player->InSamePhase(actor) ||
+            !player->IsWithinDistInMap(actor, 100.0f) || player->GetQuestRewardStatus(41993) ||
+            (player->GetQuestStatus(41993) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(41993) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(actor->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == 1085 && scenario->GetCurrentStep() == 5;
+    }
+
+    Player* Participant(Creature* actor)
+    {
+        if (!actor->GetMap()) return nullptr;
+        Player* recipient = nullptr;
+        for (auto const& reference : actor->GetMap()->GetPlayers())
+            if (Eligible(reference.getSource(), actor))
+            {
+                if (recipient) return nullptr;
+                recipient = reference.getSource();
+            }
+        return recipient;
+    }
+
+    Player* Recipient(Creature* actor, Unit* attacker)
+    {
+        if (!attacker) return nullptr;
+        if (Player* owner = attacker->GetCharmerOrOwnerPlayerOrPlayerItself())
+            return Eligible(owner, actor) ? owner : nullptr;
+        // The native solo healer encounter permits its three allies to kill.
+        // A nearer spectator must never replace its actual participant.
+        if (attacker->GetCharmerOrOwnerGUID() || attacker->GetMap() != actor->GetMap() ||
+            !attacker->InSamePhase(actor) ||
+            (attacker->GetEntry() != 106134 && attacker->GetEntry() != 106137 && attacker->GetEntry() != 106253))
+            return nullptr;
+        return Participant(actor);
+    }
+
+    void ReleaseAllies(Creature* actor, bool heal)
+    {
+        std::list<Creature*> allies;
+        for (uint32 entry : {106134u, 106137u, 106253u})
+            GetCreatureListWithEntryInGrid(allies, actor, entry, 50.0f);
+        for (Creature* ally : allies)
+        {
+            // Native strangulate298 owns its control state; retain other casters.
+            ally->RemoveAurasDueToSpell(210703, actor->GetGUID());
+            if (heal) ally->CastSpell(ally, 210807);
+        }
+    }
+}
+
 // 106318
 class npc_lady_kalindria : public CreatureScript
 {
@@ -517,19 +598,25 @@ public:
         EventMap events;
         SummonList summons;
 
-        bool outro, outro_event, outro_event1;
+        bool outro = false, outro_event = false, outro_event1 = false, strangleActive = false;
+        std::shared_ptr<uint8> attempt = std::make_shared<uint8>(uint8(0));
 
         void Reset() override
         {
+            attempt = std::make_shared<uint8>(uint8(0));
+            me->InterruptNonMeleeSpells(true);
+            TuureDefeat::ReleaseAllies(me, false);
             events.Reset();
             outro = false;
             outro_event = false;
             outro_event1 = false;
+            strangleActive = false;
             summons.DespawnAll();
         }
 
         void EnterCombat(Unit* who) override
         {
+            if (outro) return;
             Talk(0);
             events.RescheduleEvent(EVENT_1, 2000); //211185
             events.RescheduleEvent(EVENT_2, 13000); //211380 + script for summon (17)
@@ -540,54 +627,51 @@ public:
             summons.Summon(summon);
         }
 
-        void DamageTaken(Unit* who, uint32& damage, DamageEffectType dmgType) override
+        void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
         {
-            if (damage >= me->GetHealth())
+            if (outro)
             {
                 damage = 0;
-                if (!outro)
-                {
-                    Talk(4);
-                    outro = true;
-                    me->StopAttack();
-                    DoCast(210715);
-                    ObjectGuid targetGUID = who->GetGUID();
-                    me->AddDelayedEvent(3000, [this, targetGUID]() -> void
-                    {
-                        if (!me)
-                            return;
-
-                        if (Unit* target = ObjectAccessor::GetUnit(*me, targetGUID))
-                            target->Kill(me);
-                    });
-
-                    events.Reset();
-                    // event
-                    if (Player* pl = me->FindNearestPlayer(100.0f))
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50695);
-
-                    std::list<Creature*> adds;
-                    GetCreatureListWithEntryInGrid(adds, me, 106134, 50.0f);
-                    GetCreatureListWithEntryInGrid(adds, me, 106137, 50.0f);
-                    GetCreatureListWithEntryInGrid(adds, me, 106253, 50.0f);
-                    if (!adds.empty())
-                        for (std::list<Creature*>::iterator itr = adds.begin(); itr != adds.end(); ++itr)
-                        {
-                            (*itr)->ClearUnitState(UNIT_STATE_STUNNED);
-                            (*itr)->CastSpell((*itr), 210807);
-                        }
-                    me->CreateConversation(2015);
-                }
+                return;
             }
-
-            if (!outro_event && me->HealthBelowPct(13))
+            Player* player = TuureDefeat::Recipient(me, attacker);
+            if (!damage || !player) return;
+            uint64 health = me->GetHealth(attacker);
+            if (damage >= health)
+            {
+                damage = 0;
+                outro = true; // claim before reentrant optional spell/credit callbacks
+                strangleActive = false;
+                attempt = std::make_shared<uint8>(uint8(0)); // cancel old combat speech
+                events.Reset();
+                me->StopAttack();
+                me->InterruptNonMeleeSpells(true);
+                Creature* actor = me;
+                ObjectGuid killer = attacker->GetGUID();
+                std::weak_ptr<uint8> generation = attempt;
+                // The actor owns this queue. No borrowed AI or killer pointer;
+                // Reset/replacement expires the attempt, victim loss does not.
+                me->AddDelayedEvent(3000, [actor, killer, generation]()
+                {
+                    if (generation.expired() || !actor->IsInWorld() || !actor->IsAlive()) return;
+                    Unit* source = ObjectAccessor::GetUnit(*actor, killer);
+                    if (!source || !source->IsAlive() || source->GetMap() != actor->GetMap()) source = actor;
+                    source->Kill(actor);
+                });
+                Talk(4);
+                DoCast(210715);
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50695);
+                TuureDefeat::ReleaseAllies(me, true);
+                me->CreateConversation(2015);
+                return; // never rearm strangle after defeat cleanup
+            }
+            if (!outro_event && health < me->CountPctFromMaxHealth(13, attacker))
             {
                 outro_event = true;
                 Talk(1);
                 events.RescheduleEvent(EVENT_3, 10);
             }
-
-            if (!outro_event1 && me->HealthBelowPct(9))
+            if (!outro_event1 && health < me->CountPctFromMaxHealth(9, attacker))
             {
                 outro_event1 = true;
                 Talk(3);
@@ -596,14 +680,16 @@ public:
 
         void SpellHitTarget(Unit* target, SpellInfo const* spell) override
         {
-            if (spell->Id == 210703)
-                target->AddUnitState(UNIT_STATE_STUNNED);
+            if (target && spell && spell->Id == 210703)
+            {
+                if (outro || !strangleActive) target->RemoveAurasDueToSpell(210703, me->GetGUID());
+                else target->AddUnitState(UNIT_STATE_STUNNED);
+            }
         }
-
 
         void UpdateAI(uint32 diff) override
         {
-            if (!UpdateVictim())
+            if (outro || !UpdateVictim())
                 return;
 
             events.Update(diff);
@@ -620,7 +706,7 @@ public:
                         events.RescheduleEvent(EVENT_1, 2500); //211185
                         break;
                     case EVENT_2:
-                        if (Player* pl = me->FindNearestPlayer(100.0f, true))
+                        if (Player* pl = TuureDefeat::Participant(me))
                         {
                             DoCast(211380);
                             for (uint8 i = 0; i < urand(15, 18); ++i)
@@ -635,13 +721,19 @@ public:
                         events.RescheduleEvent(EVENT_2, 34000); //211380 + script for summon (17)
                         break;
                     case EVENT_3:
+                        strangleActive = true;
                         DoCast(210703);
-                        if (Player* pl = me->FindNearestPlayer(100.0f, true))
+                        if (Player* pl = TuureDefeat::Participant(me))
                             AttackStart(pl);
-                        me->AddDelayedEvent(3000, [this]() -> void
                         {
-                            Talk(2);
-                        });
+                            Creature* actor = me;
+                            std::weak_ptr<uint8> generation = attempt;
+                            me->AddDelayedEvent(3000, [actor, generation]()
+                            {
+                                if (!generation.expired() && actor->IsInWorld() && actor->IsAlive())
+                                    sCreatureTextMgr->SendChat(actor, 2);
+                            });
+                        }
                         break;
                 }
             }
@@ -658,33 +750,211 @@ public:
 
     struct go_tuure_crateAI : public GameObjectAI
     {
-        go_tuure_crateAI(GameObject* go) : GameObjectAI(go) {}
+        go_tuure_crateAI(GameObject* object) : GameObjectAI(object) { }
+        ObjectGuid opener, nativeInvoker;
+        std::weak_ptr<uint8> attempt;
+        uint32 remaining = 30000, retry = 0, deleteDelay = 0;
+        bool pending = false, released = false, deleted = false, delivering = false;
+        bool actorWarning = false, creditWarning = false, activationWarning = false;
+
+        Scenario* Current()
+        {
+            if (!go || !go->IsInWorld() || go->IsPreDelete() || !go->GetMap() || go->GetMapId() != 1489 ||
+                go->GetEntry() != 249693 || go->GetDBTableGUIDLow() != 134192 || go->GetGoType() != GAMEOBJECT_TYPE_GOOBER) return nullptr;
+            Scenario* scenario = sScenarioMgr->GetScenario(go->GetInstanceId());
+            return scenario && scenario->GetScenarioId() == 1085 ? scenario : nullptr;
+        }
+
+        bool Opened()
+        {
+            Scenario* scenario = Current();
+            if (!scenario) return false;
+            auto const* progress = scenario->GetAchievementMgr().GetCriteriaProgressMap();
+            auto found = progress->find(47561);
+            return found != progress->end() && found->second.Counter;
+        }
+
+        bool Eligible(Player* player, bool earned = false)
+        {
+            Scenario* scenario = Current();
+            return scenario && scenario->GetCurrentStep() == (earned ? 4 : 3) && player &&
+                player->IsInWorld() && player->IsAlive() && player->CanContact() && !player->isGameMaster() &&
+                !player->HasPendingTeleport() && player->getClass() == CLASS_PRIEST &&
+                player->GetMap() == go->GetMap() && player->InSamePhase(go) &&
+                player->IsWithinDistInMap(go, go->GetInteractionDistance()) &&
+                !player->GetQuestRewardStatus(41993) &&
+                (player->GetQuestStatus(41993) == QUEST_STATUS_INCOMPLETE || player->GetQuestStatus(41993) == QUEST_STATUS_COMPLETE);
+        }
+
+        Creature* Actor(uint32 entry, uint64 spawn)
+        {
+            InstanceScript* instance = go->GetInstanceScript();
+            Creature* actor = instance ? go->GetMap()->GetCreature(instance->GetGuidData(entry)) : nullptr;
+            return actor && actor->IsInWorld() && !actor->IsPreDelete() && actor->IsAlive() &&
+                actor->GetMap() == go->GetMap() && actor->GetEntry() == entry &&
+                actor->GetDBTableGUIDLow() == spawn && actor->InSamePhase(go) ? actor : nullptr;
+        }
+
+        bool Actors(Creature*& boja, Creature*& boros, Creature*& captain)
+        {
+            boja = Actor(106253, 361433);
+            boros = Actor(106134, 361419);
+            captain = Actor(106107, 361436);
+            return boja && boros && captain && boja->IsWithinDistInMap(boros, 70.0f) &&
+                boja->IsWithinDistInMap(captain, 70.0f);
+        }
+
+        void Cancel()
+        {
+            pending = false;
+            opener.Clear();
+            attempt.reset();
+            remaining = 30000;
+            retry = 0;
+            actorWarning = creditWarning = activationWarning = false;
+        }
+
+        void Reset() override
+        {
+            Cancel(); // an accepted native47561 remains authoritative on reload
+        }
+
+        bool GossipUse(Player* player) override
+        {
+            // Direct/report-use cannot stand in for the completed lock-opening hit.
+            return !player || nativeInvoker.IsEmpty() || !(player->GetGUID() == nativeInvoker);
+        }
+
+        void ReleaseEarned(Player* player)
+        {
+            Creature *boja, *boros, *captain;
+            if (!Actors(boja, boros, captain))
+            {
+                if (!actorWarning) TC_LOG_WARN("scripts", "Tuure cage: real actor missing after accepted47561; retain earned release");
+                actorWarning = true;
+                return;
+            }
+            if (go->GetGoState() != GO_STATE_ACTIVE)
+            {
+                if (Eligible(player, true) && go->isSpawned())
+                {
+                    nativeInvoker = player->GetGUID();
+                    go->Use(player); // native goober state/210480 and original auto-close timing
+                    nativeInvoker.Clear();
+                }
+                else
+                    go->SetGoState(GO_STATE_ACTIVE); // recover only an already accepted world fact; no new credit
+            }
+            if (go->GetGoState() != GO_STATE_ACTIVE)
+            {
+                if (!activationWarning) TC_LOG_WARN("scripts", "Tuure cage: native goober failed after accepted47561; retain release");
+                activationWarning = true;
+                retry = 5000;
+                return;
+            }
+            if (!Actors(boja, boros, captain)) return; // native use may invoke scripts
+            bool bojaText = boja->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+            bool captainText = captain->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+            released = true; // consume before world-state/text callbacks
+            pending = false;
+            deleteDelay = (go->GetGOInfo()->GetAutoCloseTime() ? go->GetGOInfo()->GetAutoCloseTime() : 60) * IN_MILLISECONDS;
+            boja->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+            boja->GetMotionMaster()->MoveFollow(boros, PET_FOLLOW_DIST, static_cast<float>(-PET_FOLLOW_ANGLE), MOTION_SLOT_IDLE);
+            captain->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+            captain->SetReactState(REACT_DEFENSIVE);
+            captain->setFaction(2102);
+            if (bojaText) sCreatureTextMgr->SendChat(boja, 0);
+            if (captainText) sCreatureTextMgr->SendChat(captain, 0);
+        }
+
+        void TryOpening()
+        {
+            Scenario* scenario = Current();
+            if (!scenario || delivering || released || deleted) return;
+            Player* player = TuureFirstFight::Find(go->GetMap(), opener);
+            if (Opened())
+            {
+                if (scenario->GetCurrentStep() == 4) ReleaseEarned(player);
+                else if (scenario->GetCurrentStep() > 4)
+                {
+                    released = true;
+                    deleteDelay = 3000; // empty-cage cleanup only; never repeat an old grant
+                }
+                return;
+            }
+            if (!pending) return;
+            QuestStatusData* status = player ? player->getQuestStatus(41993) : nullptr;
+            if (attempt.expired() || (player && (!status || status->ScriptLifetime != attempt.lock()))) { Cancel(); return; }
+            if (!Eligible(player) || !go->isSpawned()) return;
+            Creature *boja, *boros, *captain;
+            if (!Actors(boja, boros, captain) || !player->IsWithinDistInMap(boja, 60.0f))
+            {
+                if (!actorWarning) TC_LOG_WARN("scripts", "Tuure cage: completed Opening awaits real Boja/Boros/captain; cage and credit retained");
+                actorWarning = true;
+                return;
+            }
+            delivering = true;
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50633);
+            delivering = false;
+            if (!Opened())
+            {
+                if (!creditWarning) TC_LOG_WARN("scripts", "Tuure cage: native50633 did not accept47561; retain completed opening");
+                creditWarning = true;
+                retry = 5000;
+                return;
+            }
+            // Re-resolve after native step callbacks; never borrow the old player/actors.
+            scenario = Current();
+            if (scenario && scenario->GetCurrentStep() == 4)
+                ReleaseEarned(TuureFirstFight::Find(go->GetMap(), opener));
+        }
 
         bool GossipHello(Player* player, bool isUse) override
         {
-            if (!isUse)
-                return true;
-
-            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50633);
-            if (Creature* boja = player->FindNearestCreature(106253, 60.0f, true))
+            if (!isUse || delivering || released || deleted || !Current()) return true;
+            if (Opened()) { TryOpening(); return true; }
+            if (pending)
             {
-                boja->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                boja->AI()->Talk(0);
-                if (Creature* boros = boja->FindNearestCreature(106134, 70.0f, true))
-                    boja->GetMotionMaster()->MoveFollow(boros, PET_FOLLOW_DIST, -static_cast<float>(PET_FOLLOW_ANGLE), MOTION_SLOT_IDLE);
-
-                if (Creature* capitan = boja->FindNearestCreature(106107, 70.0f, true))
-                {
-                    capitan->AI()->Talk(0);
-                    capitan->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                    capitan->SetReactState(REACT_DEFENSIVE);
-                    capitan->setFaction(2102);
-                }
+                Player* original = TuureFirstFight::Find(go->GetMap(), opener);
+                QuestStatusData* status = original ? original->getQuestStatus(41993) : nullptr;
+                if (!attempt.expired() && status && status->ScriptLifetime == attempt.lock()) return true;
+                Cancel();
             }
-            go->Delete();
+            if (!Eligible(player) || !go->isSpawned() || go->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE)) return true;
+            player->AddQuestDelayedEvent(41993, 0, []() { });
+            QuestStatusData* status = player->getQuestStatus(41993);
+            if (!status || !status->ScriptLifetime) return true;
+            opener = player->GetGUID();
+            attempt = status->ScriptLifetime;
+            pending = true;
+            TryOpening();
             return true;
         }
 
+        void UpdateAI(uint32 diff) override
+        {
+            if (!Current() || deleted || delivering) return;
+            if (released)
+            {
+                if (deleteDelay > diff) { deleteDelay -= diff; return; }
+                deleted = true;
+                go->Delete();
+                return;
+            }
+            if (pending && !Opened())
+            {
+                if (remaining <= diff)
+                {
+                    TC_LOG_WARN("scripts", "Tuure cage: completed opening expired after30s before native50633; retain cage for a new native cast");
+                    Cancel();
+                    return;
+                }
+                remaining -= diff;
+            }
+            if (retry > diff) { retry -= diff; return; }
+            retry = 0;
+            TryOpening();
+        }
     };
 
     GameObjectAI* GetAI(GameObject* go) const override
@@ -693,35 +963,296 @@ public:
     }
 };
 
+namespace TuureAcquisition
+{
+    enum ClaimData { Finished = 0, Elapsed = 1, Current = 2, Finish = 3 };
+
+    bool HasLeaf(Scenario* scenario, uint32 leaf)
+    {
+        if (!scenario) return false;
+        auto const* progress = scenario->GetAchievementMgr().GetCriteriaProgressMap();
+        auto found = progress->find(leaf);
+        return found != progress->end() && found->second.Counter;
+    }
+
+    bool CanTake(Player* player, GameObject* weapon)
+    {
+        if (!player || !weapon || !player->IsInWorld() || !player->CanContact() || player->isGameMaster() || !player->IsAlive() ||
+            player->HasPendingTeleport() || player->getClass() != CLASS_PRIEST || !player->GetMap() ||
+            !weapon->IsInWorld() || !weapon->isSpawned() || weapon->GetEntry() != 249705 || weapon->GetMapId() != 1489 ||
+            player->GetMap() != weapon->GetMap() || player->GetInstanceId() != weapon->GetInstanceId() ||
+            !player->InSamePhase(weapon) || !player->canSeeOrDetect(weapon) || !player->IsWithinLOSInMap(weapon) ||
+            !player->IsWithinDistInMap(weapon, weapon->GetInteractionDistance()) ||
+            weapon->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE) || player->GetQuestRewardStatus(41993) ||
+            (player->GetQuestStatus(41993) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(41993) != QUEST_STATUS_COMPLETE))
+            return false;
+        Scenario* scenario = sScenarioMgr->GetScenario(weapon->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == 1085 && scenario->GetCurrentStep() == 6 && HasLeaf(scenario, 47656);
+    }
+
+    bool Equipped(Player* player)
+    {
+        Item* weapon = player->GetItemByEntry(128825);
+        return weapon && player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND) == weapon;
+    }
+}
+
+namespace TuurePresentation
+{
+    bool Complete(Player* player, SpellScene const* scene, std::string const& trigger)
+    {
+        if (!scene || scene->MiscValue != 1265 || scene->SceneScriptPackageID != 1565)
+            return false;
+        if (trigger != "complete" || !player || !player->HasSceneStatus(1265, SCENE_COMPLETE) ||
+            !player->IsInWorld() || !player->CanContact() || player->isGameMaster() || !player->IsAlive() || player->HasPendingTeleport() ||
+            player->getClass() != CLASS_PRIEST || player->GetMapId() != 1489 ||
+            player->GetQuestRewardStatus(41993) ||
+            (player->GetQuestStatus(41993) != QUEST_STATUS_INCOMPLETE && player->GetQuestStatus(41993) != QUEST_STATUS_COMPLETE) ||
+            !player->GetItemByEntry(128825))
+            return true;
+        Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+        if (!scenario || scenario->GetScenarioId() != 1085 || scenario->GetCurrentStep() != 6)
+            return true;
+        auto const* progress = scenario->GetAchievementMgr().GetCriteriaProgressMap();
+        auto victory = progress->find(47656); // Native Lady Calindris50695, not a forged early scene trigger.
+        if (victory == progress->end() || !victory->second.Counter)
+            return true;
+        // The scene equips a cinematic clone only. Native210734 validates and
+        // equips the real existing staff, retaining phase/events/conversation.
+        // Accepted casts may run later: do not diagnose inventory before execution.
+        SpellCastResult result = player->CastSpell(player, 210734, true);
+        if (result != SPELL_CAST_OK)
+            TC_LOG_WARN("scripts", "Tuure pickup: native equip210734 failed with result %u; retain inventory and native errors", uint32(result));
+        return true;
+    }
+}
+
+class scene_tuure_pickup : public SceneTriggerScript
+{
+public:
+    scene_tuure_pickup() : SceneTriggerScript("scene_tuure_pickup") { }
+    bool OnTrigger(Player* player, SpellScene const* scene, std::string trigger) override
+    {
+        return TuurePresentation::Complete(player, scene, trigger);
+    }
+};
+
 // 249705
 class go_art_tuure : public GameObjectScript
 {
-public:
-    go_art_tuure() : GameObjectScript("go_art_tuure") {}
-
-    void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
+    struct AI : GameObjectAI
     {
-        if (target && state == GO_ACTIVATED)
+        explicit AI(GameObject* object) : GameObjectAI(object) { }
+        ObjectGuid claimant;
+        std::weak_ptr<uint8> lifetime;
+        uint32 elapsed = 0, retry = 0;
+        bool finished = false;
+
+        void Cancel() { claimant.Clear(); lifetime.reset(); }
+        bool Current(Player* player) const
         {
-            if (target->GetTypeId() == TYPEID_PLAYER)
+            QuestStatusData* status = player ? player->getQuestStatus(41993) : nullptr;
+            return player && player->GetGUID() == claimant && !lifetime.expired() &&
+                status && status->ScriptLifetime == lifetime.lock();
+        }
+        ObjectGuid GetGUID(int32 = 0) override { return claimant; }
+        uint32 GetData(uint32 id) override
+        {
+            if (id == TuureAcquisition::Elapsed) return elapsed;
+            if (id == TuureAcquisition::Current) return Current(ObjectAccessor::GetPlayer(*go, claimant));
+            return finished;
+        }
+        bool GossipHello(Player* player, bool) override
+        {
+            return finished || !claimant.IsEmpty() || !TuureAcquisition::CanTake(player, go);
+        }
+        void SetData(uint32 id, uint32 value) override
+        {
+            if (id != TuureAcquisition::Finish || !value || finished) return;
+            finished = true;
+            Cancel();
+            if (Creature* visual = go->FindNearestCreature(106326, 10.0f))
+                visual->DespawnOrUnsummon(1000);
+            go->SetLootState(GO_JUST_DEACTIVATED);
+        }
+        void SetGUID(ObjectGuid const& guid, int32 = 0) override
+        {
+            if (finished || !claimant.IsEmpty()) return;
+            Player* player = ObjectAccessor::GetPlayer(*go, guid);
+            if (!player || player->GetGUID() != guid || !TuureAcquisition::CanTake(player, go) || !player->GetItemByEntry(128825)) return;
+            player->AddQuestDelayedEvent(41993, 0, [] { });
+            QuestStatusData* status = player->getQuestStatus(41993);
+            if (!status || !status->ScriptLifetime) return;
+            claimant = guid;
+            lifetime = status->ScriptLifetime;
+            elapsed = retry = 0;
+            SpellCastResult result = player->CastSpell(player, 210733, true);
+            if (result != SPELL_CAST_OK)
             {
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50679);
-                if (Creature* trigger = go->FindNearestCreature(106326, 10.0f))
-                    trigger->DespawnOrUnsummon(1000);
-
-                if (!target->ToPlayer()->HasItemCount(128825, 1))
-                    target->ToPlayer()->AddItem(128825, 1);
-
-                target->CastSpell(target, 210733, true);
-
-                target->AddDelayedEvent(14000, [target]() -> void
-                {
-                    target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50702);
-                    target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1085, 1);
-                    target->CastSpell(target, 210818);
-                });
+                Cancel();
+                TC_LOG_WARN("scripts", "Tuure pickup: scene210733 request failed (%u); retain staff/object for retry", uint32(result));
             }
         }
+        void UpdateAI(uint32 diff) override
+        {
+            if (claimant.IsEmpty() || finished) return;
+            Player* player = ObjectAccessor::GetPlayer(*go, claimant);
+            if (!Current(player) || !TuureAcquisition::CanTake(player, go) || !player->GetItemByEntry(128825)) { Cancel(); return; }
+            elapsed += std::min(diff, 30000u - elapsed);
+            if (elapsed >= 30000)
+            {
+                Cancel();
+                TC_LOG_WARN("scripts", "Tuure pickup: scene/equip/departure did not finish within30s; retain staff/object and native errors for retry");
+                return;
+            }
+            if (elapsed < 14000 || !player->HasSceneStatus(1265, SCENE_COMPLETE) || !TuureAcquisition::Equipped(player)) return;
+            Scenario* scenario = sScenarioMgr->GetScenario(go->GetInstanceId());
+            if (!TuureAcquisition::HasLeaf(scenario, 47679)) return;
+            if (retry > diff) { retry -= diff; return; }
+            retry = 5000;
+            SpellCastResult result = player->CastSpell(player, 210818, false);
+            if (result != SPELL_CAST_OK)
+                TC_LOG_WARN("scripts", "Tuure pickup: native departure210818 request failed (%u); retain claim for bounded retry", uint32(result));
+        }
+    };
+public:
+    go_art_tuure() : GameObjectScript("go_art_tuure") { }
+    GameObjectAI* GetAI(GameObject* object) const override { return new AI(object); }
+    bool OnGossipHello(Player* player, GameObject* object) override
+    {
+        if (!TuureAcquisition::CanTake(player, object) || object->AI()->GetData(TuureAcquisition::Finished)) return true;
+        if (player->GetItemByEntry(128825)) { object->AI()->SetGUID(player->GetGUID(), 0); return true; }
+        return player->HasItemCount(128825, 1, true); // Bank-only copy must be retrieved, never duplicated.
+    }
+    void OnLootStateChanged(GameObject* object, uint32 state, Unit* unit) override
+    {
+        Player* player = unit ? unit->ToPlayer() : nullptr;
+        if (state != GO_JUST_DEACTIVATED || object->AI()->GetData(TuureAcquisition::Finished) ||
+            !TuureAcquisition::CanTake(player, object) || !player->GetItemByEntry(128825)) return;
+        object->SetLootState(GO_READY); // Real completed storage; keep retry access until accepted departure.
+        object->AI()->SetGUID(player->GetGUID(), 0);
+    }
+};
+
+namespace TuureCast
+{
+    struct State
+    {
+        bool scoped = false, issued = false;
+        ObjectGuid source;
+        std::weak_ptr<uint8> lifetime;
+
+        void Bind(Player* player)
+        {
+            if (!player || player->GetMapId() != 1489) return;
+            Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+            scoped = scenario && scenario->GetScenarioId() == 1085;
+            if (!scoped) return;
+            std::list<GameObject*> weapons;
+            GetGameObjectListWithEntryInGrid(weapons, player, 249705, 5.0f);
+            for (GameObject* weapon : weapons)
+                if (weapon && weapon->AI() && weapon->AI()->GetGUID(0) == player->GetGUID() &&
+                    weapon->AI()->GetData(TuureAcquisition::Current) && TuureAcquisition::CanTake(player, weapon))
+                {
+                    source = weapon->GetGUID();
+                    break;
+                }
+            if (QuestStatusData* status = player->getQuestStatus(41993)) lifetime = status->ScriptLifetime;
+        }
+        bool SameAttempt(Player* player) const
+        {
+            QuestStatusData* status = player ? player->getQuestStatus(41993) : nullptr;
+            return status && !lifetime.expired() && status->ScriptLifetime == lifetime.lock();
+        }
+        GameObject* Current(Player* player) const
+        {
+            if (!SameAttempt(player)) return nullptr;
+            GameObject* weapon = ObjectAccessor::GetGameObject(*player, source);
+            return weapon && weapon->GetGUID() == source && weapon->AI() &&
+                weapon->AI()->GetGUID(0) == player->GetGUID() && weapon->AI()->GetData(TuureAcquisition::Current) &&
+                !weapon->AI()->GetData(TuureAcquisition::Finished) && TuureAcquisition::CanTake(player, weapon) &&
+                player->GetItemByEntry(128825) ? weapon : nullptr;
+        }
+        bool Ready(Player* player, bool departure) const
+        {
+            GameObject* weapon = Current(player);
+            if (!weapon) return false;
+            if (!departure) return true;
+            Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+            return weapon->AI()->GetData(TuureAcquisition::Elapsed) >= 14000 &&
+                player->HasSceneStatus(1265, SCENE_COMPLETE) && TuureAcquisition::Equipped(player) &&
+                TuureAcquisition::HasLeaf(scenario, 47679);
+        }
+        void Depart(Player* player, Spell* spell, SpellEffIndex effect)
+        {
+            if (issued) return;
+            if (!Ready(player, true))
+            {
+                TC_LOG_WARN("scripts", "Tuure pickup: stale/ineligible queued departure rejected; no teleport or50702");
+                return;
+            }
+            issued = true; // Before native callbacks can re-enter this same effect.
+            Player::ScopedTeleportDelay guard(*player);
+            spell->EffectTeleportUnits(effect); // Actual native effect, including ordinary admission/failures.
+            if (!guard.IsPending() || player->GetTeleportDest().GetMapId() != 1220 ||
+                player->GetTeleportDest().GetExactDist(-828.85f, 4372.0f, 738.64f) > 0.1f || !SameAttempt(player))
+            {
+                TC_LOG_WARN("scripts", "Tuure pickup: native departure was not accepted for original attempt/destination; no50702 credit");
+                return;
+            }
+            if (GameObject* weapon = ObjectAccessor::GetGameObject(*player, source))
+                if (weapon->GetGUID() == source && weapon->AI() && weapon->AI()->GetGUID(0) == player->GetGUID())
+                    weapon->AI()->SetData(TuureAcquisition::Finish, 1);
+            // Still in the source map under native deferral. Native final-tree completion rewards1085.
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50702);
+        }
+    };
+}
+
+class spell_tuure_pickup_cast : public SpellScript
+{
+    PrepareSpellScript(spell_tuure_pickup_cast);
+    TuureCast::State state;
+    bool Load() override { state.Bind(GetCaster() ? GetCaster()->ToPlayer() : nullptr); return true; }
+    SpellCastResult Check()
+    {
+        Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+        return !state.scoped || (state.Ready(player, false) && (GetSpellInfo()->Id != 210734 || player->HasSceneStatus(1265, SCENE_COMPLETE))) ? SPELL_CAST_OK : SPELL_FAILED_BAD_TARGETS;
+    }
+    void Hit(SpellEffIndex effect)
+    {
+        if (!state.scoped) return;
+        Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+        if (!state.Ready(player, false) || (GetSpellInfo()->Id == 210734 && !player->HasSceneStatus(1265, SCENE_COMPLETE)))
+        {
+            PreventHitDefaultEffect(effect);
+            TC_LOG_WARN("scripts", "Tuure pickup: stale/ineligible scene or equip effect rejected; retain original attempt guards");
+        }
+    }
+    void Register() override
+    {
+        OnCheckCast += SpellCheckCastFn(spell_tuure_pickup_cast::Check);
+        OnEffectHit += SpellEffectFn(spell_tuure_pickup_cast::Hit, EFFECT_ALL, SPELL_EFFECT_ANY);
+        OnEffectHitTarget += SpellEffectFn(spell_tuure_pickup_cast::Hit, EFFECT_ALL, SPELL_EFFECT_ANY);
+    }
+};
+
+class spell_tuure_departure : public SpellScript
+{
+    PrepareSpellScript(spell_tuure_departure);
+    TuureCast::State state;
+    bool Load() override { state.Bind(GetCaster() ? GetCaster()->ToPlayer() : nullptr); return true; }
+    SpellCastResult Check() { return !state.scoped || state.Ready(GetCaster() ? GetCaster()->ToPlayer() : nullptr, true) ? SPELL_CAST_OK : SPELL_FAILED_BAD_TARGETS; }
+    void Hit(SpellEffIndex effect)
+    {
+        if (!state.scoped) return;
+        PreventHitDefaultEffect(effect);
+        state.Depart(GetHitPlayer(), GetSpell(), effect);
+    }
+    void Register() override
+    {
+        OnCheckCast += SpellCheckCastFn(spell_tuure_departure::Check);
+        OnEffectHitTarget += SpellEffectFn(spell_tuure_departure::Hit, EFFECT_0, SPELL_EFFECT_TELEPORT_L);
     }
 };
 
@@ -733,4 +1264,7 @@ void AddSC_Tuure()
     new npc_lady_kalindria();
     new go_tuure_crate();
     new go_art_tuure();
+    new scene_tuure_pickup();
+    RegisterSpellScript(spell_tuure_pickup_cast);
+    RegisterSpellScript(spell_tuure_departure);
 };

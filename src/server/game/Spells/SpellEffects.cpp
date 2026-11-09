@@ -3613,6 +3613,15 @@ void Spell::EffectOpenLock(SpellEffIndex effIndex)
         return;
     }
 
+    // T'uure's cage (goober) bypasses SendLoot's GossipHello(true) dispatch: admit only the completed Opening after the
+    // ordinary lock check (LegionCore-7.3.5)
+    if (gameObjTarget && m_spellInfo->Id == 3365 && gameObjTarget->GetMapId() == 1489 &&
+        gameObjTarget->GetEntry() == 249693 && gameObjTarget->GetDBTableGUIDLow() == 134192 &&
+        gameObjTarget->GetGoType() == GAMEOBJECT_TYPE_GOOBER && lockId == 1690 &&
+        sObjectMgr->GetScriptName(gameObjTarget->GetScriptId()) == "go_tuure_crate" &&
+        gameObjTarget->AI()->GossipHello(player, true))
+        return;
+
     if (gameObjTarget)
         SendLoot(guid, LOOT_SKINNING);
     else if (itemTarget)

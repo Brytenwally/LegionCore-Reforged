@@ -14,6 +14,8 @@
  *  - Mage (phase 3.5): Aluneth's Nexus pickup and return (lights_wrath_pickup.h, shared with the priest's Light's Wrath),
  *    Felo'melorn's scene equip and the Fire scenario's return recovery (fire_return_recovery.h).
  *  - Monk (phase 3.6): the monk scene equips (MonkArtifactScene) and the kite travel (monk_kite_travel.h).
+ *  - Priest (phase 3.8): Xal'atath (Farthing, soul attacks, presentation, pickup) and the Light's Wrath takeover
+ *    (lights_wrath_takeover.h).
  * The other classes' pieces come with their phases (docs/legioncore-735-port.md).
  */
 
@@ -1494,6 +1496,146 @@ void Queue(Player* player)
 }
 }
 
+namespace XalatathFarthing
+{
+void Protect(Creature* actor, Unit* attacker, uint32& damage)
+{
+    if (!actor || !attacker || !damage || !actor->IsAlive() || actor->GetEntry() != 101148 || actor->GetMapId() != 1539)
+        return;
+    Scenario* scenario = sScenarioMgr->GetScenario(actor->GetInstanceId());
+    if (!scenario || scenario->GetScenarioId() != 991 || scenario->GetCurrentStep() < 7 || scenario->GetCurrentStep() > 8 ||
+        damage < actor->GetHealth(attacker))
+        return;
+    damage = 0;
+    if (actor->GetHealth() > 1)
+    {
+        actor->SetHealth(1);
+        TC_LOG_INFO("scripts.ai", "Xalatath: protected Farthing's native finale from a scaled killing blow");
+    }
+}
+}
+
+struct npc_xalatath_farthing : SmartAI
+{
+    explicit npc_xalatath_farthing(Creature* actor) : SmartAI(actor) { }
+    void Reset() override
+    {
+        ++finaleGeneration;
+        SmartAI::Reset();
+    }
+    uint32 GetFinaleGeneration() const { return finaleGeneration; }
+    void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType type) override
+    {
+        SmartAI::DamageTakenAfterScaling(attacker, damage, type);
+        XalatathFarthing::Protect(me, attacker, damage);
+    }
+
+private:
+    uint32 finaleGeneration = 0;
+};
+
+namespace XalatathSoulAttack
+{
+Creature* Target(Creature* actor)
+{
+    if (!actor || actor->GetEntry() != 102247 || !actor->IsInWorld() || !actor->IsAlive() || actor->GetMapId() != 1539)
+        return nullptr;
+    TempSummon* summon = actor->ToTempSummon();
+    Unit* summoner = summon ? summon->GetSummoner() : nullptr;
+    Creature* owner = summoner ? summoner->ToCreature() : nullptr;
+    if (!owner || owner->GetEntry() != 101148 || !owner->IsInWorld() || !owner->IsAlive() ||
+        owner->GetMap() != actor->GetMap() || !owner->InSamePhase(actor) || !actor->IsWithinDistInMap(owner, 30.0f) ||
+        !owner->HasAura(61204) || owner->GetHealthPct() > 1.0f || !owner->IsAIEnabled ||
+        !dynamic_cast<npc_xalatath_farthing*>(owner->AI()))
+        return nullptr;
+    Scenario* scenario = sScenarioMgr->GetScenario(actor->GetInstanceId());
+    return scenario && scenario->GetScenarioId() == 991 && scenario->GetCurrentStep() == 7 ? owner : nullptr;
+}
+}
+
+struct npc_xalatath_soul_attack : SmartAI
+{
+    explicit npc_xalatath_soul_attack(Creature* actor) : SmartAI(actor) { }
+
+    void IsSummonedBy(Unit* summoner) override
+    {
+        if (summoner && summoner == XalatathSoulAttack::Target(me))
+        {
+            generation = static_cast<npc_xalatath_farthing*>(summoner->ToCreature()->AI())->GetFinaleGeneration();
+            activated = true;
+            SmartAI::IsSummonedBy(summoner);
+        }
+    }
+
+    void SpellHitTarget(Unit* target, SpellInfo const* spell) override
+    {
+        SmartAI::SpellHitTarget(target, spell);
+        if (activated && spell && spell->Id == 201899 && target && target == XalatathSoulAttack::Target(me) &&
+            generation == static_cast<npc_xalatath_farthing*>(target->ToCreature()->AI())->GetFinaleGeneration())
+            acknowledged = true;
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        SmartAI::UpdateAI(diff);
+        if (!activated || acknowledged)
+            return;
+        if (retryTimer > diff)
+        {
+            retryTimer -= diff;
+            return;
+        }
+        retryTimer = 5000;
+        Creature* owner = XalatathSoulAttack::Target(me);
+        if (!owner)
+            return;
+        if (generation != static_cast<npc_xalatath_farthing*>(owner->AI())->GetFinaleGeneration())
+        {
+            activated = false;
+            return;
+        }
+        if (me->IsNonMeleeSpellCast(false))
+            return;
+        SpellCastResult result = me->CastSpell(owner, 201899, false);
+        if (result != SPELL_CAST_OK)
+            TC_LOG_WARN("scripts.ai", "Xalatath: soul attack 201899 failed with result %u; retain Farthing and retry the native cast", uint32(result));
+    }
+
+private:
+    bool acknowledged = false;
+    bool activated = false;
+    uint32 generation = 0;
+    uint32 retryTimer = 5000;
+};
+
+namespace XalatathPresentation
+{
+bool Complete(Player* player, SpellScene const* scene, std::string const& trigger)
+{
+    if (!scene || scene->MiscValue != 1187 || scene->SceneScriptPackageID != 1553)
+        return false;
+    if (trigger != "complete" || !player || !player->HasSceneStatus(1187, SCENE_COMPLETE) ||
+        !player->IsInWorld() || !player->CanContact() || !player->IsAlive() || player->IsBeingTeleported() ||
+        player->getClass() != CLASS_PRIEST || player->GetMapId() != 1539 ||
+        !ArtifactAcquisition::Active(player, 40710) || !player->GetItemByEntry(128827))
+        return true;
+    Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+    if (!scenario || scenario->GetScenarioId() != 991 || scenario->GetCurrentStep() < 8 || scenario->GetCurrentStep() > 9)
+        return true;
+    SpellCastResult result = player->CastSpell(player, 201778, true);
+    if (result != SPELL_CAST_OK)
+    {
+        TC_LOG_WARN("scripts", "Xalatath pickup: native equip 201778 failed with result %u for player %u; no item or progression granted", uint32(result), player->GetGUIDLow());
+        return true;
+    }
+    Item* weapon = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
+    Item* child = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
+    if (!weapon || weapon->GetEntry() != 128827 || !child || child->GetEntry() != 133958 || weapon->GetChildItem() != child->GetGUID())
+        TC_LOG_WARN("scripts", "Xalatath pickup: native equip 201778 accepted but blade/paired item is not equipped for player %u; retain native inventory errors", player->GetGUIDLow());
+    return true;
+}
+}
+
 #include "fire_return_recovery.h"
 
 namespace FireArtifactScene
@@ -1694,8 +1836,60 @@ public:
     }
 };
 
+class scene_xalatath_pickup : public SceneTriggerScript
+{
+public:
+    scene_xalatath_pickup() : SceneTriggerScript("scene_xalatath_pickup") { }
+    bool OnTrigger(Player* player, SpellScene const* scene, std::string trigger) override
+    {
+        return XalatathPresentation::Complete(player, scene, trigger);
+    }
+};
+
+namespace XalatathPickup
+{
+bool Denied(Player* player, GameObject* object)
+{
+    if (!object)
+        return true;
+    if (object->GetEntry() != 247690)
+        return false;
+    if (!player || !player->IsInWorld() || !player->CanContact() || !player->IsAlive() || player->IsBeingTeleported() ||
+        player->getClass() != CLASS_PRIEST || !ArtifactAcquisition::Active(player, 40710) ||
+        !object->IsInWorld() || !object->isSpawned() || object->GetMapId() != 1539 ||
+        object->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_IN_USE | GO_FLAG_NOT_SELECTABLE) ||
+        object->getLootState() == GO_JUST_DEACTIVATED || player->GetMap() != object->GetMap() ||
+        !player->InSamePhase(object) || !player->canSeeOrDetect(object) || !player->IsWithinLOSInMap(object) ||
+        player->GetExactDist(object) > 5.0f)
+        return true;
+    Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+    return !scenario || scenario->GetScenarioId() != 991 || scenario->GetCurrentStep() < 8 || scenario->GetCurrentStep() > 9;
+}
+}
+
+class go_xalatath_pickup : public GameObjectScript
+{
+    struct AI : SmartGameObjectAI
+    {
+        explicit AI(GameObject* object) : SmartGameObjectAI(object) { }
+        bool GossipHello(Player* player, bool isUse) override
+        {
+            if (XalatathPickup::Denied(player, go))
+                return true;
+            bool owned = go->GetEntry() == 247690 && player && player->HasItemCount(128827, 1, false);
+            bool handled = SmartGameObjectAI::GossipHello(player, isUse);
+            return owned || handled;
+        }
+    };
+public:
+    go_xalatath_pickup() : GameObjectScript("go_xalatath_pickup") { }
+    bool OnGossipHello(Player* player, GameObject* object) override { return XalatathPickup::Denied(player, object); }
+    GameObjectAI* GetAI(GameObject* object) const override { return new AI(object); }
+};
+
 #include "talonclaw_boarded_departure.h"
 #include "monk_kite_travel.h"
+#include "lights_wrath_takeover.h"
 #include "lights_wrath_pickup.h"
 
 void AddSC_artifact_acquisition()
@@ -1732,6 +1926,14 @@ void AddSC_artifact_acquisition()
     RegisterCreatureAI(npc_fire_artifact_aethas);
     new scene_monk_artifact_equipment();
     RegisterSpellScript(spell_monk_kite_travel);
+    RegisterCreatureAI(npc_lights_wrath_takeover);
+    RegisterSpellScript(spell_lights_wrath_control_request);
+    RegisterAuraScript(spell_lights_wrath_control_channel);
+    RegisterSpellScript(spell_lights_wrath_control_result);
+    RegisterCreatureAI(npc_xalatath_farthing);
+    RegisterCreatureAI(npc_xalatath_soul_attack);
+    new scene_xalatath_pickup();
+    new go_xalatath_pickup();
     new scene_frost_artifact_equipment();
     new scene_blood_artifact_equipment();
 }

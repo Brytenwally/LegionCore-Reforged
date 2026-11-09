@@ -9,9 +9,9 @@ OUT='/home/user/LegionCore-Reforged/sql/updates/world/'
 prefix, idx = sys.argv[1], int(sys.argv[2])
 for name in sys.argv[3:]:
     s = open(LC + name, encoding='utf8').read()
-    guards = re.findall(r"SET @(\w+)_guard=IF\(", s)
+    guards = re.findall(r"SET @(\w+)_guard\s*:?=\s*IF\(", s)
     for g in guards:
-        s = re.sub(r"(SET @%s_guard=IF\()" % g, "SET @%s_safe=1, @%s_old=1;\n\\1" % (g, g), s, count=1)
+        s = re.sub(r"(SET @%s_guard\s*:?=\s*IF\()" % g, "SET @%s_safe=1, @%s_old=1;\n\\1" % (g, g), s, count=1)
     # the other guard style: a temporary table with CHECK(ok=1) fed by the safety expression or variable
     if re.search(r"CHECK\s*\(\s*ok\s*=\s*1\s*\)", s):
         for var in re.findall(r"INSERT INTO \w+ VALUES\s*\(\s*@(\w+)\s*\)", s):

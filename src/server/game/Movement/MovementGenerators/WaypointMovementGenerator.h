@@ -53,6 +53,8 @@ class WaypointMovementGenerator<Creature> : public MovementGeneratorMedium<Creat
 
         bool GetResetPosition(Unit&, float& x, float& y, float& z) override;
 
+        uint32 GetPathId() const { return _pathId; }
+
     private:
         void LoadPath(Creature&);
         void OnArrived(Creature&);

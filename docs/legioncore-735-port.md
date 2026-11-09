@@ -55,7 +55,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | --- | --- | --- |
 | 1 | **A: artifact choice onboarding** (hook, recheck, script) | small; done 2026-11-09 |
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
-| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
+| 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest done 2026-11-09** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
@@ -280,3 +280,23 @@ Audits: Silver Hand "partial", Truthguard and Ashbringer with their pickups repa
   (its SQL, `wars_intro_scenario.cpp`) comes with 3.12, so the warrior part of this instance runs on our current data
   until then.
 - All 8 SQL files passed their guards verbatim on the database copy.
+
+## Phase 3.8: Priest (2026-11-09), plus a Death Knight Blood leftover
+
+All three routes "client traversal pending" in LegionCore-7.3.5's audits. SQL `2026_11_10_39..58_lc735_*`.
+- **Shadow, Xal'atath**: `artifact_acquisition.cpp` gains `XalatathFarthing`, `XalatathSoulAttack`,
+  `XalatathPresentation`, `scene_xalatath_pickup`, `go_xalatath_pickup`; SQL `_40`-`_49` (pickup link, real loot, scene
+  equip, progression / opening / pickup-cast admission, Farthing's finale, weapon summon / soul attack / finale actor
+  retries), the priest's Dalaran messenger (`_39`).
+- **Holy, T'uure**: `Tuure.cpp` merged three-way (3 conflicts, all where Reforged had made the same compile fixes:
+  LegionCore-7.3.5's side taken), `instance_tuure.cpp` (CLEAN), new `Tuure.h`; core: Opening (3365) on T'uure's cage
+  goober dispatches its gossip script after the lock check (`Spell::EffectOpenLock`), `WaypointMovementGenerator::
+  GetPathId`; SQL the Devourer's native pickup, scene equip, native pickup, contact credit (`_50`-`_53`).
+- **Discipline, Light's Wrath** (Nexus Vault, shared pickup ported with the mage): the takeover
+  (`lights_wrath_takeover.h`, `npc_lights_wrath_takeover` replaces actor 104985's SmartAI) and its chest lifetime (`_54`,
+  `_55`); Azuregos' Scion guards anchored on him and the priest healing phase after the real Scion clear (`_57`, `_58`).
+  Ordering note: in LegionCore-7.3.5, `_54`/`_55` (its 2026_10_27_03/04) came before the shared pickup recovery we
+  shipped with the mage (`2026_11_10_01`); both are forced, and `_55` deletes the rows `_54` flags, so the end state is
+  LegionCore-7.3.5's.
+- **Death Knight Blood leftover**: Sliver's departure callback (map 1489, scenario 940; `_56`).
+- `port_lc735_sql.py` now also recognises `SET @x_guard := IF(` guards.
