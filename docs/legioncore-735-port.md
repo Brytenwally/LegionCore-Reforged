@@ -74,6 +74,9 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 
 ## Method that works (2026-11-09)
 
+- After merging or copying scripts: `python3 docs/tools/check_script_names.py` (a name registered twice stops the
+  worldserver at startup; build #37 hit it with `spell_gen_new_blood_imprisoned`).
+
 - **The owner's server runs MySQL 8.0.44: test the ported SQL on MySQL 8, not only MariaDB** (build #36 stopped on a
   MariaDB-only construct; method and the differences found in the core's `CLAUDE.md`).
 

@@ -8783,7 +8783,6 @@ void AddSC_generic_spell_scripts()
     RegisterAuraScript(spell_q29347_bait);
     RegisterAuraScript(spell_q29347_crayfish);
     RegisterSpellScript(spell_big_red_rays);
-    RegisterSpellScript(spell_gen_new_blood_imprisoned);
     RegisterSpellScript(spell_set_up_board);
     RegisterAuraScript(spell_hearthstation_horde);
     RegisterAuraScript(spell_hearthstation_alliance);

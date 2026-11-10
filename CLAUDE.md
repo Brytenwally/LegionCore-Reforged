@@ -422,6 +422,12 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   Nar'thalas Academy, Grey Shoals, the Eye of Azshara quests and Dalaran pads; `GameObject::IsNeverVisible` asks
   `GameObjectAI::CanBeVisibleFor`; SQL world `2026_11_13_46..63`, characters `2026_11_10_03..04` (checked on MySQL 8).
   Compiled; untested in game. **Phase 5 complete**: next is the owner's build and test.
+- **Build #37 stopped while loading C++ scripts** (owner's log, 2026-11-10): `Script 'spell_gen_new_blood_imprisoned' already
+  assigned with the same script name, so the script can't work.` Cause: phase 4's three-way merge of `spell_generic.cpp` kept
+  both the registration added in 3.11 and LegionCore-7.3.5's own (the class itself merged into one). All SQL had applied
+  (characters `2026_11_10_00..04`, world from `2026_11_11_45` on). Fixed by removing the second registration. **Rule: after
+  merging or copying scripts, run `python3 docs/tools/check_script_names.py`** (script names registered twice anywhere, loaders
+  calling an `AddSC_` twice; 0 problems over 7,205 names after the fix): the compiler cannot see this, only the server at startup.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
