@@ -1,5 +1,12 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "Player.h"
+#include "QuestData.h"
+#include "GameTime.h"
+#include "Group.h"
+#include "SmartAI.h"
+#include "GameObjectAI.h"
+#include "grey_shoals.h"
 
 enum eSpells
 {
@@ -443,6 +450,40 @@ public:
     }
 };
 
+// Grey Shoals' native Kvaldir racks award optional 5% progress through229972.
+class go_grey_shoals_supplies : public GameObjectScript
+{
+public:
+    go_grey_shoals_supplies() : GameObjectScript("go_grey_shoals_supplies") { }
+
+    GameObjectAI* GetAI(GameObject* object) const override
+    {
+        return GreyShoals::Scoped(object) ? new go_grey_shoals_rotation(object) : nullptr;
+    }
+
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        if (go->GetMapId() != 1220 || go->GetAreaId() != 8297)
+            return false;
+
+        // Reject stale/ineligible uses before the native goober opens and casts.
+        auto quest = sQuestDataStore->GetQuestTemplate(44737);
+        auto rotation = quest ? sQuestDataStore->GetWorldQuest(quest) : nullptr;
+        if (go->GetEntry() != 266170 || !rotation || rotation->ResetTime <= GameTime::GetGameTime() ||
+            !player->IsAlive() || !go->InSamePhase(player) ||
+            player->GetQuestStatus(44737) != QUEST_STATUS_INCOMPLETE ||
+            (player->GetGroup() && player->GetGroup()->isRaidGroup() &&
+                !quest->IsAllowedInRaid(player->GetMap()->GetDifficultyID())) ||
+            !go->IsWithinDistInMap(player, go->GetInteractionDistance()) ||
+            !go->isSpawned() || go->getLootState() != GO_READY)
+            return true;
+
+        // Keep the template's animation, consumption and native spell134 group
+        // credit. Returning true here would bypass GameObject::Use entirely.
+        return false;
+    }
+};
+
 void AddSC_azsuna()
 {
     new boss_levantus();
@@ -450,4 +491,6 @@ void AddSC_azsuna()
     new boss_calamir();
     new boss_withered_jim();
     new spell_resonance();
+    new go_grey_shoals_supplies();
+    new npc_grey_shoals();
 }

@@ -418,6 +418,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - **Phase 5.3, Val'sharah** (2026-11-10, details in the plan): 4 new Val'sharah scripts, the Darkheart Thicket escape, SQL world
   `2026_11_13_42..45` and characters `2026_11_10_01..02` (objective slot migration; checked on MySQL 8). Compiled; untested
   in game. The container's MySQL 8 stops between turns: `<scratchpad>/my8start.sh` restarts it.
+- **Phase 5.4, Azsuna** (2026-11-10, details in the plan): Scythe of Souls, Faronaar, Azurewing Repose, Save Yourself,
+  Nar'thalas Academy, Grey Shoals, the Eye of Azshara quests and Dalaran pads; `GameObject::IsNeverVisible` asks
+  `GameObjectAI::CanBeVisibleFor`; SQL world `2026_11_13_46..63`, characters `2026_11_10_03..04` (checked on MySQL 8).
+  Compiled; untested in game. **Phase 5 complete**: next is the owner's build and test.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

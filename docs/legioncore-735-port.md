@@ -57,7 +57,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
 | 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones. **Done 2026-11-09** (see "Phase 4") | medium |
-| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1"), **5.2 Highmountain done 2026-11-10** (see "Phase 5.2"), **5.3 Val'sharah done 2026-11-10** (see "Phase 5.3") | large |
+| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1"), **5.2 Highmountain done 2026-11-10** (see "Phase 5.2"), **5.3 Val'sharah done 2026-11-10** (see "Phase 5.3"), **5.4 Azsuna done 2026-11-10** (see "Phase 5.4"): **phase 5 complete** | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
 | 7 | J (contributions), then G item by item as the owner hits problems | small, ongoing |
 | 8 | H and I if the owner wants them | optional |
@@ -493,4 +493,26 @@ The 5 LegionCore-7.3.5 commits that touch a Val'sharah script or SQL file.
   characters database built from `sql/base` and the updates.
 - Left for 5.4: `EyeofAzshara/eye_of_azshara_quests.cpp` (new in LegionCore-7.3.5; Dalaran pads, the Highmountain hammer
   credit and the Eye quests), which `301ffe62` also touches.
+
+## Phase 5.4: Azsuna (2026-11-10)
+
+The 22 LegionCore-7.3.5 commits that touch an Azsuna script or SQL file, with Grey Shoals (held back from 5.1) and the
+Eye of Azshara quests (held back from 5.3).
+- **Scripts**: new `Legion/azsuna_scythe.cpp` (Scythe of Souls objectives and a recoverable encounter, Soul Gem exit,
+  Allari's return), `faronaar_chain.cpp` (Faronaar rescues kept across relogs, Stellagosa's ride back), `azurewing_repose.cpp`
+  (interactions, escorts, final encounter), `azsuna_rescue.cpp` (Save Yourself), `narthalas_academy.cpp` (entry, wanding,
+  lessons, the drawing fight after the book camera), `grey_shoals.h` (the Grey Shoals world quest: supplies, rotation
+  gating, release when it expires), `EyeofAzshara/eye_of_azshara_quests.cpp` (Eye of Azshara quest credit, the Dalaran
+  teleport pads firing once per arrival, the Highmountain hammer credit after the Dalaran teleport); `zone_azsuna.cpp`
+  and `instance_eye_of_azshara.cpp` were still the fork point's in Reforged: taken as is. Allari (37660), Azurewing and
+  Stellagosa's old scripts leave `npcs_special.cpp` / `go_scripts.cpp` for the new files (the SQL clears the one name no
+  file keeps, `npc_azsuna_stellagosa_q37862`). All registered in `legion_script_loader.cpp`.
+- **Core**: `GameObjectAI::CanBeVisibleFor` and `GameObject::IsNeverVisible` asking it (Grey Shoals hides its objects
+  outside the rotation). The creature side came with 5.1.
+- SQL: world `2026_11_13_46..63` (18 files: Grey Shoals, Scythe, Faronaar, Azurewing, Save Yourself, Nar'thalas, the Eye
+  quest chain, the Dalaran pad trigger), all verbatim on the MySQL 8 copy; characters
+  `2026_11_10_03_lc735_faronaar_interactions.sql` and `_04_lc735_azurewing_interactions.sql` (per-character tables of
+  the crystals / locks used, so progress survives a relog).
+
+**Phase 5 done** (Stormheim, Highmountain, Val'sharah, Azsuna). Owner's plan: a build and a test now, before phase 6.
 

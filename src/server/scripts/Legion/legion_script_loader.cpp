@@ -1,4 +1,10 @@
 void AddSC_azsuna();
+void AddSC_azsuna_scythe();
+void AddSC_faronaar_chain();
+void AddSC_azurewing_repose();
+void AddSC_azsuna_rescue();
+void AddSC_narthalas_academy();
+void AddSC_eye_of_azshara_quests();
 void AddSC_broken_shore();
 void AddSC_legion_class_hall_messengers();
 void AddSC_class_hall_artifact_onboarding();
@@ -301,6 +307,12 @@ void AddSC_instance_temple_of_the_jade_serpent();
 void AddLegionScripts()
 {
     AddSC_azsuna();
+    AddSC_azsuna_scythe();
+    AddSC_faronaar_chain();
+    AddSC_azurewing_repose();
+    AddSC_azsuna_rescue();
+    AddSC_narthalas_academy();
+    AddSC_eye_of_azshara_quests();
     AddSC_broken_shore();
     AddSC_legion_class_hall_messengers();
     AddSC_class_hall_artifact_onboarding();
