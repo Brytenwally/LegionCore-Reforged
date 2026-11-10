@@ -1,5 +1,14 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "AreaTriggerAI.h"
+#include "QuestData.h"
+#include "GameTime.h"
+#include "Group.h"
+#include "ObjectAccessor.h"
+#include "Player.h"
+#include "SpellScript.h"
+#include "rockaway_coast.h"
+#include "highmountain_hunting.h"
 
 enum eSpells
 {
@@ -313,9 +322,48 @@ public:
     }
 };
 
+// 192179..192183 share area-trigger templates with older Brilliant Edge spells.
+// Restrict the added damage action to High Crawliac's native cyclone family.
+struct at_highmountain_shredding_cyclone : AreaTriggerAI
+{
+    explicit at_highmountain_shredding_cyclone(AreaTrigger* trigger) : AreaTriggerAI(trigger) { }
+
+    bool IsCyclone() const
+    {
+        return at->GetSpellId() >= 192179 && at->GetSpellId() <= 192183;
+    }
+
+    bool IsValidTarget(Unit* caster, Unit* target, AreaTriggerActionMoment /*moment*/) override
+    {
+        return IsCyclone() && caster && caster->GetEntry() == 95153 &&
+            caster->IsAlive() && caster->isInCombat() && target && target->IsAlive() &&
+            caster->IsValidAttackTarget(target);
+    }
+
+    void OnUpdate(uint32 /*diff*/) override
+    {
+        if (!IsCyclone())
+            return;
+
+        Unit* caster = at->GetCaster();
+        if (!caster || (caster->GetEntry() == 95153 && (!caster->IsAlive() || !caster->isInCombat())))
+            at->Despawn();
+    }
+};
+
 void AddSC_highmountain()
 {
+    RegisterCreatureAI(npc_highmountain_addie_hunt);
+    RegisterAuraScript(aura_highmountain_addie_hunt);
+    RegisterSpellScript(spell_highmountain_hunting_skill);
+    RegisterCreatureAI(npc_rockaway_vision);
+    RegisterCreatureAI(npc_rockaway_ritualist);
+    RegisterCreatureAI(npc_rockaway_tentacle);
+    RegisterCreatureAI(npc_rockaway_slime);
+    RegisterSpellScript(spell_rockaway_channel);
+    RegisterAuraScript(spell_rockaway_taint);
     new boss_flotsam();
     new npc_jetsam_stalker();
     new boss_drugon_the_frostblood();
+    RegisterAreaTriggerAI(at_highmountain_shredding_cyclone);
 }

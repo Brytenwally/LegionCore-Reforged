@@ -2315,6 +2315,12 @@ void DB2Manager::LoadingExtraHotfixData()
 
     DB2HotfixGenerator<ItemSparseEntry> itemSparseHotfixes(sItemSparseStore);
 
+    // Hag Feathers: quest 39373 asks for 50 but the shipped ItemSparse record caps possession at 30 (LegionCore-7.3.5)
+    itemSparseHotfixes.ApplyHotfix(128380, [](ItemSparseEntry* entry)
+    {
+        entry->MaxCount = 50;
+    }, true);
+
     if (uint32 const tier = sWorld->getIntConfig(CONFIG_ITEMLEVEL_DUNGEON_TIER))
         if (uint32 const rows = ApplyDungeonItemLevels(tier))
             TC_LOG_INFO("server.loading", ">> Rewrote %u dungeon item level selector(s) for content tier %u", rows, tier);

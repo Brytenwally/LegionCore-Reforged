@@ -412,6 +412,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   Vrekt world quest), their core quest-credit / opening-spell / visibility pieces (`Creature::IsNeverVisible` now calls
   `CreatureAI::CanBeVisibleFor`), SQL world `2026_11_12_26..99` + `2026_11_13_00..01`, characters
   `2026_11_10_00_lc735_stormheim_mission.sql` (checked on MySQL 8). Compiled; untested in game.
+- **Phase 5.2, Highmountain** (2026-11-10, details in the plan): 23 new Highmountain scripts, Rockaway Coast, the Hag Feathers
+  stack hotfix and Addie's hunting credit, SQL world `2026_11_13_02..41` (checked on MySQL 8). Compiled; untested in game.
+  Owner, 2026-11-10: finish all of phase 5 (Val'sharah, Azsuna) before the next build and test.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

@@ -57,7 +57,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
 | 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones. **Done 2026-11-09** (see "Phase 4") | medium |
-| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1") | large |
+| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1"), **5.2 Highmountain done 2026-11-10** (see "Phase 5.2") | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
 | 7 | J (contributions), then G item by item as the owner hits problems | small, ongoing |
 | 8 | H and I if the owner wants them | optional |
@@ -455,4 +455,22 @@ Shoals, in Azsuna, are left for their zones).
   guards); characters `2026_11_10_00_lc735_stormheim_mission.sql` (the mission checkpoint table, `CREATE TABLE IF NOT
   EXISTS`). Every script name they use exists.
 - Note: neither fork deletes a character's `character_stormheim_mission` rows with the character (harmless leftovers).
+
+## Phase 5.2: Highmountain (2026-11-10)
+
+The 42 LegionCore-7.3.5 commits that touch a Highmountain script or SQL file, with Rockaway Coast (held back from 5.1).
+- **Scripts**: the 23 new `Legion/highmountain_*.cpp` files and their headers (arrival and Poison Idol, river rescues,
+  Lifespring Cavern, Riverbend, Dargrul's escort / encounter / escape, Jale and Mayla, Bloodtotem, Oakin's audience,
+  Blood Trial / Rite / Debt, Navarrogg's cave escape, Unexpected Allies, Skyhorn ritual, Aviash flight, Battle Worms,
+  Snowmane evacuation, the Stands, Justice Rains from Above, the Underking, Neltharion's Lair hammer, Addie's hunting),
+  `rockaway_coast.h` (the ritualist world quest) and `zone_highmountain.cpp` (unchanged in Reforged: taken as is), all
+  registered in `legion_script_loader.cpp`.
+- **Core**: the world quest completion guard (`Player::CanRewardWorldQuest`, `ccb40e91`: `CompleteQuest` and
+  `RewardQuest` refuse a world / emissary quest whose rotation expired, was removed or is already rewarded; Rockaway
+  uses it), Addie's staged hunting credit in `Player.cpp`, the Hag Feathers stack limit (item 128380 max 50, as quest 39373
+  asks) in `DB2Manager::LoadingExtraHotfixData`, Riverbend captives in `npcs_special.cpp`. Already in from earlier phases:
+  `SmartGameObjectAI::GossipUse` (3.4) and `WorldObject::RemoveFromHideList`.
+- SQL: world `2026_11_13_02..41` (40 files: every `highmountain_*` update, the Highmountain epic and Broken Isles subzone
+  world quests, Freeing the Taken credit, Rockaway Coast, Thunder Totem admission, Addie's hunting), all verbatim on the
+  MySQL 8 copy (no guards). The Helarjar fragment counts came with 5.1. Every script name they use exists.
 

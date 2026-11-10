@@ -19264,21 +19264,22 @@ void Player::CompleteQuest(uint32 quest_id)
 {
     if (quest_id)
     {
+        Quest const* qInfo = sQuestDataStore->GetQuestTemplate(quest_id);
+        if (!qInfo || !CanRewardWorldQuest(qInfo))
+            return;
+
         SetQuestStatus(quest_id, QUEST_STATUS_COMPLETE);
 
         uint16 log_slot = FindQuestSlot(quest_id);
         if (log_slot < MAX_QUEST_LOG_SIZE)
             SetQuestSlotState(log_slot, QUEST_STATE_COMPLETE);
 
-        if (Quest const* qInfo = sQuestDataStore->GetQuestTemplate(quest_id))
-        {
-            if (qInfo->HasFlag(QUEST_FLAGS_TRACKING))
-                RewardQuest(qInfo, 0, this, false);
-            else if (qInfo->Type == QUEST_TYPE_TASK)
-                RewardQuest(qInfo, 0, this, true);
+        if (qInfo->HasFlag(QUEST_FLAGS_TRACKING))
+            RewardQuest(qInfo, 0, this, false);
+        else if (qInfo->Type == QUEST_TYPE_TASK)
+            RewardQuest(qInfo, 0, this, true);
 
-            sScriptMgr->OnQuestComplete(this, qInfo);
-        }
+        sScriptMgr->OnQuestComplete(this, qInfo);
     }
 }
 
@@ -19391,8 +19392,27 @@ void Player::RewardQuestPackage(uint32 questPackageId, uint32 onlyItemId /*= 0*/
     }
 }
 
+bool Player::CanRewardWorldQuest(Quest const* quest) const
+{
+    if (!quest)
+        return false;
+
+    if (!quest->IsWorld() && !quest->IsEmissary())
+        return true;
+
+    WorldQuest const* active = sQuestDataStore->GetWorldQuest(quest);
+    return active && active->worldQuest && active->ResetTime > GameTime::GetGameTime() &&
+        !WorldQuestCompleted(quest->GetQuestId());
+}
+
 void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, bool announce)
 {
+    // Automatic tasks bypass the usual turn-in admission. Reject an expired,
+    // removed or already rewarded rotation before consuming anything or
+    // removing the task, even when RewardQuest is called directly.
+    if (!CanRewardWorldQuest(quest))
+        return;
+
     //this THING should be here to protect code from quest, which cast on player far teleport as a reward
     //should work fine, cause far teleport will be executed in Player::Update()
     SetCanDelayTeleport(true);
@@ -21086,6 +21106,9 @@ void Player::KilledMonsterCredit(uint32 entry, ObjectGuid guid /*= ObjectGuid::E
         uint32 questid = GetQuestSlotQuestId(i);
         if (!questid)
             continue;
+
+        if (questid == 40216 && (entry == 97441 || real_entry == 97441))
+            continue; // Addie's owner-scoped hunting controller owns all skill counters.
 
         // Lightning Rod tracks absorbed electricity, not dead drakes. Its
         // validated spell/release handlers write the native charge objective.
