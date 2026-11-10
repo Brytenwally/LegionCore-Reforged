@@ -1,5 +1,18 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "Player.h"
+#include "Conversation.h"
+#include "ObjectMgr.h"
+#include "QuestData.h"
+#include "Group.h"
+#include "SmartAI.h"
+#include "CombatAI.h"
+#include "vrekt.h"
+#include "EventObject.h"
+#include "ObjectAccessor.h"
+#include "PassiveAI.h"
+#include "TemporarySummon.h"
+#include "vrekt_scene.h"
 
 enum eSpells
 {
@@ -488,8 +501,167 @@ public:
     }
 };
 
+namespace StormheimConquest
+{
+constexpr uint32 QuestId = 44721;
+bool Active(Player* player)
+{
+    auto quest = sQuestDataStore->GetQuestTemplate(QuestId);
+    return quest && player->IsAlive() && player->GetMapId() == 1220 &&
+        player->GetZoneId() == 7541 && player->GetQuestStatus(QuestId) == QUEST_STATUS_INCOMPLETE &&
+        (!player->GetGroup() || !player->GetGroup()->isRaidGroup() ||
+            quest->IsAllowedInRaid(player->GetMap()->GetDifficultyID()));
+}
+bool Ready(Player* player)
+{
+    return Active(player) && player->GetQuestObjectiveData(QuestId, 114964) >= 1 &&
+        player->GetQuestObjectiveData(QuestId, 115291) >= 4 &&
+        player->GetQuestObjectiveData(QuestId, 114957) >= 1 &&
+        !player->GetQuestObjectiveData(QuestId, 114972);
+}
+}
+
+class eventobject_stormheim_conquest : public EventObjectScript
+{
+public:
+    eventobject_stormheim_conquest() : EventObjectScript("eventobject_stormheim_conquest") { }
+    bool IsTriggerMeets(Player* player, EventObject* event) override
+    {
+        // Admission runs BEFORE EventObject records affectedPlayers. A player
+        // accepting/retrying inside the radius must not consume entry early.
+        return event->GetEntry() == 373 && event->GetDBTableGUIDLow() == 410124 &&
+            event->GetMapId() == 1220 && player->InSamePhase(event) &&
+            player->IsWithinDistInMap(event, event->eventTemplate->radius) &&
+            StormheimConquest::Active(player) && !player->GetQuestObjectiveData(44721, 114964);
+    }
+    bool OnTrigger(Player* player, EventObject* event, bool enter) override
+    {
+        if (!enter || !IsTriggerMeets(player, event)) return false;
+        player->CastSpell(player, 228873, true); // native personal114964 credit
+        // A pure credit cast has no independent visual to wait for. Preserve
+        // progression if the optional spell dispatch rejects the cast.
+        if (!player->GetQuestObjectiveData(44721, 114964)) player->KilledMonsterCredit(114964);
+        if (player->GetQuestObjectiveData(44721, 114964))
+        {
+            auto conversation = new Conversation;
+            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(),
+                3880, player, nullptr, player->GetPosition())) delete conversation;
+        }
+        return true;
+    }
+};
+
+struct npc_havi_conquest : SmartAI
+{
+    explicit npc_havi_conquest(Creature* creature) : SmartAI(creature) { }
+    std::shared_ptr<uint8> speech;
+    uint32 busy = 0;
+    void Reset() override { speech.reset(); busy = 0; SmartAI::Reset(); }
+    void UpdateAI(uint32 diff) override
+    {
+        SmartAI::UpdateAI(diff);
+        if (busy && diff >= busy) { busy = 0; speech.reset(); }
+        else if (busy) busy -= diff;
+    }
+    void sGossipSelect(Player* player, uint32 sender, uint32 action) override
+    {
+        if (sender != 20539 || action != 1) { SmartAI::sGossipSelect(player, sender, action); return; }
+        if (busy || me->GetMapId() != 1220 || me->GetAreaId() != 7803 ||
+            !StormheimConquest::Ready(player)) return;
+        player->PlayerTalkClass->SendCloseGossip();
+        speech = std::make_shared<uint8>(); busy = 22000;
+        std::weak_ptr<uint8> lifetime = speech;
+        ObjectGuid actor = me->GetGUID();
+        SmartAI::sGossipSelect(player, sender, action); // original three lines/transform only
+        // Retail footage still shows0/1 during the transformation. Keep the
+        // existing16s dialogue, then allow3s for the final line before credit.
+        // Player-owned quest callback cancels on abandonment; no stored raw
+        // player pointer or mutable SmartAI last-invoker determines the award.
+        player->AddQuestDelayedEvent(44721, 19000, [player, actor, lifetime]
+        {
+            auto havi = ObjectAccessor::GetCreature(*player, actor);
+            if (lifetime.expired() || !havi || !StormheimConquest::Ready(player) ||
+                !player->canSeeOrDetect(havi) || !player->IsWithinDistInMap(havi, 100.0f)) return;
+            player->CastSpell(player, 228897, true);
+            if (!player->GetQuestObjectiveData(44721, 114972)) player->KilledMonsterCredit(114972);
+        });
+    }
+};
+
+// A Threat Rises (44771). The keg's native Lock2617 casts229547 for18s,
+// then applies Holding Grog229539. Listening to Havi alone is not delivery.
+namespace StormheimThreat
+{
+constexpr uint32 QuestId = 44771;
+constexpr uint32 HoldingGrog = 229539;
+
+bool Carrying(Player* player)
+{
+    return player->IsAlive() && player->GetMapId() == 1220 &&
+        player->GetZoneId() == 7541 && player->GetQuestStatus(QuestId) == QUEST_STATUS_INCOMPLETE;
+}
+
+void Update(Player* player)
+{
+    if (!player->HasAura(HoldingGrog))
+        return;
+
+    // Also handles abandonment, stale login auras and dungeon/map transfers.
+    if (!Carrying(player))
+    {
+        player->RemoveAurasDueToSpell(HoldingGrog);
+        return;
+    }
+
+    auto quest = sQuestDataStore->GetQuestTemplate(QuestId);
+    if (!quest || (player->GetGroup() && player->GetGroup()->isRaidGroup() &&
+        !quest->IsAllowedInRaid(player->GetMap()->GetDifficultyID())))
+        return; // Keep the drink until native quest credit is admissible.
+
+    std::list<Creature*> actors;
+    GetCreatureListWithEntryInGrid(actors, player, 92539, 5.0f);
+    for (Creature* havi : actors)
+    {
+        if (havi->GetAreaId() != 7803 || !havi->IsAlive() ||
+            !player->canSeeOrDetect(havi) || !player->IsWithinDistInMap(havi, 5.0f) ||
+            !player->IsWithinLOSInMap(havi))
+            continue;
+
+        // Consume synchronously before credit: two nearby Havis, repeated
+        // updates or an optional conversation failure cannot deliver twice.
+        player->CastSpell(player, 229554, true); // native Give Grog/removal
+        player->RemoveAurasDueToSpell(HoldingGrog);
+        // A Havi GUID would replace this virtual marker with entry92539 in
+        // native KilledMonsterCredit and leave the objective incomplete.
+        player->KilledMonsterCredit(114962);
+
+        //3931/line8966/BroadcastText123956 is "Oh, the grog...". Its old
+        // timed invocation played even when nobody had brought a drink.
+        auto conversation = new Conversation;
+        if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(),
+            3931, player, nullptr, player->GetPosition()))
+            delete conversation;
+        return;
+    }
+}
+}
+
+class player_stormheim_threat : public PlayerScript
+{
+public:
+    player_stormheim_threat() : PlayerScript("player_stormheim_threat") { }
+    void OnUpdate(Player* player, uint32) override { StormheimThreat::Update(player); }
+    void OnLogin(Player* player) override { StormheimThreat::Update(player); }
+    void OnMapChanged(Player* player) override { StormheimThreat::Update(player); }
+};
+
 void AddSC_stormheim()
 {
+    new npc_vrekt();
+    new npc_vrekt_scene();
+    new eventobject_stormheim_conquest();
+    RegisterCreatureAI(npc_havi_conquest);
+    new player_stormheim_threat();
     new boss_nithogg();
     new npc_static_orb();
     new spell_static_charge();

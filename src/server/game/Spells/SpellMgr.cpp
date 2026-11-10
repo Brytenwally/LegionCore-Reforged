@@ -3688,6 +3688,13 @@ void SpellMgr::LoadSpellCustomAttr()
                     effect->MiscValue = 127;
     }
 
+    // Stormheim grapple points use neutral faction 190 and protected unit flags: 182478's ally-only target failed before
+    // its point / launcher / range checks (LegionCore-7.3.5)
+    ApplySpellFix({182478}, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0]->TargetA = TARGET_UNIT_TARGET_ANY;
+    });
+
     // The New Blood: the rescue interaction targets protected council NPCs; 195039 is friendly-targeted but lacks the
     // assist exception, so spellclick failed on IMMUNE_TO_PC before reaching the rescue AI (LegionCore-7.3.5)
     ApplySpellFix({195039}, [](SpellInfo* spellInfo)

@@ -408,6 +408,10 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   bonuses, racials and warlock legendary / pet fixes: five spell files taken whole, ten merged, the core hunks applied
   (Soul Leech, Master Harvester, Cosmic Ripple, `PlayerScript::OnDeath` merged by hand), SQL `2026_11_11_45..99` and
   `2026_11_12_00..25` (checked on MySQL 8). Compiled; untested in game.
+- **Phase 5.1, Stormheim** (2026-11-10, details in the plan): LegionCore-7.3.5's Stormheim questlines (42 new scripts,
+  Vrekt world quest), their core quest-credit / opening-spell / visibility pieces (`Creature::IsNeverVisible` now calls
+  `CreatureAI::CanBeVisibleFor`), SQL world `2026_11_12_26..99` + `2026_11_13_00..01`, characters
+  `2026_11_10_00_lc735_stormheim_mission.sql` (checked on MySQL 8). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

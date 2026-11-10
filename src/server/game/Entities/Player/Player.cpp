@@ -18697,7 +18697,15 @@ Quest const* Player::GetNextQuest(ObjectGuid guid, Quest const* quest)
     case HighGuid::Vehicle:
     {
         if (Creature* creature = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, guid))
+        {
             objectQR = sQuestDataStore->GetCreatureQuestRelationBounds(creature->GetEntry());
+            // The shared Watchers blessing stores the Alliance next quest.
+            // Havi offers a separate, race-restricted Thorignir handoff to
+            // Horde players. Keep the normal relation and eligibility checks.
+            if (quest->GetQuestId() == 39597 && nextQuestID == 38473 && GetTeam() == HORDE &&
+                GetMapId() == 1220 && GetZoneId() == 7541 && creature->GetEntry() == 96254)
+                nextQuestID = 38611;
+        }
         else
             return nullptr;
         break;
@@ -21079,6 +21087,90 @@ void Player::KilledMonsterCredit(uint32 entry, ObjectGuid guid /*= ObjectGuid::E
         if (!questid)
             continue;
 
+        // Lightning Rod tracks absorbed electricity, not dead drakes. Its
+        // validated spell/release handlers write the native charge objective.
+        if (questid == 38058 && real_entry == 90903)
+            continue;
+
+        if (questid == 40003 && ((entry >= 97983 && entry <= 97985) || entry == 98186 ||
+            (real_entry >= 97983 && real_entry <= 97985) || real_entry == 98186))
+        {
+            TC_LOG_DEBUG("quest", "Stem the Tide: ignored generic portal credit");
+            continue;
+        }
+
+        if (questid == 40002 && (entry == 97981 || entry == 97982 || real_entry == 97981 || real_entry == 97982))
+        {
+            TC_LOG_DEBUG("quest", "A Familiar Fate: ignored generic binding credit");
+            continue;
+        }
+
+        if (questid == 40078 && (entry == 98239 || real_entry == 98239))
+        {
+            TC_LOG_DEBUG("quest", "A Heavy Burden: ignored generic fish credit");
+            continue;
+        }
+
+        if (questid == 39855 && (entry == 97487 || real_entry == 97487))
+        {
+            TC_LOG_DEBUG("quest", "Paid in Lifeblood: ignored generic exit credit");
+            continue;
+        }
+
+        if (questid == 39851 && (entry == 97472 || real_entry == 97472))
+        {
+            TC_LOG_DEBUG("quest", "Drowning Valkyra: ignored generic rescue credit");
+            continue;
+        }
+
+        if (questid == 39850 && ((entry >= 97482 && entry <= 97484) || (real_entry >= 97482 && real_entry <= 97484)))
+        {
+            TC_LOG_DEBUG("quest", "Sundered: ignored generic fragment credit");
+            continue;
+        }
+
+        if (questid == 39848 && (entry == 97479 || entry == 97696 || real_entry == 97479 || real_entry == 97696))
+        {
+            TC_LOG_DEBUG("quest", "A Desperate Bargain: ignored generic throne credit");
+            continue;
+        }
+
+        // Stealth by Seaweed records the disguised passage beyond the living
+        // guard, never a nearby guard, kill, group or nearest-player shortcut.
+        if (questid == 38347 && (entry == 91386 || real_entry == 91386))
+        {
+            TC_LOG_DEBUG("quest", "Stealth by Seaweed: ignored generic Guarm kill credit");
+            continue;
+        }
+
+        // The Final Judgment records the owned Faljar confrontation, not a
+        // nearby Helheim questgiver's periodic or generic group credit.
+        if (questid == 38818 && real_entry == 93442)
+        {
+            TC_LOG_DEBUG("quest", "The Final Judgment: ignored generic kill credit");
+            continue;
+        }
+
+        // Cry Thunder counts only a registered personal assault target's death
+        // and the completed return flight. No generic/group/bunny shortcut.
+        if (questid == 38624 && (real_entry == 91767 || real_entry == 92360 || real_entry == 91768))
+            continue;
+
+        // Turn the Keys needs one confirmed turn at each personal Runewood stone.
+        if (questid == 38778 && (real_entry == 93196 || real_entry == 93185 || real_entry == 93340 || real_entry == 93341))
+        {
+            TC_LOG_DEBUG("quest", "Turn the Keys: ignored generic kill credit for player %u marker %u", GetGUIDLow(), real_entry);
+            continue;
+        }
+
+        // Judgment Day credits the exact personal ruler only after its ritual
+        // and dialogue have completed, including an owning pet's killing blow.
+        if (questid == 38811 && (real_entry == 92889 || real_entry == 92918 || real_entry == 92920))
+        {
+            TC_LOG_DEBUG("quest", "Judgment Day: ignored generic kill credit for player %u ruler %u", GetGUIDLow(), real_entry);
+            continue;
+        }
+
         Quest const* qInfo = sQuestDataStore->GetQuestTemplate(questid);
         if (!qInfo)
             continue;
@@ -21231,6 +21323,78 @@ bool Player::TalkedToCreature(uint32 entry, ObjectGuid guid)
         uint32 questid = GetQuestSlotQuestId(i);
         if (!questid)
             continue;
+
+        if (questid == 40003 && ((entry >= 97983 && entry <= 97985) || entry == 98186))
+        {
+            TC_LOG_DEBUG("quest", "Stem the Tide: ignored generic portal talk credit");
+            continue;
+        }
+
+        if (questid == 40002 && (entry == 97981 || entry == 97982))
+        {
+            TC_LOG_DEBUG("quest", "A Familiar Fate: ignored generic binding talk credit");
+            continue;
+        }
+
+        if (questid == 40078 && entry == 98239)
+        {
+            TC_LOG_DEBUG("quest", "A Heavy Burden: ignored generic fish talk credit");
+            continue;
+        }
+
+        if (questid == 39855 && entry == 97487)
+        {
+            TC_LOG_DEBUG("quest", "Paid in Lifeblood: ignored generic exit talk credit");
+            continue;
+        }
+
+        if (questid == 39851 && entry == 97472)
+        {
+            TC_LOG_DEBUG("quest", "Drowning Valkyra: ignored generic rescue talk credit");
+            continue;
+        }
+
+        if (questid == 39850 && entry >= 97482 && entry <= 97484)
+        {
+            TC_LOG_DEBUG("quest", "Sundered: ignored generic fragment talk credit");
+            continue;
+        }
+
+        if (questid == 39848 && (entry == 97479 || entry == 97696))
+        {
+            TC_LOG_DEBUG("quest", "A Desperate Bargain: ignored generic throne talk credit");
+            continue;
+        }
+
+        if (questid == 38347 && entry == 91386)
+        {
+            TC_LOG_DEBUG("quest", "Stealth by Seaweed: ignored generic Guarm talk credit");
+            continue;
+        }
+
+        if (questid == 38818 && entry == 93442)
+        {
+            TC_LOG_DEBUG("quest", "The Final Judgment: ignored generic talk credit");
+            continue;
+        }
+
+        // Cry Thunder advances through confirmed boarding, owned kills and landing.
+        if (questid == 38624 && (entry == 91767 || entry == 92360 || entry == 91768))
+            continue;
+
+        if (questid == 38778 && (entry == 93196 || entry == 93185 || entry == 93340 || entry == 93341))
+        {
+            TC_LOG_DEBUG("quest", "Turn the Keys: ignored generic talk credit for player %u marker %u", GetGUIDLow(), entry);
+            continue;
+        }
+
+        // Judgment Day credits the exact personal ruler only after its ritual
+        // and dialogue have completed, including an owning pet's killing blow.
+        if (questid == 38811 && (entry == 92889 || entry == 92918 || entry == 92920))
+        {
+            TC_LOG_DEBUG("quest", "Judgment Day: ignored generic talk credit for player %u ruler %u", GetGUIDLow(), entry);
+            continue;
+        }
 
         Quest const* qInfo = sQuestDataStore->GetQuestTemplate(questid);
         if (!qInfo)

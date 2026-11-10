@@ -57,7 +57,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
 | 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones. **Done 2026-11-09** (see "Phase 4") | medium |
-| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna | large |
+| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1") | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
 | 7 | J (contributions), then G item by item as the owner hits problems | small, ongoing |
 | 8 | H and I if the owner wants them | optional |
@@ -432,4 +432,27 @@ removals of obsolete glyph scripts).
   every name they add exists.
 - Not here: the characters update that persists spell charges and the September proc / condition clean-ups that do
   not touch class scripts (phase 7).
+
+## Phase 5.1: Stormheim (2026-11-10)
+
+The 78 LegionCore-7.3.5 commits that touch a Stormheim script or SQL file (Rockaway Coast, in Highmountain, and Grey
+Shoals, in Azsuna, are left for their zones).
+- **Scripts**: the 42 new `Legion/stormheim_*.cpp` files and their headers (fleet missions with a durable checkpoint,
+  Greywatch, Skold-Ashil, Valor / Will / Might trials, Thorignir, grappling, Wings of Liberty, Dreadwake, Cry Thunder,
+  Runewood, Judgment Day, Faljar, Helheim: disguise, bargain, Sundered, Drowning Valkyra, Lifeblood, Heavy Burden,
+  Familiar Fate, Stem the Tide, Salvation...), `vrekt.h` / `vrekt_scene.h` (the Vrekt world quest), and
+  `zone_stormheim.cpp` (still the fork point's in Reforged: taken as is), all registered in `legion_script_loader.cpp`.
+- **Core**: `Player.cpp` (personal quest credit: the generic kill / talk credits of these quests are ignored, their
+  scripts credit the owner; Havi's Horde Thorignir handoff), `SpellEffects.cpp` (Impalement Insurance, Judgment Day bowls
+  and Wings of Liberty start only after the Opening spell passed the lock check), `SpellMgr` (grapple 182478 targets any
+  unit), `QuestData.cpp` (the Helarjar landings share world state 12678: a second zone may not overwrite an active one),
+  `Creature::IsNeverVisible` now asks the AI's `CanBeVisibleFor` (the hook from phase 3.6 was declared but never called;
+  also the suspended AI during a charm), CharacterDatabase statements for `character_stormheim_mission`. Already in from
+  earlier phases: the scenario 824 / 826 reward skip, `DamageTakenAfterScaling` with the suspended AI, the lifecycle
+  update with the suspended AI.
+- SQL: world `2026_11_12_26..99`, `2026_11_13_00..01` (76 files: every `stormheim_*` update, the Lost Army / Helarjar /
+  Vrekt world quests, Runeseer Faljar's reward quest, the lesser Val'kyr model), all verbatim on the MySQL 8 copy (no
+  guards); characters `2026_11_10_00_lc735_stormheim_mission.sql` (the mission checkpoint table, `CREATE TABLE IF NOT
+  EXISTS`). Every script name they use exists.
+- Note: neither fork deletes a character's `character_stormheim_mission` rows with the character (harmless leftovers).
 

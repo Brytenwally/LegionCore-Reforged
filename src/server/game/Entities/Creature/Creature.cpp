@@ -2629,8 +2629,14 @@ bool Creature::CanAlwaysSee(WorldObject const* obj) const
     return IsAIEnabled && AI() && AI()->CanSeeAlways(obj);
 }
 
-bool Creature::IsNeverVisible(WorldObject const* /*seer*/) const
+bool Creature::IsNeverVisible(WorldObject const* seer) const
 {
+    // per-viewer content policies (LegionCore-7.3.5): the AI may hide its creature from some players; the original
+    // AI keeps that say while a charm has suspended it
+    if (AI() && !AI()->CanBeVisibleFor(seer))
+        return true;
+    if (i_disabledAI && i_disabledAI != i_AI && !static_cast<CreatureAI*>(i_disabledAI)->CanBeVisibleFor(seer))
+        return true;
     return WorldObject::IsNeverVisible();
 }
 

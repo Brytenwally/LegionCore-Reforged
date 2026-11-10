@@ -3595,6 +3595,15 @@ void Spell::EffectOpenLock(SpellEffIndex effIndex)
     uint32 lockId = 0;
     ObjectGuid guid;
 
+    // Impalement Insurance must consume its goober only after the native
+    // opening spell and lock validation succeed. Direct GO Use cannot prove
+    // that the client's dismantling cast completed.
+    if (gameObjTarget && gameObjTarget->GetEntry() == 251257 &&
+        gameObjTarget->GetMapId() == 1220 && gameObjTarget->GetZoneId() == 7541 &&
+        sObjectMgr->GetScriptName(gameObjTarget->GetScriptId()) == "go_stormheim_impalement" &&
+        gameObjTarget->AI()->GossipHello(player, true))
+        return;
+
     if (gameObjTarget)
     {
         if (player->IsPlayerLootCooldown(gameObjTarget->GetEntry(), TYPE_GO, player->GetMap()->GetDifficultyID()) || player->IsPlayerLootCooldown(gameObjTarget->GetGUIDLow(), TYPE_GUID, player->GetMap()->GetDifficultyID()))
@@ -3694,6 +3703,27 @@ void Spell::EffectOpenLock(SpellEffIndex effIndex)
         sObjectMgr->GetScriptName(gameObjTarget->GetScriptId()) == "go_tuure_crate" &&
         gameObjTarget->AI()->GossipHello(player, true))
         return;
+
+    // The three Judgment Day bowls must start their private ritual only after
+    // this opening effect passed the native lock check, never from report-use.
+    if (gameObjTarget && gameObjTarget->GetMapId() == 1220 && gameObjTarget->GetZoneId() == 7541 &&
+        ((gameObjTarget->GetEntry() == 241864 && gameObjTarget->GetDBTableGUIDLow() == 115119) ||
+         (gameObjTarget->GetEntry() == 241868 && gameObjTarget->GetDBTableGUIDLow() == 115115) ||
+         (gameObjTarget->GetEntry() == 241869 && gameObjTarget->GetDBTableGUIDLow() == 115152)) &&
+        sObjectMgr->GetScriptName(gameObjTarget->GetScriptId()) == "go_stormheim_judgment" &&
+        gameObjTarget->AI()->GossipHello(player, true))
+        return;
+
+    // Wings of Liberty consumes a private rescue only after the ordinary
+    // Opening hit and native lock check. Direct/report-use is not completion.
+    if (gameObjTarget && m_spellInfo->Id == 3365 && gameObjTarget->GetMapId() == 1220 &&
+        gameObjTarget->GetZoneId() == 7541 &&
+        sObjectMgr->GetScriptName(gameObjTarget->GetScriptId()) == "go_stormheim_wings" &&
+        gameObjTarget->AI()->GossipHello(player, true))
+    {
+        TC_LOG_DEBUG("scripts", "Wings of Liberty: native Opening dispatch");
+        return;
+    }
 
     if (gameObjTarget)
         SendLoot(guid, LOOT_SKINNING);
