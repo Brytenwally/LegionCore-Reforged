@@ -57,7 +57,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | 2 | B shared support. **Done 2026-11-09**: artifact force-equip (`Spell::EffectForceEquipItem`), post-scaling damage hooks (`InstanceScript::OnCreatureDamageTaken`, `UnitAI::DamageTakenAfterScaling`), SmartAI scenario-step conditions on the base actor (371 conditions), the artifact chests (`go_artifact_acquisition`, real loot only, shop copies replay the event), scenario checkpoints across logouts (see below), scene instance retirement (`Player::SendSpellScene` / `SceneCompleted` / `TrigerScene`), Netherlight Crucible validation and empowerment right after a power purchase (`ArtifactHandler`) | medium (core merges) |
 | 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones. **Done 2026-11-09** (see "Phase 4") | medium |
-| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1"), **5.2 Highmountain done 2026-11-10** (see "Phase 5.2") | large |
+| 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1"), **5.2 Highmountain done 2026-11-10** (see "Phase 5.2"), **5.3 Val'sharah done 2026-11-10** (see "Phase 5.3") | large |
 | 6 | E + F: raid / dungeon and loot fixes | medium |
 | 7 | J (contributions), then G item by item as the owner hits problems | small, ongoing |
 | 8 | H and I if the owner wants them | optional |
@@ -473,4 +473,24 @@ The 42 LegionCore-7.3.5 commits that touch a Highmountain script or SQL file, wi
 - SQL: world `2026_11_13_02..41` (40 files: every `highmountain_*` update, the Highmountain epic and Broken Isles subzone
   world quests, Freeing the Taken credit, Rockaway Coast, Thunder Totem admission, Addie's hunting), all verbatim on the
   MySQL 8 copy (no guards). The Helarjar fragment counts came with 5.1. Every script name they use exists.
+
+## Phase 5.3: Val'sharah (2026-11-10)
+
+The 5 LegionCore-7.3.5 commits that touch a Val'sharah script or SQL file.
+- **Scripts**: `Legion/valsharah_quest_support.cpp` (objective data, faction progression), `valsharah_tyrande_handoff.cpp`
+  (post-corruption Tyrande handoff for both factions), `valsharah_finale.cpp` (searches and Ysera's combat instead of
+  automatic credit), `valsharah_rituals.cpp` (ritual timing, owner escort, personal defense waves), registered in
+  `legion_script_loader.cpp`; `zone_valsharah.cpp` has no LegionCore-7.3.5 change. Darkheart Thicket: Malfurion leaves
+  the Shade of Xavius' vehicle before it is torn down, his teleport gossip only after the boss is dead (out of combat,
+  alive, no vehicle), and the door table gets its terminator (Reforged had already fixed the jump call).
+- **Core**: none new; the delayed actions guarded across abandon / re-accept (`Player::AddQuestDelayedEvent`) came with
+  phase 3.4.
+- SQL: world `2026_11_13_42..45` (chain, Tyrande handoff, finale, rituals), all verbatim on the MySQL 8 copy; characters
+  `2026_11_10_01_lc735_valsharah_objective_storage.sql` (moves saved progress of 39384 / 40573 to the new objective
+  slots and makes 38582 incomplete for whoever has it in progress: its shared plant / boss counter cannot prove the boss
+  kill; Reforged's old slots are the ones it expects, checked) and `2026_11_10_02_lc735_valsharah_finale_progress.sql`
+  (drops the automatic credit the old scripts gave in 38687 / 41763 / 38743 to quests not yet turned in). Both ran on a
+  characters database built from `sql/base` and the updates.
+- Left for 5.4: `EyeofAzshara/eye_of_azshara_quests.cpp` (new in LegionCore-7.3.5; Dalaran pads, the Highmountain hammer
+  credit and the Eye quests), which `301ffe62` also touches.
 

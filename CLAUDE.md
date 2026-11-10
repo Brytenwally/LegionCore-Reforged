@@ -415,6 +415,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - **Phase 5.2, Highmountain** (2026-11-10, details in the plan): 23 new Highmountain scripts, Rockaway Coast, the Hag Feathers
   stack hotfix and Addie's hunting credit, SQL world `2026_11_13_02..41` (checked on MySQL 8). Compiled; untested in game.
   Owner, 2026-11-10: finish all of phase 5 (Val'sharah, Azsuna) before the next build and test.
+- **Phase 5.3, Val'sharah** (2026-11-10, details in the plan): 4 new Val'sharah scripts, the Darkheart Thicket escape, SQL world
+  `2026_11_13_42..45` and characters `2026_11_10_01..02` (objective slot migration; checked on MySQL 8). Compiled; untested
+  in game. The container's MySQL 8 stops between turns: `<scratchpad>/my8start.sh` restarts it.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
