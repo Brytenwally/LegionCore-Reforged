@@ -18594,6 +18594,7 @@ void Player::PrepareQuestMenu(ObjectGuid guid)
     for (QuestRelations::const_iterator i = objectQIR.first; i != objectQIR.second; ++i)
     {
         uint32 quest_id = i->second;
+        RefreshQuestCompletion(quest_id);
         QuestStatus status = GetQuestStatus(quest_id);
         if (status == QUEST_STATUS_COMPLETE)
             qm.AddMenuItem(quest_id, 4);
@@ -20744,6 +20745,40 @@ uint16 Player::GetReqKillOrCastCurrentCount(uint32 quest_id, int32 entry)
     return 0;
 }
 
+// An incomplete quest whose counters are all met (or whose items are all in the bags) was left incomplete: the
+// completion check only runs when a counter changes, and some paths leave the counter behind the bags (an item removed
+// from one quest's count but not re-added, a script setting a counter directly). The turn-in then showed the items
+// but refused to complete. Called where a turn-in starts; raises item counters only, never lowers them.
+bool Player::RefreshQuestCompletion(uint32 questId)
+{
+    Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
+    if (!quest)
+        return false;
+
+    QuestStatusData* status = getQuestStatus(questId);
+    if (!status || status->Status != QUEST_STATUS_INCOMPLETE)
+        return false;
+
+    if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
+    {
+        for (QuestObjective const& obj : quest->GetObjectives())
+        {
+            if (obj.Type != QUEST_OBJECTIVE_ITEM || (obj.Flags & QUEST_OBJECTIVE_FLAG_OPTIONAL))
+                continue;
+
+            int32 const held = int32(std::min(GetItemCount(obj.ObjectID, false), uint32(obj.Amount)));
+            if (held > GetQuestObjectiveData(quest, obj.StorageIndex))
+                SetQuestObjectiveData(quest, &obj, held);
+        }
+    }
+
+    if (!CanCompleteQuest(questId))
+        return false;
+
+    CompleteQuest(questId);
+    return GetQuestStatus(questId) == QUEST_STATUS_COMPLETE;
+}
+
 void Player::AdjustQuestReqItemCount(Quest const* quest)
 {
     if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
@@ -21012,8 +21047,8 @@ void Player::ItemRemovedQuestCheck(uint32 entry, uint32 count)
                 {
                     SetQuestObjectiveData(qInfo, &obj, newItemCount);
                     IncompleteQuest(questid);
-                    return;
                 }
+                break;  // next quest: several quests in the log may ask for the same item
             }
         }
     }

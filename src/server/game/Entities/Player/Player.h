@@ -1981,6 +1981,8 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void AddQuest(Quest const* quest, Object* questGiver);
         void CompleteQuest(uint32 quest_id);
         void IncompleteQuest(uint32 quest_id);
+        // Completes an incomplete quest whose objectives are in fact met (item objectives counted from the bags)
+        bool RefreshQuestCompletion(uint32 questId);
         int32 GetQuestMoneyReward(Quest const* quest) const;
         uint32 GetQuestXPReward(Quest const* quest);
         bool CanSelectQuestPackageItem(QuestPackageItemEntry const* questPackageItem) const;

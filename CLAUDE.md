@@ -428,6 +428,18 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   (characters `2026_11_10_00..04`, world from `2026_11_11_45` on). Fixed by removing the second registration. **Rule: after
   merging or copying scripts, run `python3 docs/tools/check_script_names.py`** (script names registered twice anywhere, loaders
   calling an `AddSC_` twice; 0 problems over 7,205 names after the fix): the compiler cannot see this, only the server at startup.
+- **Quests that will not turn in although done** (owner, build #38, 2026-11-10: "Ritual Reagents", 42128, and others: all items
+  in the bags, quest log complete, turn-in refused). The server re-checks completion only when an objective counter changes
+  (`ItemAddedQuestCheck`, kill credit...), so a quest left `QUEST_STATUS_INCOMPLETE` while its counters are met (or whose item
+  counter lags behind the bags) stays stuck: the NPC answers with the request-items window and a greyed Complete button
+  (`HandleQuestgiverCompleteQuest` -> `CanRewardQuest` false), while the client, which reads the counters / bags, shows it done.
+  One way in: `ItemRemovedQuestCheck` returned after the first quest it lowered, so other quests needing the same item kept stale
+  counters (now `break`, next quest). Fix (core, no data change): `Player::RefreshQuestCompletion(questId)` raises a delivery
+  quest's item counters to what the bags hold (never lowers them) and completes the quest when `CanCompleteQuest` passes; called
+  when an NPC's quest menu is built (`PrepareQuestMenu`, its turn-in quests) and when a turn-in starts. The quest giver's icon is
+  not refreshed (status queries stay side-effect free): a stuck quest may show a grey "?" until the NPC is clicked. Compiled;
+  untested in game. The worldserver log prints every turn-in click (`CMSG_QUESTGIVER_COMPLETE_QUEST npc = ..., questId = ...`):
+  ask for those lines if a quest still refuses.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

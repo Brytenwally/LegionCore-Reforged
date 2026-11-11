@@ -704,6 +704,9 @@ void WorldSession::HandleQuestgiverCompleteQuest(WorldPackets::Quest::QuestGiver
             if (bg->GetTypeID() == MS::Battlegrounds::BattlegroundTypeId::BattlegroundAlteracValley)
                 ((BattlegroundAlteracValley*)bg)->HandleQuestComplete(packet.QuestID, _player);
 
+    // objectives met but the quest left incomplete: complete it now rather than greying out the turn-in
+    _player->RefreshQuestCompletion(packet.QuestID);
+
     if (_player->GetQuestStatus(packet.QuestID) != QUEST_STATUS_COMPLETE)
     {
         if (quest->IsRepeatable())
