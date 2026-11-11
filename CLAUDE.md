@@ -440,6 +440,22 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   not refreshed (status queries stay side-effect free): a stuck quest may show a grey "?" until the NPC is clicked. Compiled;
   untested in game. The worldserver log prints every turn-in click (`CMSG_QUESTGIVER_COMPLETE_QUEST npc = ..., questId = ...`):
   ask for those lines if a quest still refuses.
+- **Quest objective counting check** (owner, 2026-11-11: "Gold Dust Exchange" (47) turns in with 12 Gold Dust, not 10).
+  Its data is right (one objective, 773 x10); the code counted the **bank** when a quest was accepted (`AdjustQuestReqItemCount`,
+  `GetItemCount(id, true)`) but only the bags everywhere else and at turn-in (`CanRewardQuest`), so items in the bank completed a
+  quest its turn-in then refused. Now bags only. Database scan against TrinityCore's **TDB 735.00** `quest_objectives` (7.3 data,
+  loaded into a `tdb735` database next to the MySQL 8 copy; the base dump's rows into `base_world` to tell untouched rows from
+  ones an update changed): (1) **storage slots shared by two objectives** in 20 quests (one counter served both, so kills / loot
+  for one filled or overwrote the other); 16 fixed from TDB 735 (its slots, two retargeted objectives, 7.0 beta leftovers with no
+  spawn removed), 32482 / 37164 / 37167 left (TDB 735 shares the same slots: Blizzard data), 41798 left (no 7.3 data; its two
+  objectives ask 0). Quest 42920's two TDB objectives on creatures with no spawn were not added. (2) 79 **amounts** still at their
+  7.0 / 7.1 values (profession and world quests, Draenor's Sealing Fate / Legion's Leyline Feed currencies...), from the base dump,
+  never changed by an update, same target in TDB 735 (progress-bar objectives excluded: `TaskStep` weights depend on the amount).
+  `sql/updates/world/2026_11_14_00_quest_objective_counting.sql`; characters `2026_11_10_05_quest_objective_storage.sql` moves
+  saved counters to the new slots (a counter from a shared slot or a removed objective is dropped, such a quest goes back to
+  incomplete; rewarded quests untouched; tested on a characters database with made-up progress). Not changed (reported only):
+  ~200 objectives whose type or target differs from TDB 735 (scripts credit the targets in our data), ~70 amounts set by Reforged /
+  LegionCore-7.3.5 updates, and zero-amount objectives (always complete, harmless). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

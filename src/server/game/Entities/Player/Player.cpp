@@ -20791,7 +20791,9 @@ void Player::AdjustQuestReqItemCount(Quest const* quest)
             if (obj.Flags & QUEST_OBJECTIVE_FLAG_OPTIONAL)
                 continue;
 
-            SetQuestObjectiveData(quest, &obj, std::min(GetItemCount(obj.ObjectID, true), uint32(obj.Amount)));
+            // bags only, as every other quest item count and the turn-in check (CanRewardQuest): counting the bank here
+            // completed a quest at accept that its turn-in then refused
+            SetQuestObjectiveData(quest, &obj, std::min(GetItemCount(obj.ObjectID, false), uint32(obj.Amount)));
         }
     }
 }
