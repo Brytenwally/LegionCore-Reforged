@@ -19,6 +19,38 @@ Found a bug, a broken quest or something missing from Legion? Please open an
 [issue](https://github.com/DemonCore-Legion/DemonCore/issues): every report helps. Say what you did, what you expected and
 what happened, with the quest, NPC or spell name (or id) and any worldserver log lines.
 
+## Installation
+
+**Ready-made Windows build:** download the latest package from
+[DemonCore-Build](https://github.com/DemonCore-Legion/DemonCore-Build) (Actions or Releases) and follow its README. It
+holds the servers, the extractors, `mysql.exe` and the `sql` folder, so you can skip the compiling steps below.
+
+**Building it yourself:** follow TrinityCore's guides, which apply to DemonCore:
+
+1. [Requirements](https://www.trinitycore.info/en/install/requirements) for
+   [Windows](https://www.trinitycore.info/en/install/requirements/windows),
+   [Linux](https://www.trinitycore.info/en/install/requirements/linux) or
+   [macOS](https://www.trinitycore.info/en/install/requirements/macos)
+2. [Core installation](https://www.trinitycore.info/en/install/Core-Installation)
+3. [Server setup](https://www.trinitycore.info/en/install/Server-Setup) (databases, configuration files)
+
+DemonCore differs from current TrinityCore on these points:
+
+- **Branch `main`** of this repository, not TrinityCore's `master` or `3.3.5`.
+- **Boost 1.78 to 1.86.** The core still uses `io_service`, which Boost 1.87 removed, so newer Boost does not
+  compile. On Windows, use Visual Studio 2022 with Boost 1.84, as the official build does; Boost 1.84 does not
+  support Visual Studio 2026.
+- **Database names:** the world and hotfixes databases must be named `world_legion` and `hotfixes_legion`, because
+  the SQL updates refer to them by name. Set `WorldDatabaseInfo` and `HotfixDatabaseInfo` in `worldserver.conf`
+  accordingly. `auth` and `characters` keep their usual names.
+- **Database setup:** set `SourceDirectory` (the source folder, or `.` for the Windows package) and `MySQLExecutable`
+  in `worldserver.conf` and `bnetserver.conf`. With `Updates.AutoSetup = 1`, the servers fill empty databases from
+  `sql/base` and apply `sql/updates`. There is no separate database download.
+- **Client:** Legion 7.3.5, build 26972. Connect it with the `connection_patcher` built alongside the servers.
+- **Modules:** put a module in `modules/<name>` before running CMake, e.g.
+  `git clone https://github.com/DemonCore-Legion/DemonCore-Playerbots.git modules/mod-playerbots`. Copy its
+  `.conf.dist` to `.conf` next to `worldserver.conf`.
+
 ## Data Files
 This core has been updated with tools to generate all required data files.
 
