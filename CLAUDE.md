@@ -25,8 +25,8 @@ lines), the README's thanks list, and **already-applied SQL update files** (the 
 In these notes "Reforged" often still means our core. Local clones in a session may keep their old folder names.
 **Done by the owner 2026-11-12: the organization is `DemonCore-Legion`** (not `DemonCore`, as first written). Sessions need the
 Claude GitHub App installed on that organization to push. Icons: `worldserver.exe` / `bnetserver.exe` take theirs from
-`src/server/<server>/<server>.ico` (named in `<server>.rc`); `bnetserver.ico` is the owner's DemonCore artwork (6 sizes, 256-16 px,
-made with Pillow from his image). The extractors and `connection_patcher.exe` have no icon.
+`src/server/<server>/<server>.ico` (named in `<server>.rc`); both `.ico` files are the owner's DemonCore artwork (blue
+bnetserver, red worldserver; 6 sizes, 256-16 px, made with Pillow from their images). The extractors and `connection_patcher.exe` have no icon.
 
 ## Owner's decisions so far
 
