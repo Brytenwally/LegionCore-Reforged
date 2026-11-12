@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Notes for Claude sessions working on LegionCore-Reforged (Brytenwally's fork). **Keep this file
+Notes for Claude sessions working on DemonCore (formerly LegionCore-Reforged, Brytenwally's fork). **Keep this file
 up to date** with anything future sessions need, in the same commit as the change.
 
 ## What this is
@@ -9,6 +9,20 @@ A WoW Legion 7.3.5 (build 26972) server, from the 2020 UWOW leak by way of upstr
 forked from Apheleos' LegionCore-Reforged. The owner chose it as the base for a Legion server
 with **modules** (like SkyFire / AzerothCore) and, step by step, a **playerbots** module.
 Full features take months; the owner wants baby steps, one working milestone at a time.
+
+## Naming (owner, 2026-11-12)
+
+The project is **DemonCore**, owned by the GitHub organization **DemonCore**: core `DemonCore/DemonCore` (was
+`Brytenwally/LegionCore-Reforged`), module `DemonCore/DemonCore-Playerbots` (was `Brytenwally/LegionCore-Playerbots`), build
+`DemonCore/DemonCore-Build` (was `Brytenwally/LegionCore-Build`). The organization and the transfers are made by the owner on
+github.com (no tool here creates organizations or renames repositories); GitHub redirects the old names afterwards, not the new
+ones before. Owner's scope: every mention of our own project becomes DemonCore, **including the file headers** (the
+`///  LEGIONCORE REFORGED  ///` line of 286 headers now reads `DEMONCORE`; their "Copyright 2026 Titans-Project" and TrinityCore
+lines stay; expect merge conflicts on those lines when merging upstream Reforged). What keeps the old name, because it names
+other projects or credits them: upstream **LegionCore - Reforged** (Titans-Project / Apheleos) and upstream LegionCore, the
+**LegionCore-7.3.5** fork we port from (its repository, `docs/legioncore-735-*`, the "Ported from Brytenwally/LegionCore-7.3.5"
+lines), the README's thanks list, and **already-applied SQL update files** (the updater re-runs a file whose hash changes).
+In these notes "Reforged" often still means our core. Local clones in a session may keep their old folder names.
 
 ## Owner's decisions so far
 
@@ -35,13 +49,13 @@ Full features take months; the owner wants baby steps, one working milestone at 
 
 - **Update the CLAUDE.md files as you go** (owner, 2026-11-03): every time a problem is resolved
   or something new is learned about how the core, the database or the module works, write it
-  into the relevant CLAUDE.md (this one for the core/project, LegionCore-Playerbots' for the
-  module, LegionCore-Build's for the build) **in the same commit as the fix**, without being
+  into the relevant CLAUDE.md (this one for the core/project, DemonCore-Playerbots' for the
+  module, DemonCore-Build's for the build) **in the same commit as the fix**, without being
   asked: the cause, the evidence that found it, and the rule that follows. Also record each
   runtime test result the owner reports (what works, on which build).
 
 - Commit and push straight to `main`. No feature branches or PRs unless the owner asks.
-- **Do not start Windows builds (LegionCore-Build workflow) on your own** (owner, 2026-11-05): push
+- **Do not start Windows builds (DemonCore-Build workflow) on your own** (owner, 2026-11-05): push
   the change, say it is ready, and run the workflow only when the owner asks for a build.
 - Commit messages: imperative subject, body explaining what and why. No model names in
   commits.
@@ -62,9 +76,9 @@ These are the ones this project writes to (commit and push to `main`).
 
 | Repo | Role |
 | --- | --- |
-| `Brytenwally/LegionCore-Reforged` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
-| `Brytenwally/LegionCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out, teleport and follow summons (`.playerbots add/remove/list`, verified on the owner's server), no AI yet. |
-| `Brytenwally/LegionCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
+| `DemonCore/DemonCore` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
+| `DemonCore/DemonCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out, teleport and follow summons (`.playerbots add/remove/list`, verified on the owner's server), no AI yet. |
+| `DemonCore/DemonCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
 
 ## Related repositories
 
@@ -213,7 +227,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - Cross-thread player access on this core: `ObjectAccessor::PostToPlayer(guid, fn)` (runs in the
   player's own update), `WithPlayer` (short reads under the accessor lock). `FindPlayer` pointers
   are only safe on the player's own map thread.
-- Lessons from the first bot features (details in LegionCore-Playerbots' `CLAUDE.md`):
+- Lessons from the first bot features (details in DemonCore-Playerbots' `CLAUDE.md`):
   - An invite from a player outside any group makes a **pending group with an empty guid**
     until someone accepts (`HandlePartyInvite` -> `AddLeaderInvite`; the leader guid is set).
   - The database has **class/race copies of quests** (same title and `QuestSortID`, one per
@@ -261,7 +275,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   `JoinBattlegroundQueue` / `HandleBattleFieldPort` on the player's thread. `Battleground::BgObjects` / `BgCreatures` are
   public; a capture point's owner is its `GAMEOBJECT_FIELD_SPELL_VISUAL_ID` (`UpdateCapturePoint`); flag captures are
   server-side area trigger checks (`_CheckPositions`); `GetTypeID(true)` is the real map's type, `GetTypeID()` the queued
-  one (random). Details in LegionCore-Playerbots' `CLAUDE.md`, "Battlegrounds".
+  one (random). Details in DemonCore-Playerbots' `CLAUDE.md`, "Battlegrounds".
 - Upstream merge `8434fb9` (Titans-Project PR #4, 2026-11-06: Mardum demon hunter intro, quest package rewards,
   login talent and level-achievement fixes, removal of the original server's custom events, license headers):
   checked against the module the same day: every module hook survives, no API it uses changed, all 14 module files
@@ -476,7 +490,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 
 ## Building
 
-- Windows: `Brytenwally/LegionCore-Build` workflow (step 0). First green build 2026-11-01
+- Windows: `DemonCore/DemonCore-Build` workflow (step 0). First green build 2026-11-01
   (run #3: core `56ca66e` + playerbots `5680c13`, both modules compiled in, ~25 min). Runs on `windows-2022`: Boost must
   stay 1.84 (the core uses `io_service` / `io_context::strand`, removed in Boost 1.87) and
   Boost 1.84 does not know VS 2026. See that repo's `CLAUDE.md`.
@@ -495,7 +509,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   works normally and the playerbots fill gets its time.
 - Owner's local setup (2026-11-02): `D:\Legion Repack` holds the binaries, confs, a portable
   `mysql-8.0.44-winx64` started by a `start_mysql.bat` (root/admin on 127.0.0.1:3306, my.ini
-  written by the bat), the source in `LegionCore-Reforged-main` (`SourceDirectory`), and
+  written by the bat), the source in `DemonCore-main` (`SourceDirectory`; `LegionCore-Reforged-main` before the rename, see "Naming"), and
   `ClientData` from an `extract_data.bat` run in the client folder. Logging appenders use flag
   1 (timestamps).
 - Linux quick check: `apt-get install cmake g++ libboost-all-dev libssl-dev libmysqlclient-dev
@@ -576,11 +590,11 @@ graveyard, gear from a pool, group join, follow); "no autonomous state machine".
 ### Steps (each one a build and a test on the owner's server)
 | # | Result | Test |
 | --- | --- | --- |
-| 4.1 | **Done 2026-11-05 with 4.2** (works on the owner's server, build #17) (see LegionCore-Playerbots' `CLAUDE.md`, "Combat"). Combat skeleton, no spells: role from the spec (`ChrSpecializationEntry` role), targeting rules above (never pull, 1.2 s delay, 30 yd), `Attack` + chase (melee) or stay at range (casters), back to follow after combat; `attack` order (owner's target), assist modes by order (`assist full|defend|passive`) | bot melees what attacks the group, never pulls |
+| 4.1 | **Done 2026-11-05 with 4.2** (works on the owner's server, build #17) (see DemonCore-Playerbots' `CLAUDE.md`, "Combat"). Combat skeleton, no spells: role from the spec (`ChrSpecializationEntry` role), targeting rules above (never pull, 1.2 s delay, 30 yd), `Attack` + chase (melee) or stay at range (casters), back to follow after combat; `attack` order (owner's target), assist modes by order (`assist full|defend|passive`) | bot melees what attacks the group, never pulls |
 | 4.2 | **Done 2026-11-05 (build #17): AshamaneCore's 36-spec table instead of writing specs one by one.** `BotCast` + per-spec rotation table (priority list of conditions) + log of each cast/refusal (like the quest logs); first specs: LegionBotAI's DPS (Fury Warrior, Frost DK, Ret/Prot Paladin, rogue) **plus Warlock** (the owner's test bot; not in LegionBotAI) | bot casts its rotation; log shows why a spell is skipped |
-| 4.3 | **Built 2026-11-05, untested** (LegionCore-Playerbots' `CLAUDE.md`, "Combat"). Healers: lowest-HP ally among group members on the bot's map, triage, Holy Priest / Holy Paladin from LegionBotAI, dispel, beacons / Prayer of Mending | healer keeps the group up |
-| 4.4 | **Built 2026-11-05, untested** (LegionCore-Playerbots' `CLAUDE.md`, "Combat"). Tanks: Blood DK rotation, taunt mobs off teammates, `player tank` order; interrupts per spec | tank holds mobs |
-| 4.5 | **Built 2026-11-05, untested** (LegionCore-Playerbots' `CLAUDE.md`, "Survival"). Defensives and potions from bags; regen out of combat (SkyFire eat/drink) | low HP handled |
+| 4.3 | **Built 2026-11-05, untested** (DemonCore-Playerbots' `CLAUDE.md`, "Combat"). Healers: lowest-HP ally among group members on the bot's map, triage, Holy Priest / Holy Paladin from LegionBotAI, dispel, beacons / Prayer of Mending | healer keeps the group up |
+| 4.4 | **Built 2026-11-05, untested** (DemonCore-Playerbots' `CLAUDE.md`, "Combat"). Tanks: Blood DK rotation, taunt mobs off teammates, `player tank` order; interrupts per spec | tank holds mobs |
+| 4.5 | **Built 2026-11-05, untested** (DemonCore-Playerbots' `CLAUDE.md`, "Survival"). Defensives and potions from bags; regen out of combat (SkyFire eat/drink) | low HP handled |
 | 4.6 | Remaining specs one class at a time (all 36 + DH), in the order the owner plays them | per spec |
 
 Owner's decisions (2026-11-03):
@@ -597,12 +611,12 @@ Owner's decisions (2026-11-03):
 
 | Step | Result | Size |
 | --- | --- | --- |
-| 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `LegionCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
+| 0 | **Done 2026-11-01** (green Windows build). Windows build workflow in `DemonCore-Build` (pattern: SkyFire-build; match Reforged's Boost/OpenSSL/MySQL requirements) | ~1 session |
 | 1 | **Done 2026-11-01** (see above; verified on the owner's server 2026-11-02: both modules log at startup). Module system: CMake also lists `modules/<name>/src` as script modules (`Add<name>Scripts`), module `.conf.dist` copied and loaded, module SQL (create tables from code at startup like mod-destiny-weaver, or hook the DB updater later), a hello-world module, `modules/README.md` | 1-2 sessions |
 | 2 | **Done 2026-11-02** (see "Bot sessions"; verified on the owner's server with build #5, core `b1befd3`). Bot session core hooks: ticking socketless sessions, `WorldSession::IsBot()`, logout/save, normal teleports | 2-4 sessions |
-| 3 | **Group/orders/quests part done** (verified on the owner's server 2026-11-03, builds #10-#14: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave, quest mirroring incl. class and previous-quest copies, manual quest orders). Strategy engine still to port. Port the SkyFire-playerbots skeleton into `LegionCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
+| 3 | **Group/orders/quests part done** (verified on the owner's server 2026-11-03, builds #10-#14: group invite, follow, stay/follow by whisper and party chat, summon across maps, leave, quest mirroring incl. class and previous-quest copies, manual quest orders). Strategy engine still to port. Port the SkyFire-playerbots skeleton into `DemonCore-Playerbots`: `.playerbots add/remove/list`, group, follow/formation, whisper orders, `co`/`nc` strategy engine. Translate uint64 guids to `ObjectGuid` (128-bit), Legion API names; drop glyphs and hit/expertise caps | 1-2 weeks of sessions |
 | 4 | Combat, from LegionBotAI (see "Combat plan"): targeting rules, `BotCast`, per-spec rotations, healers, tanks, interrupts | ~1-2 weeks |
-| 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits. **Started 2026-11-05** (owner's request, for testing): `.playerbots create <class> [spec]` (bot accounts, character creation, init to the creator's level), stat-weight gear (Ask Mr. Robot scales from Pawn) by `autogear`, `talents` order; see LegionCore-Playerbots' `CLAUDE.md`. **Dungeon finder built 2026-11-05, untested**: party bots answer role checks and proposals, idle pool bots fill missing roles of a queued player after 30 s (core accessors `LFGMgr::GetQueueIds` / `GetRoleCheckRoles` / `GetPendingProposal`, topic commit "Add LFG accessors for modules"); also `.playerbots self` and formations. Loot rolls, bonus IDs, tiers and artifacts still to do | ~1-2 weeks |
+| 5 | LFG, loot rolls, gear init by item level/bonus IDs within the `Game.Patch` tier, artifact weapon + traits. **Started 2026-11-05** (owner's request, for testing): `.playerbots create <class> [spec]` (bot accounts, character creation, init to the creator's level), stat-weight gear (Ask Mr. Robot scales from Pawn) by `autogear`, `talents` order; see DemonCore-Playerbots' `CLAUDE.md`. **Dungeon finder built 2026-11-05, untested**: party bots answer role checks and proposals, idle pool bots fill missing roles of a queued player after 30 s (core accessors `LFGMgr::GetQueueIds` / `GetRoleCheckRoles` / `GetPendingProposal`, topic commit "Add LFG accessors for modules"); also `.playerbots self` and formations. Loot rolls, bonus IDs, tiers and artifacts still to do | ~1-2 weeks |
 | 6 | More specs (36 + Demon Hunter), random bot pool (accounts/characters to fill LFG, BG/arena queues), BG/arena | months |
 | 7 | **Last, by the owner's priority:** random bots' open-world activity (questing on their own, level-appropriate zones, grinding, wandering) | after everything else |
 

@@ -9,10 +9,10 @@
  #define _SOURCE_DIRECTORY          R"(@CMAKE_SOURCE_DIR@)"
  #define _BUILD_DIRECTORY           R"(@BUILDDIR@)"
  #define _MYSQL_EXECUTABLE          R"(@MYSQL_EXECUTABLE@)"
- #define _FULL_DATABASE             "LegionCore_world_735.26972_2024_10_23.sql"
- #define _HOTFIXES_DATABASE         "LegionCore_hotfixes_735.26972_2024_10_23.sql"
- #define VER_COMPANYNAME_STR         "LegionCore"
- #define VER_LEGALCOPYRIGHT_STR      "(c)@rev_year@ LegionCore"
+ #define _FULL_DATABASE             "DemonCore_world_735.26972_2024_10_23.sql"
+ #define _HOTFIXES_DATABASE         "DemonCore_hotfixes_735.26972_2024_10_23.sql"
+ #define VER_COMPANYNAME_STR         "DemonCore"
+ #define VER_LEGALCOPYRIGHT_STR      "(c)@rev_year@ DemonCore"
  #define VER_FILEVERSION             0,0,0
  #define VER_FILEVERSION_STR         "@rev_hash@ @rev_date@ (@rev_branch@ branch)"
  #define VER_PRODUCTVERSION          VER_FILEVERSION

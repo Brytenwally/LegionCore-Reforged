@@ -1,8 +1,8 @@
 # output generic information about the core and buildtype chosen
 message("")
-message("* LegionCore")
+message("* DemonCore")
 if( UNIX )
-  message("* LegionCore")
+  message("* DemonCore")
 endif()
 message("")
 

@@ -3,9 +3,9 @@
 Guarded files (hash checks that SIGNAL on a mismatch) get their guard forced to pass: on the owner's server a
 failing guard would stop the database updater at startup. Their WHERE clauses and delete-then-insert patterns stay.
 usage: port_sql.py <prefix e.g. 2026_11_09> <first index> <lc file>..."""
-import re, sys, os
+import os, re, sys
 LC='/home/user/brytenwally/legioncore-7.3.5/sql/updates/world/'
-OUT='/home/user/LegionCore-Reforged/sql/updates/world/'
+OUT=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'sql', 'updates', 'world') + os.sep
 prefix, idx = sys.argv[1], int(sys.argv[2])
 for name in sys.argv[3:]:
     s = open(LC + name, encoding='utf8').read()

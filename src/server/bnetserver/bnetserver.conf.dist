@@ -1,5 +1,5 @@
 ##################################################
-# LegionCore Battlenet Server configuration file #
+# DemonCore Battlenet Server configuration file  #
 ##################################################
 [bnetserver]
 
@@ -148,9 +148,9 @@ WrongPass.Logging = 1
 
 #
 #    SourceDirectory
-#        Description: The path to your LegionCore source directory.
+#        Description: The path to your DemonCore source directory.
 #                     If the path is left empty, the built-in CMAKE_SOURCE_DIR is used.
-#        Example:     "../LegionCore"
+#        Example:     "../DemonCore"
 #        Default:     ""
 
 SourceDirectory  = ""

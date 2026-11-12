@@ -3034,7 +3034,7 @@ INSERT INTO `updates` VALUES ('2026_09_26_00_pvp_season_archive.sql','03EBEA0B3E
 INSERT INTO `updates` VALUES ('demon_invasion_phase4_progress.sql','862D45DB763AC7A02ADE0EFDB792E1A23DFBBB6F','ARCHIVED','2026-02-24 14:46:33',100);
 INSERT INTO `updates_include` VALUES ('$/sql/old/characters','ARCHIVED');
 INSERT INTO `updates_include` VALUES ('$/sql/updates/characters','RELEASED');
-INSERT INTO `version` VALUES ('LegionCore','','LegionCore Characters Database 2024-10-23');
+INSERT INTO `version` VALUES ('DemonCore','','DemonCore Characters Database 2024-10-23');
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;

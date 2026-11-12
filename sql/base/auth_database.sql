@@ -489,7 +489,7 @@ CREATE TABLE `uptime` (
   `startstring` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   `uptime` bigint unsigned NOT NULL DEFAULT '0',
   `maxplayers` smallint unsigned NOT NULL DEFAULT '0',
-  `revision` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'LegionCore',
+  `revision` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'DemonCore',
   PRIMARY KEY (`realmid`,`starttime`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPACT COMMENT='Uptime system';
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -536,8 +536,8 @@ INSERT INTO `updates` VALUES ('2026_08_29_00_raf_invite.sql','1FBA44C103CD39785E
 INSERT INTO `updates` VALUES ('2026_08_29_01_raf_invite_notified.sql','1017F9740E82E347FAB0A347D59CD62BAC1AA72B','ARCHIVED','2026-08-29 18:09:30',0);
 INSERT INTO `updates_include` VALUES ('$/sql/old/auth','ARCHIVED');
 INSERT INTO `updates_include` VALUES ('$/sql/updates/auth','RELEASED');
-INSERT INTO `version` VALUES ('LegionCore','','LegionCore Auth Database 2026');
-INSERT INTO `realmlist` VALUES (1,'LegionCore','127.0.0.1',8085,8086,1,0,0,1,0,0,26972,2,1,'127.0.0.1','255.255.255.0');
+INSERT INTO `version` VALUES ('DemonCore','','DemonCore Auth Database 2026');
+INSERT INTO `realmlist` VALUES (1,'DemonCore','127.0.0.1',8085,8086,1,0,0,1,0,0,26972,2,1,'127.0.0.1','255.255.255.0');
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;

@@ -1,5 +1,5 @@
 ###################################################
-# LegionCore World Server configuration file      #
+# DemonCore World Server configuration file       #
 ###################################################
 [worldserver]
 
@@ -342,7 +342,7 @@ RealmID = 1
 #    DataDir
 #        Directory of the data extracted from the client (maps, vmaps, mmaps, dbc).
 #        Important: Must be quoted, as the path might contain space characters.
-#        Example: "C:/LegionCore/ClientData"
+#        Example: "C:/DemonCore/ClientData"
 #        Default: "./ClientData"
 
 DataDir = "./ClientData"
@@ -458,7 +458,7 @@ ThreadPool = 2
 
 #
 #    SourceDirectory
-#        The path to your LegionCore source directory.
+#        The path to your DemonCore source directory.
 #        If the path is left empty, the built-in CMAKE_SOURCE_DIR is used.
 #        Default: ""
 
@@ -1041,7 +1041,7 @@ PlayerStart.String = ""
 #        Example: "Welcome to John\'s server@Have a nice adventure!"
 #        Default: "Welcome to a Trinity Core server."
 
-Motd = "Welcome to a LegionCore Server."
+Motd = "Welcome to a DemonCore Server."
 
 #
 #    Server.LoginInfo

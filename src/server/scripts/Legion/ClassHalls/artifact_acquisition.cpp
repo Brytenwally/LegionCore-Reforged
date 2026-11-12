@@ -1,5 +1,5 @@
 /*
- * This file is part of the LegionCore Project.
+ * This file is part of the DemonCore Project.
  *
  * Artifact acquisition: the pieces of Brytenwally/LegionCore-7.3.5's src/server/scripts/Legion/ClassHalls/
  * artifact_acquisition.cpp ported so far (2026-11-09), unchanged apart from the cuts noted:

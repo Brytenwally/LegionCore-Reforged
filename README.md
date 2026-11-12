@@ -1,6 +1,4 @@
-![LegionCore - Reforged](https://www.zupimages.net/up/26/09/uy23.png)
-
-# LegionCore - Reforged
+# DemonCore
 
 ## ❤️ Project Philosophy
 
@@ -29,7 +27,7 @@ Rather than a static copy baked with late-patch shortcuts, we implemented a **pr
 * [Thank you](#thank-you)
 
 #### Introduction
-LegionCore is a **MMORPG** framework for WOW Legion *(Build 26972)*. This core is based off of the UWOW core leak of 2020. Which was derived from an old version of [TrinityCore](https://github.com/TrinityCore/TrinityCore).
+DemonCore is a **MMORPG** framework for WOW Legion *(Build 26972)*. It is a fork of LegionCore - Reforged (Titans-Project), which is based off of the UWOW core leak of 2020. Which was derived from an old version of [TrinityCore](https://github.com/TrinityCore/TrinityCore).
 
 # Requirements
  
@@ -64,6 +62,6 @@ The generated folders `dbc`, `maps`, `vmaps`, `mmaps`, `cameras` and `gt` are al
   class's artifact acquisition questlines and scenarios, the SmartAI and scenario fixes behind them, and the careful
   audits that documented each one. Much of that work has been ported into this core.
  
-> **License: GPL 3.0** read [COPYING](https://github.com/Titans-Project/LegionCore-Reforged/blob/main/LICENSE).
+> **License: GPL 3.0** read [COPYING](https://github.com/DemonCore/DemonCore/blob/main/LICENSE).
 
 *Any commercial use of this code or the operation of a paid public server is strictly prohibited by the terms of use of the game's original license and by the ethical standards of this preservation project.*

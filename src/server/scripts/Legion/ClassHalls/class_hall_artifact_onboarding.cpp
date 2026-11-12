@@ -1,5 +1,5 @@
 /*
- * This file is part of the LegionCore Project.
+ * This file is part of the DemonCore Project.
  *
  * Ported from Brytenwally/LegionCore-7.3.5 (src/server/scripts/Legion/ClassHalls/class_hall_artifact_onboarding.cpp,
  * 2026-11-09), unchanged apart from this header.

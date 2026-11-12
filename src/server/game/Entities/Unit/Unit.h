@@ -1,6 +1,6 @@
 ////////////////////////////////////////////
 ///                                      ///
-///         LEGIONCORE REFORGED          ///
+///              DEMONCORE               ///
 ///    Copyright 2026 Titans-Project     ///
 ///         All Rights Reserved.         ///
 ///                                      ///

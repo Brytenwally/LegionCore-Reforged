@@ -56,8 +56,8 @@ namespace fs = boost::filesystem;
 #if TRINITY_PLATFORM == TRINITY_PLATFORM_WINDOWS
 #include "ServiceWin32.h"
 char serviceName[] = "bnetserver";
-char serviceLongName[] = "LegionCore bnet service";
-char serviceDescription[] = "LegionCore Battle.net emulator authentication service";
+char serviceLongName[] = "DemonCore bnet service";
+char serviceDescription[] = "DemonCore Battle.net emulator authentication service";
 /*
 * -1 - not in service mode
 *  0 - stopped
