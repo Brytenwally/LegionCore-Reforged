@@ -459,6 +459,18 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 - **Phase 6.1, Legion dungeons and raids** (2026-11-12, details in the plan): Trial of Valor (Helya, Odyn), Darkheart Thicket trash /
   hazards / Oakheart, Halls of Valor, aura fixes across the other Legion raids; scripts only, SQL world `2026_11_14_01..14` (checked on
   MySQL 8; `option` is reserved there, the port tool quotes it). Compiled; untested in game.
+- **Dark Whispers stage 4: leaders never came** (owner, build #40, 2026-11-12: Lady Tyrana / Pain Mistress Nikta did not spawn after the
+  third wave). Stage 4 is SmartAI on the wave controller "Wild Imps" 99739: wave 1 on arrival, each wave's last death sends data 1 1 /
+  2 2 (gated by "no other wave creature alive within 50 yd", `conditions` type 22 / 29 negated), which summons the next wave and counts
+  the scenario's waves criterion. The leaders came on data 3 3, sent by a wave creature dying while the two other wave-3 types were
+  alive within 50 yd **of its killer** (condition target 0 = the invoker): a ranged warlock or pet away from the others, or a first kill
+  after another type had died, never sent it, nothing sent it later, so no leaders (and, when it fired, it fired on the first wave-3
+  kill, not after the wave as on retail). Fix `sql/updates/world/2026_11_14_15_dark_whispers_leaders_after_wave_three.sql`: "3 3" senders
+  removed; wave death checks around the dying creature (target 1); the controller enters event phase 1 one second after summoning wave 3
+  (`CREATE_TIMED_EVENT` + `TIMED_EVENT_TRIGGERED`: a phase set inside the same data event would let the end-of-wave-2 message pass the
+  phase-1 rows later in the same event loop), summons both leaders on the next end-of-wave message (1 1 or 2 2) and goes to phase 2.
+  **Rule: SmartAI condition target 0 is the killer for death events; "is my group still alive" checks need target 1.** Checked on
+  MySQL 8; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
