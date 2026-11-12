@@ -62,6 +62,6 @@ The generated folders `dbc`, `maps`, `vmaps`, `mmaps`, `cameras` and `gt` are al
   class's artifact acquisition questlines and scenarios, the SmartAI and scenario fixes behind them, and the careful
   audits that documented each one. Much of that work has been ported into this core.
  
-> **License: GPL 3.0** read [COPYING](https://github.com/DemonCore/DemonCore/blob/main/LICENSE).
+> **License: GPL 3.0** read [COPYING](https://github.com/DemonCore-Legion/DemonCore/blob/main/LICENSE).
 
 *Any commercial use of this code or the operation of a paid public server is strictly prohibited by the terms of use of the game's original license and by the ethical standards of this preservation project.*

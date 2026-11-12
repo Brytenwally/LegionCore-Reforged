@@ -12,9 +12,9 @@ Full features take months; the owner wants baby steps, one working milestone at 
 
 ## Naming (owner, 2026-11-12)
 
-The project is **DemonCore**, owned by the GitHub organization **DemonCore**: core `DemonCore/DemonCore` (was
-`Brytenwally/LegionCore-Reforged`), module `DemonCore/DemonCore-Playerbots` (was `Brytenwally/LegionCore-Playerbots`), build
-`DemonCore/DemonCore-Build` (was `Brytenwally/LegionCore-Build`). The organization and the transfers are made by the owner on
+The project is **DemonCore**, owned by the GitHub organization **DemonCore-Legion**: core `DemonCore-Legion/DemonCore` (was
+`Brytenwally/LegionCore-Reforged`), module `DemonCore-Legion/DemonCore-Playerbots` (was `Brytenwally/LegionCore-Playerbots`), build
+`DemonCore-Legion/DemonCore-Build` (was `Brytenwally/LegionCore-Build`). The organization and the transfers are made by the owner on
 github.com (no tool here creates organizations or renames repositories); GitHub redirects the old names afterwards, not the new
 ones before. Owner's scope: every mention of our own project becomes DemonCore, **including the file headers** (the
 `///  LEGIONCORE REFORGED  ///` line of 286 headers now reads `DEMONCORE`; their "Copyright 2026 Titans-Project" and TrinityCore
@@ -23,6 +23,10 @@ other projects or credits them: upstream **LegionCore - Reforged** (Titans-Proje
 **LegionCore-7.3.5** fork we port from (its repository, `docs/legioncore-735-*`, the "Ported from Brytenwally/LegionCore-7.3.5"
 lines), the README's thanks list, and **already-applied SQL update files** (the updater re-runs a file whose hash changes).
 In these notes "Reforged" often still means our core. Local clones in a session may keep their old folder names.
+**Done by the owner 2026-11-12: the organization is `DemonCore-Legion`** (not `DemonCore`, as first written). Sessions need the
+Claude GitHub App installed on that organization to push. Icons: `worldserver.exe` / `bnetserver.exe` take theirs from
+`src/server/<server>/<server>.ico` (named in `<server>.rc`); `bnetserver.ico` is the owner's DemonCore artwork (6 sizes, 256-16 px,
+made with Pillow from his image). The extractors and `connection_patcher.exe` have no icon.
 
 ## Owner's decisions so far
 
@@ -76,9 +80,9 @@ These are the ones this project writes to (commit and push to `main`).
 
 | Repo | Role |
 | --- | --- |
-| `DemonCore/DemonCore` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
-| `DemonCore/DemonCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out, teleport and follow summons (`.playerbots add/remove/list`, verified on the owner's server), no AI yet. |
-| `DemonCore/DemonCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
+| `DemonCore-Legion/DemonCore` (this repo) | The core. Gets the module system and the hooks modules cannot do without, as small topic commits. |
+| `DemonCore-Legion/DemonCore-Playerbots` | The playerbots module, ported from SkyFire-playerbots. Lives in the core at `modules/mod-playerbots` (the folder name decides the loader name, `Addmod_playerbotsScripts`). Has its own `CLAUDE.md`. As of 2026-11-02: bots log in/out, teleport and follow summons (`.playerbots add/remove/list`, verified on the owner's server), no AI yet. |
+| `DemonCore-Legion/DemonCore-Build` | GitHub Actions workflow building Windows x64 binaries of the core with the modules checked out into `modules/` (pattern: SkyFire-build). Has its own `CLAUDE.md`. |
 
 ## Related repositories
 
@@ -490,7 +494,7 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
 
 ## Building
 
-- Windows: `DemonCore/DemonCore-Build` workflow (step 0). First green build 2026-11-01
+- Windows: `DemonCore-Legion/DemonCore-Build` workflow (step 0). First green build 2026-11-01
   (run #3: core `56ca66e` + playerbots `5680c13`, both modules compiled in, ~25 min). Runs on `windows-2022`: Boost must
   stay 1.84 (the core uses `io_service` / `io_context::strand`, removed in Boost 1.87) and
   Boost 1.84 does not know VS 2026. See that repo's `CLAUDE.md`.
