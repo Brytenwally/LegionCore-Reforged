@@ -504,9 +504,14 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   calls `GossipHello(player, false)`: **`GossipHello(..., true)` is never reached for a goober**, except at the few sites
   `EffectOpenLock` special-cases (T'uure, Judgment Day, Wings of Liberty, Impalement Insurance). Fix as upstream's Mardum banner:
   `GossipUse` calls `GossipHello(player, true)`, for the bonfire and the stage 4 prison runestone 244940 (goober, lock 99).
-  **Rule: a goober script acts in `GossipUse`.** Same pattern still unfixed (not reported yet): Shey'lun crate 246351, Fangs
-  of the Devourer 249809, Vengeance fel soul portals 248517 / 248573, Assault on the Broken Shore gates 267955, Vault of the
-  Wardens 244588 / 244455. Compiled; untested in game.
+  **Rule: a goober script acts in `GossipUse`.** The same day (owner: "fix them all") every other `GameObjectAI` whose
+  `GossipHello` checks `isUse` without a `GossipUse` (17 scripts, found by
+  `<scratchpad>/isuse.py`-style scan: struct body with `!isUse` and no `GossipUse`) got a guarded one: it forwards to
+  `GossipHello(player, true)` for goobers and unlocked objects only, since a locked object of another type already gets that
+  call from its opening spell (`SendLoot`), and forwarding there too would run the script twice. Fixed: Vault of the Wardens
+  244588 / 244455, Vengeance fel soul portals, Shey'lun crate, Kingslayers door, Fangs of the Devourer objects, Assault on the
+  Broken Shore gates, soulwell, Algalon's planetarium access, Halion's twilight portals, Tanaan cages / marks / runes / plunger,
+  Acherus soul prisons. Mardum's and T'uure's already had it. Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

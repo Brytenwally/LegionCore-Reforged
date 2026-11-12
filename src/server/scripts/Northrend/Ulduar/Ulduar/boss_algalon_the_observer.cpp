@@ -878,6 +878,15 @@ class go_celestial_planetarium_access : public GameObjectScript
             {
             }
 
+            // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+            // another type gets GossipHello(isUse) from its opening spell
+            bool GossipUse(Player* player) override
+            {
+                if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                    return false;
+                return GossipHello(player, true);
+            }
+
             bool GossipHello(Player* player, bool isUse) override
             {
                 if (!isUse)

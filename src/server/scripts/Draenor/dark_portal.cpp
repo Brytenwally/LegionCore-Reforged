@@ -576,6 +576,15 @@ public:
             SOUTH_SCENE = 159127,
             EASTERN_SCENE = 159126
         };
+        // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+        // another type gets GossipHello(isUse) from its opening spell
+        bool GossipUse(Player* player) override
+        {
+            if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                return false;
+            return GossipHello(player, true);
+        }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -1909,6 +1918,15 @@ public:
             SPELL_CINEMA = 176159,
 
         };
+        // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+        // another type gets GossipHello(isUse) from its opening spell
+        bool GossipUse(Player* player) override
+        {
+            if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                return false;
+            return GossipHello(player, true);
+        }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -2026,6 +2044,15 @@ public:
             SPELL_EXPLOSION = 68975,
         };
 
+        // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+        // another type gets GossipHello(isUse) from its opening spell
+        bool GossipUse(Player* player) override
+        {
+            if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                return false;
+            return GossipHello(player, true);
+        }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -2100,6 +2127,15 @@ public:
                 _deleteTimer -= diff;
         }
 
+        // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+        // another type gets GossipHello(isUse) from its opening spell
+        bool GossipUse(Player* player) override
+        {
+            if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                return false;
+            return GossipHello(player, true);
+        }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse) return false;
@@ -2140,6 +2176,15 @@ public:
     struct gob_q34393_markAI : public GameObjectAI
     {
         gob_q34393_markAI(GameObject* go) : GameObjectAI(go) {}
+
+        // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+        // another type gets GossipHello(isUse) from its opening spell
+        bool GossipUse(Player* player) override
+        {
+            if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                return false;
+            return GossipHello(player, true);
+        }
 
         bool GossipHello(Player* player, bool isUse) override
         {
@@ -2190,6 +2235,15 @@ public:
     struct gob_stasis_runeAI : public GameObjectAI
     {
         gob_stasis_runeAI(GameObject* go) : GameObjectAI(go) {}
+
+        // a goober or an unlocked object: using it calls GossipUse, never GossipHello(isUse); a locked object of
+        // another type gets GossipHello(isUse) from its opening spell
+        bool GossipUse(Player* player) override
+        {
+            if (go->GetGoType() != GAMEOBJECT_TYPE_GOOBER && go->GetGOInfo()->GetLockId())
+                return false;
+            return GossipHello(player, true);
+        }
 
         bool GossipHello(Player* player, bool isUse) override
         {
