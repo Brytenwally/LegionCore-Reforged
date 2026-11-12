@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible problem in the DemonCore core or one of its modules
+labels: ["bug"]
+body:
+  - type: textarea
+    id: version
+    attributes:
+      label: Core revision and setup
+      description: |
+        Core commit or build (BUILD-INFO.txt of a DemonCore-Build package lists both), modules compiled in
+        (e.g. playerbots and its commit), operating system, MySQL version. The client is 7.3.5 (26972).
+      placeholder: |
+        Build #41, core 2cdf98c, playerbots 2e80e0e
+        Windows 11, MySQL 8.0.44
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction, expected result and actual result
+      description: |
+        The steps that make it happen, what you expected and what happened instead. Name the quest, NPC, spell,
+        item or map involved, with its id when you know it (e.g. `.lookup quest`, `.npc info`).
+      placeholder: |
+        1. Accept "Ritual Reagents" (42128) and collect the items
+        2. Talk to the quest giver
+        Expected: the quest can be turned in
+        Actual: the Complete button stays grey
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Minimal redacted evidence and verification limits
+      description: |
+        Relevant worldserver log lines, crash log, screenshots; what you already tried and what you could not test.
+        Do not include passwords, account details or database dumps.
+      render: text

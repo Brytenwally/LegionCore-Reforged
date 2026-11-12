@@ -1,0 +1,25 @@
+name: Missing feature
+description: Report Legion content or a system that is missing or does not work as on retail 7.3.5
+labels: ["missing feature"]
+body:
+  - type: textarea
+    id: version
+    attributes:
+      label: Core revision and setup
+      description: Core commit or build, and modules compiled in.
+    validations:
+      required: true
+  - type: textarea
+    id: feature
+    attributes:
+      label: What is missing, and how it works on retail
+      description: |
+        The quest line, zone, dungeon, class feature or system, with ids where you know them, and how it behaved on
+        retail Legion 7.3.5 (a Wowhead or wiki link helps).
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What happens now
+      description: What the server does today, with log lines or screenshots if any. No passwords or account details.
