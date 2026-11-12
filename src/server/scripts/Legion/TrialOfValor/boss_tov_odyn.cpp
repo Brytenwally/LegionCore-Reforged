@@ -2,6 +2,7 @@
 #include "ScriptUtils.h"
 #include "AreaTriggerAI.h"
 #include "ScriptPCH.h"
+#include "GossipDef.h"
 
 namespace
 {
@@ -189,6 +190,24 @@ void EnterCombatEncounter(InstanceScript* instance)
 
     if (auto cre = instance->instance->GetCreature(instance->GetGuidData(Data::Creatures::Odyn)))
         cre->AI()->DoAction(ACTION_4);
+}
+
+// Called only after Unit::DealDamage has applied target-relative scaling.
+// Keep these actors alive at their transition threshold, including overkills.
+static bool ClampTrialOfValorDamage(Creature* actor, Unit* attacker, uint32& damage, uint8 percent)
+{
+    uint64 const maximum = actor->GetMaxHealth(attacker);
+    if (!damage || !maximum)
+        return false;
+
+    uint64 const health = actor->GetHealth(attacker);
+    uint64 const threshold = CalculatePct(maximum, percent);
+    if (health > threshold && damage < health - threshold)
+        return false;
+
+    damage = 0;
+    actor->SetHealth(std::max<uint64>(1, actor->CountPctFromMaxHealth(percent)));
+    return true;
 }
 
 static uint32 SpellsRunicOnValarjar[5] =
@@ -512,13 +531,21 @@ struct boss_tov_odyn : BossAI
         }
     }
 
-    void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*dmgType*/) override
+    void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
     {
-        if (damage >= me->GetHealth())
-            damage = 0;
-
-        if (me->HealthBelowPct(10) && !encounterComplete)
+        if (encounterComplete)
         {
+            damage = 0;
+            return;
+        }
+
+        if (!damage || instance->GetBossState(Data::BossIDs::OdynID) != IN_PROGRESS ||
+            (eventPhase != PHASE_2 && eventPhase != PHASE_3))
+            return;
+
+        if (ClampTrialOfValorDamage(me, attacker, damage, 10))
+        {
+            TC_LOG_DEBUG("scripts", "Trial of Valor Odyn: surrender after final scaled damage");
             encounterComplete = true;
             me->SetHomePosition(2400.65f, 529.3139f, 748.99609f, 6.18879f);
             _JustDied();
@@ -534,22 +561,29 @@ struct boss_tov_odyn : BossAI
             RemoveDebuffsOnPlayer();
             instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_DUNGEON_ENCOUNTER, 1958, 0, 0, me);
             instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_DUNGEON_ENCOUNTER_COUNTER, 1958, 0, 0, me);
+            return;
         }
 
-        if (!SecondPhaseSay && me->HealthBelowPct(55))
+        uint64 const health = me->GetHealth(attacker);
+        uint64 const thirdPhaseHealth = me->CountPctFromMaxHealth(55, attacker);
+        if (!SecondPhaseSay && (health <= thirdPhaseHealth || damage >= health - thirdPhaseHealth))
         {
             SecondPhaseSay = true;
             StartEvents(PHASE_3);
         }
     }
 
-    void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
+    void sGossipSelect(Player* player, uint32 menuId, uint32 action) override
     {
-        if (action == 0)
-        {
-            player->CastSpell(player, SpellSkyJump, false);
-            player->CLOSE_GOSSIP_MENU();
-        }
+        // This AI hook runs before Player::OnGossipSelect validates the menu.
+        auto& menu = player->PlayerTalkClass->GetGossipMenu();
+        if (instance->GetBossState(Data::BossIDs::OdynID) != DONE ||
+            menuId != me->GetCreatureTemplate()->GossipMenuId || menu.GetMenuId() != menuId || action != 0 || !menu.GetItem(action))
+            return;
+
+        player->PlayerTalkClass->ClearMenus();
+        player->CastSpell(player, SpellSkyJump, false);
+        player->CLOSE_GOSSIP_MENU();
     }
 
     void DoAction(int32 const action) override
@@ -929,6 +963,7 @@ struct npc_tov_hymdall : ScriptedAI
                 DoCast(SpellValarjarsBond);
                 break;
             case ACTION_2:
+                event2 = false;
                 me->setFaction(16);
                 instance->SendEncounterUnit(ENCOUNTER_FRAME_ENGAGE, me);
                 me->GetMotionMaster()->MoveJump(2410.51f, 508.8186f, 748.9946f, 20, 10, 2, 0.91346f);
@@ -953,14 +988,26 @@ struct npc_tov_hymdall : ScriptedAI
         }
     }
 
-    void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*dmgType*/) override
+    void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
     {
-        if (damage >= me->GetHealth())
+        if (event2)
+        {
             damage = 0;
+            return;
+        }
+
+        if (!damage || me->getFaction() != 16 || instance->GetBossState(Data::BossIDs::OdynID) == DONE)
+            return;
 
         if (instance->GetData(Data::DataMisc::OdynTestOfAges) != DONE)
         {
-            if (me->HealthAbovePct(25) || event1)
+            if (event1)
+            {
+                damage = 0;
+                return;
+            }
+
+            if (!ClampTrialOfValorDamage(me, attacker, damage, 25))
                 return;
 
             event1 = true;
@@ -975,24 +1022,17 @@ struct npc_tov_hymdall : ScriptedAI
                     owner->GetAI()->DoAction(ACTION_1);
             }
         }
-
-        if (IsHeroicPlusRaid())
+        else if (IsHeroicPlusRaid())
         {
-            if (instance->GetData(Data::DataMisc::OdynTestOfAges) == DONE)
-            {
-                if (me->HealthAbovePct(85) || event2)
-                    return;
+            if (!ClampTrialOfValorDamage(me, attacker, damage, 85))
+                return;
 
-                if (me->HealthBelowPct(85))
-                {
-                    event2 = true;
-                    me->CastStop();
-                    me->setFaction(35);
-                    me->RemoveAllAuras();
-                    me->NearTeleportTo(2402.68f, 477.41f, 772.893f, 1.31159f);
-                    instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
-                }
-            }
+            event2 = true;
+            me->CastStop();
+            me->setFaction(35);
+            me->RemoveAllAuras();
+            me->NearTeleportTo(2402.68f, 477.41f, 772.893f, 1.31159f);
+            instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
         }
     }
 
@@ -1171,6 +1211,7 @@ struct npc_tov_hyrja : ScriptedAI
                 DoCast(SpellValarjarsBond);
                 break;
             case ACTION_2:
+                event2 = false;
                 me->setFaction(16);
                 me->RemoveAura(SpellHoverModeAnimState);
                 instance->SendEncounterUnit(ENCOUNTER_FRAME_ENGAGE, me);
@@ -1196,14 +1237,26 @@ struct npc_tov_hyrja : ScriptedAI
         }
     }
 
-    void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*dmgType*/) override
+    void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
     {
-        if (damage >= me->GetHealth())
+        if (event2)
+        {
             damage = 0;
+            return;
+        }
+
+        if (!damage || me->getFaction() != 16 || instance->GetBossState(Data::BossIDs::OdynID) == DONE)
+            return;
 
         if (instance->GetData(Data::DataMisc::OdynTestOfAges) != DONE)
         {
-            if (me->HealthAbovePct(25) || event1)
+            if (event1)
+            {
+                damage = 0;
+                return;
+            }
+
+            if (!ClampTrialOfValorDamage(me, attacker, damage, 25))
                 return;
 
             event1 = true;
@@ -1218,24 +1271,17 @@ struct npc_tov_hyrja : ScriptedAI
                     owner->GetAI()->DoAction(ACTION_1);
             }
         }
-
-        if (IsHeroicPlusRaid())
+        else if (IsHeroicPlusRaid())
         {
-            if (instance->GetData(Data::DataMisc::OdynTestOfAges) == DONE)
-            {
-                if (me->HealthAbovePct(85) || event2)
-                    return;
+            if (!ClampTrialOfValorDamage(me, attacker, damage, 85))
+                return;
 
-                if (me->HealthBelowPct(85))
-                {
-                    event2 = true;
-                    me->CastStop();
-                    me->setFaction(35);
-                    me->RemoveAllAuras();
-                    me->NearTeleportTo(2404.92f, 578.45605f, 772.8941f, 5.05401f);
-                    instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
-                }
-            }
+            event2 = true;
+            me->CastStop();
+            me->setFaction(35);
+            me->RemoveAllAuras();
+            me->NearTeleportTo(2404.92f, 578.45605f, 772.8941f, 5.05401f);
+            instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
         }
     }
 

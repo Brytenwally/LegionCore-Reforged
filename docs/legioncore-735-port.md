@@ -58,7 +58,7 @@ its SQL updates against Reforged's database (ids, conditions, rows Reforged chan
 | 3.x | B per class, one class per step, **alphabetical** (owner, 2026-11-09): Death Knight, Demon Hunter, Druid, Hunter, Mage, Monk, Paladin, Priest, Rogue, Shaman, Warlock, Warrior. **3.1 Death Knight, 3.2 Demon Hunter, 3.3 Druid, 3.4 Hunter, 3.5 Mage, 3.6 Monk, 3.7 Paladin, 3.8 Priest, 3.9 Rogue, 3.10 Shaman, 3.11 Warlock, 3.12 Warrior done 2026-11-09: phase 3 complete** (see below); LegionCore-7.3.5's files that mix classes (boss speakers, combat stories, trash / owner voice, Mist Warder) were ported with the Monk (3.6), whose Fu Zan files build on them | 12 steps |
 | 4 | C: class spells, clean files first, then the merged ones. **Done 2026-11-09** (see "Phase 4") | medium |
 | 5 | D: zone questlines, Stormheim first (76 SQL updates), then Highmountain, Val'sharah, Azsuna. **5.1 Stormheim done 2026-11-10** (see "Phase 5.1"), **5.2 Highmountain done 2026-11-10** (see "Phase 5.2"), **5.3 Val'sharah done 2026-11-10** (see "Phase 5.3"), **5.4 Azsuna done 2026-11-10** (see "Phase 5.4"): **phase 5 complete** | large |
-| 6 | E + F: raid / dungeon and loot fixes | medium |
+| 6 | E + F: raid / dungeon and loot fixes. Split: **6.1 Legion dungeons and raids (done 2026-11-12)**, 6.2 older instances (The Stockade, new Outland instance scripts, small fixes across Classic to Pandaria), 6.3 raid re-entry / ghosts and loot | medium |
 | 7 | J (contributions), then G item by item as the owner hits problems | small, ongoing |
 | 8 | H and I if the owner wants them | optional |
 
@@ -518,4 +518,23 @@ Eye of Azshara quests (held back from 5.3).
   the crystals / locks used, so progress survives a relog).
 
 **Phase 5 done** (Stormheim, Highmountain, Val'sharah, Azsuna). Owner's plan: a build and a test now, before phase 6.
+
+## Phase 6.1: Legion dungeons and raids (2026-11-12)
+
+The 42 LegionCore-7.3.5 commits touching Antorus, Darkheart Thicket, Eye of Azshara, Halls of Valor, Maw of Souls, the
+Emerald Nightmare, Tomb of Sargeras, Trial of Valor and Vault of the Wardens. No core file: scripts and SQL only.
+- **Trial of Valor**: Helya (phases and tentacles for Odyn's Judgment, Fury waves, orb targets, breath debuffs scoped to the
+  encounter, Bilewater missiles / pools scaled with the slime's health / Redox clean-up, Taint target selection and timers,
+  Grimelord's Fetid Rot, Slam / Nova timing and Mythic Fetid Fission, Mariner's Give No Quarter, energy, Lantern and Ghostly
+  Rage), Odyn's damage transitions, surrender on the final scaled hit, the chest restored on a saved instance, exit and
+  Sky Jump gossip checks, the graveyard. **Darkheart Thicket**: trash spell AI and ground hazards (new
+  `darkheart_thicket_trash.cpp`), boss hazards, Oakheart's awakening kept across resets. **Halls of Valor**: Skovald's split
+  aura handlers, Odyn, the Aegis questgiver claim (new `halls_of_valor_aegis.cpp`). Aura hook fixes in Antorus (Argus'
+  Titanforging, removed non-client essence casts), the Emerald Nightmare, Tomb of Sargeras, Eye of Azshara and Vault of the
+  Wardens.
+- Files: 22 still at the fork point taken as is, 8 merged three ways with no conflict (`antorus.cpp` already had its one
+  change from phase 4), 2 new ones registered in `legion_script_loader.cpp`. `check_script_names.py`: 0 problems.
+- SQL world `2026_11_14_01..14` (Halls of Valor emote timers and Skovald, Argus, Emerald Nightmare, Aegis, Helya x4, Trial of
+  Valor graveyard, Darkheart x4), checked on MySQL 8. **MySQL 8 reserves `option`** (MariaDB does not): a Darkheart file used
+  it as a bare column of `spell_dummy_trigger`; `port_lc735_sql.py` now quotes it.
 

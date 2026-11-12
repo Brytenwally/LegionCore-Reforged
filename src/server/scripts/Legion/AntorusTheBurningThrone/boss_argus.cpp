@@ -36,8 +36,6 @@ enum Spells
 {
     SPELL_OUTRO                                 = 257606,
     SPELL_ARGUS_BONUS_ROLL                      = 250608,
-    SPELL_DAILY_ESSENCE_ARGUS                   = 305317,
-
     SPELL_ZERO_ENERGY_REGEN                     = 72242,
     SPELL_TITANIC_ESSENCE                       = 258040,
     SPELL_P1_ENERGY_CONTROLLER                  = 258041,
@@ -330,7 +328,6 @@ struct boss_argus : BossAI
                 if (me->GetThreatTarget(player->GetGUID()))
                 {
                     me->CastSpell(player, SPELL_ARGUS_BONUS_ROLL, true);
-                    player->CastSpell(player, SPELL_DAILY_ESSENCE_ARGUS, true);
                 }
 
                 player->NearTeleportTo(3112.587f, -9635.071f, 62.3f, player->GetOrientation());
@@ -1780,7 +1777,7 @@ class spell_argus_aggramar_boon : public AuraScript
     }
 };
 
-//257213, 257214
+//257213
 class spell_argus_titanforging_energize_periodic : public AuraScript
 {
     PrepareAuraScript(spell_argus_titanforging_energize_periodic);
@@ -1788,16 +1785,6 @@ class spell_argus_titanforging_energize_periodic : public AuraScript
     bool allowCast = false;
     uint8 powerCount = 0;
     float amount = 0.0f;
-
-    void OnReductedTick(AuraEffect const* aurEff)
-    {
-        auto caster = GetCaster();
-        if (!caster)
-            return;
-
-        if (powerCount = caster->GetPower(caster->GetPowerType()))
-            caster->SetPower(caster->GetPowerType(), powerCount - 1);
-    }
 
     void OnCheckTick(AuraEffect const* aurEff)
     {
@@ -1833,8 +1820,29 @@ class spell_argus_titanforging_energize_periodic : public AuraScript
 
     void Register() override
     {
-        OnEffectPeriodic += AuraEffectPeriodicFn(spell_argus_titanforging_energize_periodic::OnReductedTick, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
         OnEffectPeriodic += AuraEffectPeriodicFn(spell_argus_titanforging_energize_periodic::OnCheckTick, EFFECT_1, SPELL_AURA_PERIODIC_DUMMY);
+    }
+};
+
+//257214
+class spell_argus_titanforging_reduced_energy_periodic : public AuraScript
+{
+    PrepareAuraScript(spell_argus_titanforging_reduced_energy_periodic);
+
+    void OnTick(AuraEffect const* /*aurEff*/)
+    {
+        Unit* caster = GetCaster();
+        if (!caster)
+            return;
+
+        uint8 powerCount = caster->GetPower(caster->GetPowerType());
+        if (powerCount)
+            caster->SetPower(caster->GetPowerType(), powerCount - 1);
+    }
+
+    void Register() override
+    {
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_argus_titanforging_reduced_energy_periodic::OnTick, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
     }
 };
 
@@ -2279,6 +2287,7 @@ void AddSC_boss_argus()
     RegisterAuraScript(spell_argus_initialization_sequence_periodic);
     RegisterAuraScript(spell_argus_aggramar_boon);
     RegisterAuraScript(spell_argus_titanforging_energize_periodic);
+    RegisterAuraScript(spell_argus_titanforging_reduced_energy_periodic);
     RegisterAuraScript(spell_argus_impending_inevitability);
     RegisterSpellScript(spell_argus_sky_and_sea);
     RegisterSpellScript(spell_argus_golganneth_wrath);

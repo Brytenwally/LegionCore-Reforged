@@ -125,6 +125,7 @@ void AddSC_boss_talixae_flamewreath();
 void AddSC_boss_advisor_melandrus();
 
 void AddSC_instance_darkheart_thicket();       //Dark Heart Thicket
+void AddSC_darkheart_thicket_trash();
 void AddSC_boss_arch_druid_glaidalis();
 void AddSC_boss_oakheart();
 void AddSC_boss_dresaron();
@@ -138,6 +139,7 @@ void AddSC_boss_serpentrix();
 void AddSC_boss_wrath_of_azshara();
 
 void AddSC_instance_halls_of_valor();           //Halls of Valor
+void AddSC_halls_of_valor_aegis();
 void AddSC_boss_odyn();
 void AddSC_boss_hyrja();
 void AddSC_boss_hymdall();
@@ -433,6 +435,7 @@ void AddLegionScripts()
     AddSC_boss_advisor_melandrus();
     
     AddSC_instance_darkheart_thicket();       //Dark Heart Thicket
+    AddSC_darkheart_thicket_trash();
     AddSC_boss_arch_druid_glaidalis();
     AddSC_boss_oakheart();
     AddSC_boss_dresaron();
@@ -446,6 +449,7 @@ void AddLegionScripts()
     AddSC_boss_wrath_of_azshara();
     
     AddSC_instance_halls_of_valor();           //Halls of Valor
+    AddSC_halls_of_valor_aegis();
     AddSC_boss_odyn();
     AddSC_boss_hyrja();
     AddSC_boss_hymdall();

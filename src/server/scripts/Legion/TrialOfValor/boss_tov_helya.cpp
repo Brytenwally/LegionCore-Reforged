@@ -68,8 +68,12 @@ enum Spells
     SpellSludgeNova                     = 228390,
     SpellFetidRotHit                    = 228397,
     SpellFetidRot                       = 193367,
+    SpellFetidRotCast                   = 228838,
+    SpellFetidRotDamage                 = 232408,
+    SpellFetidFission                   = 158534,
     SpellTaintedEssence                 = 228052,
     SpellGiveNoQuarter                  = 228632,
+    SpellGiveNoQuarterCast              = 228633,
     SpellLanternOfDarkness              = 228619,
     SpellDarkness                       = 228383,
     SpellGhostlyRage                    = 228611,
@@ -189,6 +193,7 @@ struct boss_helya_tov : BossAI
     uint32 berserk;
     uint8 trashDiedCount;
     uint8 trashPhase2Count;
+    std::set<ObjectGuid> defeatedGrippingTentacles;
     uint8 eventPhase;
     uint32 power;
     uint32 count;
@@ -220,6 +225,7 @@ struct boss_helya_tov : BossAI
         eventPhase          = 0;
         trashDiedCount      = 0;
         trashPhase2Count    = 0;
+        defeatedGrippingTentacles.clear();
         count               = 0;
         AOEdmg              = 0;
         _checkEvadeTimer    = 0;
@@ -237,8 +243,10 @@ struct boss_helya_tov : BossAI
         instance->DoRemoveAurasDueToSpellOnPlayers(SpellCorruptedAxionAura);
         instance->DoRemoveAurasDueToSpellOnPlayers(SpellCorrupted);
         instance->DoRemoveAurasDueToSpellOnPlayers(SpellBleakEruption);
-        instance->DoRemoveAurasDueToSpellOnPlayers(SpellBleakEruption);
+        instance->DoRemoveAurasDueToSpellOnPlayers(SpellDarkHatred);
+        instance->DoRemoveAurasDueToSpellOnPlayers(SpellBilewaterRedox);
         instance->DoRemoveAurasDueToSpellOnPlayers(SpellTaintOfTheSea);
+        instance->DoRemoveAurasDueToSpellOnPlayers(SpellFetidRot);
         instance->DoRemoveAurasDueToSpellOnPlayers(SpellOrbofCorrosionOnPlayer);
     }
 
@@ -284,6 +292,9 @@ struct boss_helya_tov : BossAI
 
     void JustDied(Unit* /*killer*/) override
     {
+        // Fury's destination cast may still be delayed. Release its current
+        // spell reference before the base AI discards the spell event queue.
+        me->InterruptNonMeleeSpells(true);
         Talk(SAY_DEATH);
         instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_DUNGEON_ENCOUNTER, 2008);
         me->RemoveAllAreaObjects();
@@ -294,6 +305,7 @@ struct boss_helya_tov : BossAI
 
     void EnterEvadeMode() override
     {
+        me->InterruptNonMeleeSpells(true);
         Talk(SAY_INTRO_1);
         me->NearTeleportTo(524.031f, 699.055f, 5.17631f, 4.29875f);
 
@@ -320,7 +332,17 @@ struct boss_helya_tov : BossAI
                 }
                 break;
             case Data::Creatures::GrippingTentacle:
+                if (eventPhase != PHASE_2 || !defeatedGrippingTentacles.insert(summon->GetGUID()).second)
+                    return;
+
                 trashPhase2Count++;
+                // Each of the nine tentacles wounds Helya for 2% maximum health.
+                // This bypasses her phase-two damage immunity without a killing blow.
+                {
+                    uint64 const wound = me->CountPctFromMaxHealth(2);
+                    uint64 const health = me->GetHealth();
+                    me->SetHealth(health > wound ? health - wound : 1);
+                }
                 break;
         }
 
@@ -368,8 +390,11 @@ struct boss_helya_tov : BossAI
                     if (IsHeroicPlusRaid() && eventPhase == PHASE_2 && !FuryOfTheMaw)
                     {
                         FuryOfTheMaw = true;
-                        me->AddDelayedEvent(5000, [=]() -> void
+                        me->AddDelayedCombat(5000, [=]() -> void
                         {
+                            if (eventPhase != PHASE_2 || !me->isInCombat())
+                                return;
+
                             FuryOfTheMawTrash = false;
                             DoCast(SpellFureOfTheMawLong);
                             FuryOfTheMaw = false;
@@ -412,19 +437,19 @@ struct boss_helya_tov : BossAI
 
             if (IsMythicRaid())
             {
-                events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 15000);
+                events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 15500);
                 events.RescheduleEvent(EVENT_TENTECLE_STRIKE, 35000);
                 events.RescheduleEvent(EVENT_ORB_OF_CURRUPTION, 14000);
             }
             else if (IsHeroicRaid())
             {
-                events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 19000);
+                events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 19500);
                 events.RescheduleEvent(EVENT_TENTECLE_STRIKE, 36000);
                 events.RescheduleEvent(EVENT_ORB_OF_CURRUPTION, 29000);
             }
             else if (IsNormalRaid() || IsLfrRaid())
             {
-                events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 12000);
+                events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, IsLfrRaid() ? 21800 : 12000);
                 events.RescheduleEvent(EVENT_TENTECLE_STRIKE, 53000);
                 events.RescheduleEvent(EVENT_ORB_OF_CURRUPTION, 18000);
             }
@@ -435,20 +460,23 @@ struct boss_helya_tov : BossAI
         case PHASE_2:
             events.RescheduleEvent(EVENT_TELEPORT_OUTSIDE, 1000);
             checkrephase = true;
+            me->CastStop();
             DoCast(SpellRemoveDebuffs);
             DoCast(SpellHelyaImmunityDamage);
             DoCast(SpellHelyaAltPower);
             DoCast(SpellHelyaReuse);
 
-            me->CastStop();
             me->AttackStop();
             me->SetReactState(REACT_PASSIVE);
             me->SetPower(POWER_ENERGY, 0);
             me->RemoveAura(SpellHelyaBluePower);
             me->RemoveAura(SpellCorrosiveNova);
             me->SummonCreatureGroup(3);
-            me->AddDelayedEvent(5000, [=]() -> void
+            me->AddDelayedCombat(5000, [=]() -> void
             {
+                if (eventPhase != PHASE_2)
+                    return;
+
                 DoCast(SpellHelyaReuse);
                 Talk(SAY_PHASE_2);
                 events.RescheduleEvent(EVENT_TORRENT, 9000);
@@ -472,16 +500,24 @@ struct boss_helya_tov : BossAI
             me->RemoveAura(SpellTorrent);
             me->AddDelayedCombat(5000, [=]() -> void
             {
+                if (eventPhase != PHASE_3)
+                    return;
+
                 Talk(SAY_PHASE_3);
                 me->SetPower(POWER_ENERGY, 61);
                 me->SetPower(POWER_ALTERNATE, 42);
                 me->SetReactState(REACT_AGGRESSIVE);
                 me->RemoveAura(SpellBuildingStorm);
                 me->RemoveAura(SpellCorrosiveNova);
-                me->AddDelayedEvent(1500, [=]() -> void
+                me->AddDelayedCombat(1500, [=]() -> void
                 {
+                    if (eventPhase != PHASE_3)
+                        return;
+
                     DoCast(SpellHelyaAltPowerRegen);
                     checkrephase = false;
+                    // Phase three has its own Taint cadence after Helya returns.
+                    events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, IsMythicRaid() ? 1 : 24500);
                 });
                 DoCast(SpellHelyaReuse);
                 DoCast(SpellHelyaPurplePower);
@@ -497,10 +533,44 @@ struct boss_helya_tov : BossAI
         }
     }
 
-    void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*dmgType*/) override
+    void DamageTakenAfterScaling(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
     {
-        if (!phase2 && me->HealthBelowPct(65))
+        if (eventPhase == PHASE_2)
         {
+            damage = 0;
+            return;
+        }
+
+        if (!damage || phase2)
+            return;
+
+        // The first spell's damage can precede Spell::CombatStart.
+        if (instance->GetBossState(Data::BossIDs::HelyaID) != IN_PROGRESS)
+        {
+            if (!attacker || eventPhase != 0 || me->getFaction() != 16 ||
+                instance->GetBossState(Data::BossIDs::HelyaID) == DONE ||
+                me->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1))
+                return;
+
+            me->SetInCombatWith(attacker);
+            if (instance->GetBossState(Data::BossIDs::HelyaID) != IN_PROGRESS)
+                return;
+        }
+
+        if (eventPhase != PHASE_1)
+            return;
+
+        uint64 const maximum = me->GetMaxHealth(attacker);
+        if (!maximum)
+            return;
+
+        uint64 const health = me->GetHealth(attacker);
+        uint64 const threshold = CalculatePct(maximum, 65);
+        if (health <= threshold || damage >= health - threshold)
+        {
+            damage = 0;
+            me->SetHealth(std::max<uint64>(1, me->CountPctFromMaxHealth(65)));
+            TC_LOG_DEBUG("scripts", "Trial of Valor Helya: phase two after final scaled damage");
             phase2 = true;
             StartEvents(PHASE_2);
         }
@@ -537,12 +607,15 @@ struct boss_helya_tov : BossAI
             {
                 DoCast(player, SpellOrbOfCorruptionVisual, true);
 
-                playerGuid.Clear();
-                playerGuid = player->GetGUID();
+                ObjectGuid const targetGuid = player->GetGUID();
                 Position pos = player->GetPosition();
                 pos.m_positionX -= 6.0f;
                 pos.m_positionY -= 6.0f;
-                me->AddDelayedEvent(2000, [=]() -> void { me->SummonCreature(Data::Creatures::OrbOfCorruption, pos, playerGuid, TEMPSUMMON_TIMED_DESPAWN, 9000); });
+                me->AddDelayedCombat(2000, [this, pos, targetGuid]()
+                {
+                    if (eventPhase == PHASE_1 && me->isInCombat() && me->IsAlive())
+                        me->SummonCreature(Data::Creatures::OrbOfCorruption, pos, targetGuid, TEMPSUMMON_TIMED_DESPAWN, 9000);
+                });
             }
             break;
         }
@@ -562,15 +635,18 @@ struct boss_helya_tov : BossAI
 
             for (auto& player : playerList)
             {
-                playerGuid.Clear();
-                playerGuid = player->GetGUID();
+                ObjectGuid const targetGuid = player->GetGUID();
 
                 DoCast(player, SpellOrbOfCorrosionVisual, true);
 
                 Position pos = player->GetPosition();
                 pos.m_positionX -= 6.0f;
                 pos.m_positionY -= 6.0f;
-                me->AddDelayedEvent(2000, [=]() -> void { me->SummonCreature(Data::Creatures::OrbOfCorrosion, pos, playerGuid, TEMPSUMMON_TIMED_DESPAWN, 9000); });
+                me->AddDelayedCombat(2000, [this, pos, targetGuid]()
+                {
+                    if (eventPhase == PHASE_3 && me->isInCombat() && me->IsAlive())
+                        me->SummonCreature(Data::Creatures::OrbOfCorrosion, pos, targetGuid, TEMPSUMMON_TIMED_DESPAWN, 9000);
+                });
             }
             break;
         }
@@ -589,14 +665,15 @@ struct boss_helya_tov : BossAI
             else
                 count = 6;
 
-            Position pos;
-            float angle = 0.0f;
             float dist = 40.0f;
             for (uint8 i = 0; i < count; ++i)
             {
                 dist += 11.0f;
-                pos = me->GetFirstCollisionPosition(dist, angle);
-                me->CastSpell(pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), SpellBilewaterBreathNpc, true);
+                float x, y;
+                me->GetNearPoint2D(x, y, dist, me->GetOrientation(), false);
+                float z = me->GetHeight(x, y, MAX_HEIGHT, true, MAX_FALL_DISTANCE);
+                if (z > INVALID_HEIGHT)
+                    me->CastSpell(x, y, z, SpellBilewaterBreathNpc, true);
             }
             break;
         }
@@ -612,14 +689,17 @@ struct boss_helya_tov : BossAI
             else
                 countTarget = 3;
 
-            Position pos;
-            float angle = me->GetAngle(me);
             float dist = 30.0f;
             for (uint8 i = 0; i < countTarget; ++i)
             {
                 dist += 13.0f;
-                pos = me->GetNearPosition(dist, angle);
-                me->CastSpell(pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), SpellCorruptedAxion, true);
+                float x, y;
+                me->GetNearPoint2D(x, y, dist, me->GetOrientation(), false);
+                // A missile can land above/below Helya. Walking-position helpers
+                // reject those height changes and can return the caster instead.
+                float z = me->GetHeight(x, y, MAX_HEIGHT, true, MAX_FALL_DISTANCE);
+                if (z > INVALID_HEIGHT)
+                    me->CastSpell(x, y, z, SpellCorruptedAxion, true);
             }
             break;
         }
@@ -652,8 +732,8 @@ struct boss_helya_tov : BossAI
                 if (!FuryOfTheMawTrash)
                 {
                     events.RescheduleEvent(EVENT_BOAT, 500);
-                    events.RescheduleEvent(EVENT_SUMMON_SKELETION, 31000);
-                    events.RescheduleEvent(EVENT_SUMMON_SKELETION, 41000);
+                    events.ScheduleEvent(EVENT_SUMMON_SKELETION, 31000);
+                    events.ScheduleEvent(EVENT_SUMMON_SKELETION, 41000);
                     FuryOfTheMawTrash = true;
                 }
                 events.RescheduleEvent(EVENT_FURY_OF_THE_MAW_CLEAN_AT, 3000);
@@ -663,8 +743,8 @@ struct boss_helya_tov : BossAI
                 if (eventPhase == PHASE_3 || eventPhase == PHASE_2)
                 {
                     events.RescheduleEvent(EVENT_BOAT, 500);
-                    events.RescheduleEvent(EVENT_SUMMON_SKELETION, 31000);
-                    events.RescheduleEvent(EVENT_SUMMON_SKELETION, 41000);
+                    events.ScheduleEvent(EVENT_SUMMON_SKELETION, 31000);
+                    events.ScheduleEvent(EVENT_SUMMON_SKELETION, 41000);
                 }
             }
             break;
@@ -676,6 +756,9 @@ struct boss_helya_tov : BossAI
         switch (action)
         {
         case ACTION_1:
+            if (eventPhase != PHASE_2 || !me->isInCombat() || instance->GetBossState(Data::BossIDs::HelyaID) != IN_PROGRESS)
+                break;
+
             DoCast(SpellHelyaAltPowerRegen);
             events.RescheduleEvent(EVENT_TORRENT, 2000);
             break;
@@ -757,26 +840,31 @@ struct boss_helya_tov : BossAI
             {
                 if (eventPhase == PHASE_1 || eventPhase == PHASE_3)
                 {
-                    auto threatlist = me->getThreatManager().getThreatList();
-                    for (uint8 i = 0; i < (IsMythicRaid() ? 5 : 3); ++i)
-                    {
-                        if (threatlist.empty())
-                            break;
+                    std::list<Player*> targets;
+                    for (auto reference : me->getThreatManager().getThreatList())
+                        if (Unit* unit = reference->getTarget())
+                            if (Player* player = unit->ToPlayer())
+                                if (player->IsAlive() && player->IsInWorld() && !player->isGameMaster() && player->GetMap() == me->GetMap())
+                                    targets.push_back(player);
 
-                        if (auto itr = Trinity::Containers::SelectRandomContainerElement(threatlist))
-                        {
-                            if (Unit* target = itr->getTarget())
-                                me->AddAura(SpellTaintOfTheSea, target);
+                    // The active tank is always one of the targets; pets must not consume a slot.
+                    uint32 count = IsMythicRaid() ? 5 : 3;
+                    if (Unit* victim = me->getVictim())
+                        if (Player* tank = victim->ToPlayer())
+                            if (std::find(targets.begin(), targets.end(), tank) != targets.end())
+                            {
+                                me->AddAura(SpellTaintOfTheSea, tank);
+                                targets.remove(tank);
+                                --count;
+                            }
 
-                            threatlist.remove(itr);
-                        }
-                    }
-                    if (IsMythicRaid())
-                        events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 12000);
-                    else if (IsHeroicRaid())
-                        events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 14000);
-                    else if (IsNormalRaid() || IsLfrRaid())
-                        events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, 12000);
+                    Trinity::Containers::RandomResizeList(targets, count);
+                    for (Player* target : targets)
+                        me->AddAura(SpellTaintOfTheSea, target);
+                    if (eventPhase == PHASE_3)
+                        events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, IsMythicRaid() ? 20000 : 28000);
+                    else
+                        events.RescheduleEvent(EVENT_TAINT_OF_THE_SEA, IsLfrRaid() ? 17000 : 12100);
                 }
                 break;
             }
@@ -1005,16 +1093,18 @@ class spell_tov_darkness : public AuraScript
 
     void Tick(AuraEffect const* aurEff)
     {
-        if (auto npc = GetCaster()->ToCreature())
+        Unit* owner = GetUnitOwner();
+        if (auto npc = owner ? owner->ToCreature() : nullptr)
         {
-            if (!npc->isInCombat())
+            if (!npc->IsAlive() || !npc->isInCombat() || npc->HasAura(SpellLanternOfDarkness))
                 return;
 
             power = npc->GetPower(POWER_ENERGY);
-            if (npc->GetMap() && (npc->GetMap()->GetSpawnMode() == DIFFICULTY_LFR_RAID))
-                npc->SetPower(POWER_ENERGY, power + energyLfr[i]);
-            else
-                npc->SetPower(POWER_ENERGY, power + energy[i]);
+            auto const& gains = npc->GetMap()->IsLfrRaid() ? energyLfr : energy;
+            //Keep the inherited difficulty profiles, advancing and wrapping safely.
+            npc->SetPower(POWER_ENERGY, power < 100 ? power + gains[i] : power);
+            if (power < 100)
+                i = (i + 1) % gains.size();
         }
     }
 
@@ -1051,21 +1141,33 @@ class spell_helya_alt_power_regen : public AuraScript
     }
 };
 
-//228053
+//228054
 class spell_taint_of_the_sea : public AuraScript
 {
     PrepareAuraScript(spell_taint_of_the_sea);
 
-    void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
+    void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         Unit* target = GetTarget();
-        if (!target && !target->isInCombat())
+        Unit* caster = GetCaster();
+        AuraRemoveMode const removeMode = GetTargetApplication()->GetRemoveMode();
+        if (removeMode != AURA_REMOVE_BY_ENEMY_SPELL && removeMode != AURA_REMOVE_BY_EXPIRE)
             return;
 
-        if (GetTargetApplication()->GetRemoveMode() == AURA_REMOVE_BY_ENEMY_SPELL)
-            GetCaster()->CastSpell(target, SpellTaintedEssence, true);
-        else
-            target->CastSpell(target, SpellTaintOfTheSeaDmg, true);
+        if (!target || !target->IsPlayer() || !target->IsAlive() || !target->IsInWorld() ||
+            !caster || caster->GetEntry() != Data::Creatures::Helya || !caster->IsAlive() ||
+            !caster->IsInWorld() || !caster->isInCombat() || caster->GetMap() != target->GetMap())
+            return;
+
+        InstanceScript* instance = caster->GetInstanceScript();
+        if (!instance || instance->GetBossState(Data::BossIDs::HelyaID) != IN_PROGRESS)
+            return;
+
+        // Capture the dispel/expiry location before the raid burst can kill or
+        // move its carrier. Both effects belong to Helya, independently.
+        Position const position = target->GetPosition();
+        caster->CastSpell(target, SpellTaintOfTheSeaDmg, true);
+        caster->CastSpell(position.GetPositionX(), position.GetPositionY(), position.GetPositionZ(), SpellTaintedEssence, true);
     }
 
     void Register() override
@@ -1229,6 +1331,7 @@ struct npc_grimelord : ScriptedAI
     void Reset() override
     {
         events.Reset();
+        me->RemoveAura(SpellFetidFission);
         instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
     }
 
@@ -1236,9 +1339,13 @@ struct npc_grimelord : ScriptedAI
     {
         instance->SendEncounterUnit(ENCOUNTER_FRAME_ENGAGE, me);
 
-        events.RescheduleEvent(EVENT_1, 14000);
-        events.RescheduleEvent(EVENT_2, 16000);
-        events.RescheduleEvent(EVENT_3, 9000);
+        events.RescheduleEvent(EVENT_1, me->GetMap()->IsLfrRaid() ? 14000 : 12000);
+        events.RescheduleEvent(EVENT_2, me->GetMap()->IsLfrRaid() || me->GetMap()->IsNormalRaid() ? 17000 : 14000);
+        events.RescheduleEvent(EVENT_3, 7000);
+        // One permanent modifier, following the public as_core implementation.
+        // Its ten-second activation still lacks an original retail combat log.
+        if (me->GetMap()->IsMythicRaid())
+            events.RescheduleEvent(EVENT_4, 10000);
     }
 
     void IsSummonedBy(Unit* /*summoner*/) override
@@ -1272,27 +1379,17 @@ struct npc_grimelord : ScriptedAI
                 break;
             case EVENT_2:
                 DoCast(SpellSludgeNova);
-                events.RescheduleEvent(EVENT_2, 25000);
+                events.RescheduleEvent(EVENT_2, 24300);
                 break;
             case EVENT_3:
             {
-                auto threatlist = me->getThreatManager().getThreatList();
-                for (uint8 i = 0; i < 2; ++i)
-                {
-                    if (threatlist.empty())
-                        break;
-
-                    if (auto itr = Trinity::Containers::SelectRandomContainerElement(threatlist))
-                    {
-                        if (Unit* target = itr->getTarget())
-                            me->AddAura(SpellFetidRot, target);
-
-                        threatlist.remove(itr);
-                    }
-                }
-                events.RescheduleEvent(EVENT_3, 17000);
+                DoCast(me, SpellFetidRotCast, true);
+                events.RescheduleEvent(EVENT_3, me->GetMap()->IsLfrRaid() || me->GetMap()->IsNormalRaid() ? 15800 : 12200);
                 break;
             }
+            case EVENT_4:
+                DoCast(me, SpellFetidFission, true);
+                break;
             }
         }
         DoMeleeAttackIfReady();
@@ -1309,22 +1406,31 @@ struct npc_night_watch_mariner : ScriptedAI
 
     EventMap events;
     InstanceScript* instance;
+    bool lanternPending = false;
 
     void Reset() override
     {
         events.Reset();
+        lanternPending = false;
+        me->InterruptNonMeleeSpells(true);
+        me->RemoveAura(SpellDarkness);
+        me->RemoveAura(SpellLanternOfDarkness);
+        me->RemoveAura(228621);
+        me->RemoveAura(SpellGhostlyRage);
         instance->SendEncounterUnit(ENCOUNTER_FRAME_DISENGAGE, me);
-        me->SetPower(POWER_ENERGY, 0);
+        me->RemoveFlag(UNIT_FIELD_FLAGS_2, UNIT_FLAG2_REGENERATE_POWER);
+        me->SetPowerType(POWER_ENERGY);
         me->SetMaxPower(POWER_ENERGY, 100);
+        me->SetPower(POWER_ENERGY, 0);
     }
 
     void EnterCombat(Unit* /*who*/) override
     {
         instance->SendEncounterUnit(ENCOUNTER_FRAME_ENGAGE, me);
 
-        DoCast(SpellDarkness);
+        DoCast(me, SpellDarkness, true);
 
-        events.RescheduleEvent(EVENT_1, 8000);
+        events.RescheduleEvent(EVENT_1, 6000);
         events.RescheduleEvent(EVENT_2, 10000);
     }
 
@@ -1341,14 +1447,18 @@ struct npc_night_watch_mariner : ScriptedAI
 
     void SetPower(Powers power, int32 value) override
     {
-        if (power == POWER_ENERGY)
+        if (power == POWER_ENERGY && value >= 100 && me->IsAlive() && me->isInCombat() && !lanternPending)
         {
-            if (value == 100)
-            {
-                DoCast(me, SpellLanternOfDarkness, false);
-                me->AddDelayedEvent(1000, [=]() -> void { me->SetPower(POWER_ENERGY, 0); });
-            }
+            lanternPending = true;
+            events.RescheduleEvent(EVENT_3, 1);
         }
+    }
+
+    void SpellFinishCast(SpellInfo const* spell) override
+    {
+        //A failed or interrupted cast must not consume the full energy bar.
+        if (spell->Id == SpellLanternOfDarkness)
+            me->SetPower(POWER_ENERGY, 0);
     }
 
     void UpdateAI(uint32 diff) override
@@ -1367,26 +1477,18 @@ struct npc_night_watch_mariner : ScriptedAI
             {
             case EVENT_1:
             {
-                auto threatlist = me->getThreatManager().getThreatList();
-                for (uint8 i = 0; i < (IsMythicRaid() ? 2 : 1); ++i)
-                {
-                    if (threatlist.empty())
-                        break;
-
-                    if (auto itr = Trinity::Containers::SelectRandomContainerElement(threatlist))
-                    {
-                        if (Unit* target = itr->getTarget())
-                            DoCast(target, SpellGiveNoQuarter, false);
-
-                        threatlist.remove(itr);
-                    }
-                }
-                events.RescheduleEvent(EVENT_1, 9000);
+                DoCast(me, SpellGiveNoQuarterCast, false);
+                events.RescheduleEvent(EVENT_1, me->GetMap()->IsLfrRaid() || me->GetMap()->IsNormalRaid() ? 9300 : 6100);
                 break;
             }
             case EVENT_2:
-                DoCast(SpellGhostlyRage);
-                events.RescheduleEvent(EVENT_2, 16000);
+                DoCast(me, SpellGhostlyRage, false);
+                events.RescheduleEvent(EVENT_2, 9700);
+                break;
+            case EVENT_3:
+                lanternPending = false;
+                if (me->isInCombat() && me->GetPower(POWER_ENERGY) >= 100)
+                    DoCast(me, SpellLanternOfDarkness, false);
                 break;
             }
         }
@@ -1699,22 +1801,147 @@ struct npc_kvaldir_longboat : ScriptedAI
     }
 };
 
-//228397
-class spell_fetid_rot : public SpellScript
+static bool FetidRotEncounterActive(Unit* unit)
 {
-    PrepareSpellScript(spell_fetid_rot);
+    if (!unit || !unit->IsInWorld() || unit->GetMapId() != 1648)
+        return false;
+    InstanceScript* instance = unit->GetInstanceScript();
+    return instance && instance->GetBossState(Data::BossIDs::HelyaID) == IN_PROGRESS;
+}
 
-    void HandleDamage(SpellEffIndex /*effectIndex*/)
+static void ApplyFetidRot(Unit* caster, Unit* target)
+{
+    if (!caster || caster->GetEntry() != Data::Creatures::Grimelord || !target || !target->IsPlayer() || !target->IsAlive() || !FetidRotEncounterActive(target))
+        return;
+    uint8 stacks = caster->GetMap()->IsMythicRaid() && caster->HasAura(SpellFetidFission) ? 4 : 3;
+    if (Aura* aura = target->GetAura(SpellFetidRot, caster->GetGUID()))
     {
-        Unit* target = GetHitUnit();
-        if (!target)
-            return;
+        aura->ModStackAmount(stacks);
+        aura->RefreshDuration();
+    }
+    else
+        caster->AddAura(SpellFetidRot, target, nullptr, stacks);
+}
 
-        target->AddAura(SpellFetidRot, target);
+//228633: use the native one/three-target selector before destination missiles.
+class spell_tov_give_no_quarter : public SpellScript
+{
+    PrepareSpellScript(spell_tov_give_no_quarter);
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        targets.remove_if([](WorldObject* object) { Player* player = object->ToPlayer(); return !player || !player->IsAlive() || player->isGameMaster(); });
+    }
+
+    void HandleHit(SpellEffIndex /*effectIndex*/)
+    {
+        Unit* caster = GetCaster();
+        Unit* target = GetHitUnit();
+        if (!caster || !target || !target->IsPlayer() || !target->IsAlive() || !FetidRotEncounterActive(caster))
+            return;
+        //TARGET_DEST_DEST does not resolve an explicit Unit target's location.
+        caster->CastSpell(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), SpellGiveNoQuarter, true);
     }
 
     void Register() override
     {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_tov_give_no_quarter::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
+        OnEffectHitTarget += SpellEffectFn(spell_tov_give_no_quarter::HandleHit, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+//228838: use the native70-yard selector and native two-target cap, after Player admission.
+class spell_tov_fetid_rot_targets : public SpellScript
+{
+    PrepareSpellScript(spell_tov_fetid_rot_targets);
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        targets.remove_if([](WorldObject* object) { Player* player = object->ToPlayer(); return !player || !player->IsAlive() || player->isGameMaster(); });
+    }
+
+    void HandleHit(SpellEffIndex /*effectIndex*/)
+    {
+        ApplyFetidRot(GetCaster(), GetHitUnit());
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_tov_fetid_rot_targets::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
+        OnEffectHitTarget += SpellEffectFn(spell_tov_fetid_rot_targets::HandleHit, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+//193367: each native three-second period damages the carrier and removes one stack.
+class spell_tov_fetid_rot_aura : public AuraScript
+{
+    PrepareAuraScript(spell_tov_fetid_rot_aura);
+    bool refreshDuration = false;
+
+    void Tick(AuraEffect const* effect)
+    {
+        // Replaces the legacy SQL periodic spread route, including on its last tick.
+        PreventDefaultAction();
+        Unit* target = GetTarget();
+        Unit* caster = GetCaster();
+        if (!target || !target->IsPlayer() || !target->IsAlive() || !caster || caster->GetEntry() != Data::Creatures::Grimelord || !FetidRotEncounterActive(target))
+        {
+            Remove(AURA_REMOVE_BY_DEFAULT);
+            return;
+        }
+
+        uint16 const stacks = GetStackAmount();
+        float damage = sSpellMgr->GetSpellInfo(SpellFetidRotDamage)->GetEffect(EFFECT_0, target->GetSpawnMode())->CalcValue(caster) * stacks;
+        target->CastCustomSpell(target, SpellFetidRotDamage, &damage, nullptr, nullptr, true, nullptr, effect, GetCasterGUID());
+        if (GetAura()->IsRemoved() || !target->IsAlive())
+            return;
+
+        if (stacks == 1 || target->GetMap()->IsMythicRaid())
+            target->CastSpell(target, SpellFetidRotHit, true, nullptr, effect, GetCasterGUID());
+
+        if (!GetAura()->IsRemoved() && !ModStackAmount(-1))
+            refreshDuration = true;
+    }
+
+    void Update(uint32 /*diff*/)
+    {
+        // Aura::Update decrements duration after its periodic effects. Refresh
+        // here so that a three-second stack survives to the next complete tick.
+        if (refreshDuration)
+        {
+            refreshDuration = false;
+            RefreshDuration();
+        }
+    }
+
+    void Register() override
+    {
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_tov_fetid_rot_aura::Tick, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
+        OnAuraUpdate += AuraUpdateFn(spell_tov_fetid_rot_aura::Update);
+    }
+};
+
+//228397: the carrier emits the burst, retaining the originating Grimelord for new infections.
+class spell_fetid_rot : public SpellScript
+{
+    PrepareSpellScript(spell_fetid_rot);
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        Unit* carrier = GetCaster();
+        targets.remove_if([carrier](WorldObject* object) { Player* player = object->ToPlayer(); return !player || player == carrier || !player->IsAlive() || player->isGameMaster(); });
+        if (!FetidRotEncounterActive(carrier))
+            targets.clear();
+    }
+
+    void HandleDamage(SpellEffIndex /*effectIndex*/)
+    {
+        ApplyFetidRot(GetOriginalCaster(), GetHitUnit());
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_fetid_rot::FilterTargets, EFFECT_0, TARGET_UNIT_DEST_AREA_ENTRY);
         OnEffectHitTarget += SpellEffectFn(spell_fetid_rot::HandleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 };
@@ -1779,17 +2006,25 @@ class spell_corrupted_axion_aura : public AuraScript
 
     void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
     {
+        // Healing consumes the absorb; scripted encounter cleanup must not
+        // mind-control a player. Only an unhealed, naturally expired absorb
+        // in the active Mythic phase may trigger Corrupted.
+        if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
+            return;
+
         Unit* target = GetTarget();
-        if (!target)
+        if (!target || !target->IsAlive())
             return;
 
         Unit* caster = GetCaster();
-        if (!caster || !caster->GetMap())
+        if (!caster || !caster->GetMap() || !caster->IsAlive() || !caster->isInCombat())
             return;
 
-        if (caster->GetMap()->GetSpawnMode() == DIFFICULTY_MYTHIC_RAID)
-            if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_ENEMY_SPELL)
-                caster->CastSpell(target, SpellCorrupted, false);
+        auto boss = caster->ToCreature();
+        auto instance = caster->GetInstanceScript();
+        if (caster->GetMap()->GetSpawnMode() == DIFFICULTY_MYTHIC_RAID && boss && boss->IsAIEnabled &&
+            boss->AI()->GetData(Data::BossIDs::HelyaID) == PHASE_3 && instance && instance->GetBossState(Data::BossIDs::HelyaID) == IN_PROGRESS)
+            caster->CastSpell(target, SpellCorrupted, false);
     }
 
     void Register() override
@@ -1810,8 +2045,13 @@ class spell_corrupted_mc : public AuraScript
         if (!target || !caster)
             return;
 
-        if (target && target->HealthBelowPct(11))
-            target->RemoveAura(SpellCorrupted);
+        // Effect0 carries the native break percentage (25 in7.3.5). Removing
+        // charm stops the current cast; do not start another one after release.
+        if (target->HealthBelowPct(aurEff->GetAmount()))
+        {
+            Remove();
+            return;
+        }
 
         target->GetMotionMaster()->Clear();
 
@@ -1832,11 +2072,14 @@ class spell_fury_of_the_maw : public AuraScript
 
     void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
     {
-        Unit* caster = GetCaster()->ToCreature();
-        if (!caster)
+        if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
             return;
 
-        caster->GetAI()->DoAction(ACTION_1);
+        Unit* caster = GetCaster();
+        if (!caster || !caster->ToCreature())
+            return;
+
+        caster->ToCreature()->AI()->DoAction(ACTION_1);
     }
 
     void Register() override
@@ -1861,6 +2104,26 @@ class spell_tov_torrent : public SpellScript
     void Register() override
     {
         OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_tov_torrent::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
+    }
+};
+
+struct at_bilewater_corrosion : AreaTriggerAI
+{
+    explicit at_bilewater_corrosion(AreaTrigger* areatrigger) : AreaTriggerAI(areatrigger) {}
+
+    void OnCreate() override
+    {
+        // Helya passes the slime's remaining health in the create effect.
+        // Read it during creation while the originating Spell still exists.
+        if (SpellValue const* value = at->GetSpellValue())
+        {
+            float const healthPct = value->EffectBasePoints[EFFECT_1];
+            if (healthPct > 0.0f)
+            {
+                at->SetSphereScale(std::max(0.05f, std::min(1.0f, healthPct / 100.0f)), 0, true, 0.0f);
+                at->UpdateOverrideScale();
+            }
+        }
     }
 };
 
@@ -1901,9 +2164,13 @@ void AddSC_boss_tov_helya()
     RegisterAuraScript(spell_corrupted_axion_aura);
     RegisterAuraScript(spell_corrupted_mc);
     RegisterAuraScript(spell_fury_of_the_maw);
+    RegisterAuraScript(spell_tov_fetid_rot_aura);
+    RegisterSpellScript(spell_tov_fetid_rot_targets);
+    RegisterSpellScript(spell_tov_give_no_quarter);
     RegisterSpellScript(spell_fetid_rot);
     RegisterSpellScript(spell_tentacle_strike);
     RegisterSpellScript(spell_corrupted_axion);
     RegisterSpellScript(spell_tov_torrent);
     RegisterAreaTriggerAI(at_fury_of_the_maw);
+    RegisterAreaTriggerAI(at_bilewater_corrosion);
 }

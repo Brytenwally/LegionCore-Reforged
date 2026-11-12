@@ -456,6 +456,9 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   incomplete; rewarded quests untouched; tested on a characters database with made-up progress). Not changed (reported only):
   ~200 objectives whose type or target differs from TDB 735 (scripts credit the targets in our data), ~70 amounts set by Reforged /
   LegionCore-7.3.5 updates, and zero-amount objectives (always complete, harmless). Compiled; untested in game.
+- **Phase 6.1, Legion dungeons and raids** (2026-11-12, details in the plan): Trial of Valor (Helya, Odyn), Darkheart Thicket trash /
+  hazards / Oakheart, Halls of Valor, aura fixes across the other Legion raids; scripts only, SQL world `2026_11_14_01..14` (checked on
+  MySQL 8; `option` is reserved there, the port tool quotes it). Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

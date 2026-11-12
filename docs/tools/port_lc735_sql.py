@@ -29,6 +29,8 @@ for name in sys.argv[3:]:
     s = re.sub(r"GREATEST\(([^,()]+),1048576\)", lambda m: "GREATEST(CAST(%s AS UNSIGNED),CAST(1048576 AS UNSIGNED))" % m.group(1), s)
     # MySQL starts a comment only at "-- " (with a space): "--42428" is a syntax error there, not on MariaDB
     s = re.sub(r"(?m)^--(?=[^ \t\r\n])", "-- ", s)
+    # MySQL 8 reserves OPTION (MariaDB does not): quote it where a file uses it as a bare column name
+    s = re.sub(r"(?<![`\w.])option(?=\s*(=|<>|!=|,|\)| IN\b))", "`option`", s, flags=re.I)
     hdr = ("-- Ported from Brytenwally/LegionCore-7.3.5 sql/updates/world/%s (2026-11-09).\n" % name +
            ("-- Its hash guard is forced to pass (a mismatch would SIGNAL and stop the updater); checked beforehand on a\n"
             "-- copy of this realm's world database: only unrelated columns differed.\n" if guards else ""))
