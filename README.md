@@ -1,49 +1,25 @@
 # DemonCore
 
-## ❤️ Project Philosophy
+**DemonCore** is an open source server emulator for **World of Warcraft: Legion 7.3.5 (build 26972)**, based on
+[TrinityCore](https://github.com/TrinityCore/TrinityCore). Our goal is a complete, playable Legion: class halls and
+artifact campaigns, Broken Isles questlines, dungeons, raids, battlegrounds and everything in between.
 
-This project is first and foremost a **preservation effort**. Legion 7.3.5 has disappeared from official servers, replaced by newer interpretations. 
-Our ambition is straightforward : **bring this expansion back to life, keep it playable as it was on day one, and fix the design flaws left behind.**
+## Modules
 
-We aren't trying to reinvent Legion — we are refining it.
+DemonCore has a module system: drop a module into the `modules/` folder and it is compiled into the worldserver with its
+own configuration file, without touching the core. See [`modules/README.md`](modules/README.md) to write your own, and
+[DemonCore-Playerbots](https://github.com/DemonCore-Legion/DemonCore-Playerbots) for a full example: bot players that
+group with you, run dungeons and battlegrounds, and fill queues.
 
-## 🔧 Key Differences & Enhancements
+Ready-to-run Windows binaries are built by [DemonCore-Build](https://github.com/DemonCore-Legion/DemonCore-Build).
 
-Rather than a static copy baked with late-patch shortcuts, we implemented a **progressive gameplay experience**:
+## Bugs and missing features
 
-* **Progressive Progression (7.0 ➔ 7.3) :** Removal of late-game catch-up mechanisms *(exponential Artifact Power scaling, ilvl inflation, skipped content, etc.)* that ruined the sense of progression and shortened the adventure.
-* **Complete System Scripting & Immersion :** Scripting missing or non-functional mechanics, polishing small visual and world details to enhance immersion, and ensuring all content is playable as close to retail accuracy as possible.
-* **Rebalancing & Fixes :** Fine-tuning classes, and frustrating progression systems that Blizzard didn't have the time to address back then.
-* **Quality of Life (QoL) :** Subtle ergonomic improvements and minor enrichments designed strictly within the original spirit of Legion.
+Found a bug, a broken quest or something missing from Legion? Please open an
+[issue](https://github.com/DemonCore-Legion/DemonCore/issues): every report helps. Say what you did, what you expected and
+what happened, with the quest, NPC or spell name (or id) and any worldserver log lines.
 
----
-
-#### Table of Contents
-* [Introduction](#introduction)
-* [Requirements](#requirements)
-* [Install](#install)
-* [Client](#client)
-* [Data Files](#data-files)
-* [Thank you](#thank-you)
-
-#### Introduction
-DemonCore is a **MMORPG** framework for WOW Legion *(Build 26972)*. It is a fork of LegionCore - Reforged (Titans-Project), which is based off of the UWOW core leak of 2020. Which was derived from an old version of [TrinityCore](https://github.com/TrinityCore/TrinityCore).
-
-# Requirements
- 
-[Windows specific](https://www.trinitycore.info/en/install/requirements/windows)
-  
-[Linux specific](https://www.trinitycore.info/en/install/requirements/linux)
-
-[Mac specific](https://www.trinitycore.info/en/install/requirements/macos)
-
-# Install
-Most of the install steps are the same as the TrinityCore ones [here](https://www.trinitycore.info/en/install/Core-Installation).
-
-# Client
-[Legion 7.3.5 (Build 26972)](https://www.dragonwar.fr/download/Legion7.3.5.zip.torrent)
-
-# Data Files
+## Data Files
 This core has been updated with tools to generate all required data files.
 
 Run the tools in the following order, using client build 26972:
@@ -55,7 +31,7 @@ Run the tools in the following order, using client build 26972:
 
 The generated folders `dbc`, `maps`, `vmaps`, `mmaps`, `cameras` and `gt` are all required.
 
-### Thank you
+## Thank you
 - [TrinityCore Authors](https://github.com/TrinityCore/TrinityCore/blob/master/AUTHORS)
 - [LegionCore Contributors](https://github.com/Titans-Project/LegionCore-Reforged/graphs/contributors)
 - [ingussuveiks-dev](https://github.com/ingussuveiks-dev), for the work on LegionCore 7.3.5: the class halls, every
