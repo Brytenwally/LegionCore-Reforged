@@ -497,6 +497,16 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   `RewardQuest` with the player as giver: the class hall messenger's `OnQuestReward` runs) and teleports to Dalaran
   (map 1220, game_tele "NewDalaran"). Another map's target is handled with `PostToTarget`. Compiled; untested in game.
   The scenario script's own skip (`npc_q42782_1`, account quest 60008) adds and completes 44663 and casts 230156.
+- **Warswords stage 1: the Mysterious Bonfire did nothing** (owner, build #42, 2026-11-12: "Hunter of Heroes", 40043, stage
+  "Into the Mists"). The bonfire 245188 is a goober (type 10, lock 2474) whose script did its work only in
+  `GossipHello(player, isUse = true)`. On this core a goober's use, by `CMSG_GAMEOBJ_USE` or by the opening spell
+  (`EffectOpenLock` -> `SendLoot` -> `GameObject::Use`), calls only `GameObjectAI::GossipUse`, and `CMSG_GAMEOBJ_REPORT_USE`
+  calls `GossipHello(player, false)`: **`GossipHello(..., true)` is never reached for a goober**, except at the few sites
+  `EffectOpenLock` special-cases (T'uure, Judgment Day, Wings of Liberty, Impalement Insurance). Fix as upstream's Mardum banner:
+  `GossipUse` calls `GossipHello(player, true)`, for the bonfire and the stage 4 prison runestone 244940 (goober, lock 99).
+  **Rule: a goober script acts in `GossipUse`.** Same pattern still unfixed (not reported yet): Shey'lun crate 246351, Fangs
+  of the Devourer 249809, Vengeance fel soul portals 248517 / 248573, Assault on the Broken Shore gates 267955, Vault of the
+  Wardens 244588 / 244455. Compiled; untested in game.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

@@ -23,6 +23,12 @@ public:
     {
         go_mystic_bonfireAI(GameObject* go) : GameObjectAI(go) {}
 
+        // a goober with a lock: using it (directly or through the opening spell) calls GossipUse, never GossipHello(isUse)
+        bool GossipUse(Player* player) override
+        {
+            return GossipHello(player, true);
+        }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -66,6 +72,12 @@ public:
         }
 
         bool check;
+
+        // a goober with a lock: using it (directly or through the opening spell) calls GossipUse, never GossipHello(isUse)
+        bool GossipUse(Player* player) override
+        {
+            return GossipHello(player, true);
+        }
 
         bool GossipHello(Player* player, bool isUse) override
         {
