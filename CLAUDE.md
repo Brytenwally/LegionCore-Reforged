@@ -489,6 +489,14 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   phase-1 rows later in the same event loop), summons both leaders on the next end-of-wave message (1 1 or 2 2) and goes to phase 2.
   **Rule: SmartAI condition target 0 is the killer for death events; "is my group still alive" checks need target 1.** Checked on
   MySQL 8; untested in game.
+- **`.legionintro [$player]`** (owner, 2026-11-12: a GM shortcut to test artifact quests; `scripts/Commands/cs_legion_intro.cpp`,
+  help row `2026_11_14_16_legionintro_command.sql`, security 2). Level 98+ only. Marks the faction's introduction chain
+  rewarded without rewards or scripts (the chain as the database links it by `PrevQuestID` / `NextQuestID`: Alliance 40519,
+  42782, 42740, 40517, 40593, 44120; Horde 43926, 44281, 40518, 40522, 40760, 40607, 40605; demon hunters also 44471 / 44463
+  or 40976, 40982, 40983, 41002), then turns in "In the Blink of an Eye" 44663 for real (`AddQuest`, `CompleteQuest`,
+  `RewardQuest` with the player as giver: the class hall messenger's `OnQuestReward` runs) and teleports to Dalaran
+  (map 1220, game_tele "NewDalaran"). Another map's target is handled with `PostToTarget`. Compiled; untested in game.
+  The scenario script's own skip (`npc_q42782_1`, account quest 60008) adds and completes 44663 and casts 230156.
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 
