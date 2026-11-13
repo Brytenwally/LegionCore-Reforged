@@ -512,6 +512,14 @@ Core commit "Add bot sessions" (`WorldSession.h/.cpp`, `CharacterHandler.cpp`,
   244588 / 244455, Vengeance fel soul portals, Shey'lun crate, Kingslayers door, Fangs of the Devourer objects, Assault on the
   Broken Shore gates, soulwell, Algalon's planetarium access, Halion's twilight portals, Tanaan cages / marks / runes / plunger,
   Acherus soul prisons. Mardum's and T'uure's already had it. Compiled; untested in game.
+  **Still nothing on build #44** (owner, 2026-11-13). Data checked against 7.3.5 client tables (wago.tools): lock 2474 =
+  spell 198513 (Opening type, 3 s cast, `CanOpenLock` passes it), stage 1 "Into the Mists" = criteria tree 45848 -> criterion
+  29136, type 92 asset 47272 (what the script credits), spawn 134117 in phase 7003 (given while 40043 is in the log). One
+  real gap: a `GossipUse` returning true stops `GameObject::Use` before its goober handling, so the fire never changed
+  state. Now the script lights it itself (in use, activated, active), reads the step from the `Scenario` (not the
+  instance script's copy) and logs each outcome under `server.loading` (`Warswords bonfire: lit by ...`, `... at scenario N
+  step S ...`, `... without an instance script / a scenario`); no line at all means the click never reached `Use`.
+  **Rule: a `GossipUse` that returns true must do the object's visible change itself.**
 - Not handled yet: a client logging into a character that is currently a bot (the module logs
   an account's bots out when its player logs out, which covers switching characters).
 

@@ -29,25 +29,43 @@ public:
             return GossipHello(player, true);
         }
 
+        // Owner's report (build #44): the bonfire still did nothing. The step is now read from the scenario itself
+        // (the instance script only keeps a copy, updated on step changes), the fire is lit here (returning true
+        // stops GameObject::Use before its own goober handling, so it never changed state), and every refusal is
+        // logged, so the worldserver log tells what stops it.
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
                 return true;
 
-            if (InstanceScript* script = go->GetInstanceScript())
-                if (script->getScenarionStep() == 0)
-                {
-                    // player->CastSpell(player, 198513);
-                    player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 47272);
-                    // delete smoge
-                    std::list<GameObject*> goList;
-                    go->GetGameObjectListWithEntryInGrid(goList, 244751, 45.0f);
-                    if (!goList.empty())
-                        for (std::list<GameObject*>::const_iterator itr = goList.begin(); itr != goList.end(); ++itr)
-                            (*itr)->SetPhaseMask(4, true);
-                    return true;
-                }
-            return false;
+            InstanceScript* script = go->GetInstanceScript();
+            Scenario* scenario = sScenarioMgr->GetScenario(go->GetInstanceId());
+            if (!script || !scenario)
+            {
+                TC_LOG_INFO("server.loading", "Warswords bonfire: %s used it without %s.", player->GetName(),
+                    !script ? "an instance script" : "a scenario");
+                return false;
+            }
+
+            uint32 const step = scenario->GetCurrentStep();
+            if (step != 0)
+            {
+                TC_LOG_INFO("server.loading", "Warswords bonfire: %s used it at scenario %u step %u (instance script step %u), not 0.",
+                    player->GetName(), scenario->GetScenarioId(), step, script->getScenarionStep());
+                return true;
+            }
+
+            TC_LOG_INFO("server.loading", "Warswords bonfire: lit by %s (scenario %u), credit 47272.", player->GetName(), scenario->GetScenarioId());
+            go->SetFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_IN_USE);
+            go->SetLootState(GO_ACTIVATED, player);
+            go->SetGoState(GO_STATE_ACTIVE);
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 47272);
+            // the fog lifts
+            std::list<GameObject*> goList;
+            go->GetGameObjectListWithEntryInGrid(goList, 244751, 45.0f);
+            for (GameObject* fog : goList)
+                fog->SetPhaseMask(4, true);
+            return true;
         }
 
     };
